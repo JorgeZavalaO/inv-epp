@@ -15,6 +15,11 @@ export default async function EppsPage({ searchParams }: { searchParams?: { q?: 
         { category: { contains: q, mode: "insensitive" } },
       ],
     },
+    select: {
+        id: true, code: true, name: true, category: true,
+        stock: true, minStock: true,
+        _count: { select: { movements: true } },
+      },
     orderBy: { name: "asc" },
   });
 
@@ -39,7 +44,10 @@ export default async function EppsPage({ searchParams }: { searchParams?: { q?: 
         />
       </form>
 
-      <EppTable data={epps} />
+    <EppTable data={epps.map(e => ({
+      ...e,
+      hasMovement: e._count.movements > 0
+    }))} />
     </section>
   );
 }

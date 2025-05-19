@@ -5,6 +5,7 @@ const urlOrEmpty = z.preprocess(
   z.string().url().optional()
 );
 
+const int = () => z.preprocess(v => Number(v), z.number().int().min(0));
 /**
  *  - id            → autoincrement / editar
  *  - stock         → cantidad real en almacén
@@ -16,8 +17,8 @@ export const eppSchema = z.object({
   name:        z.string().min(2, "Requerido"),
   category:    z.string().min(2, "Requerido"),
   description: z.string().optional(),
-  stock:       z.coerce.number().min(0).default(0),
-  minStock:    z.coerce.number().min(0).default(0),
+  stock:       int(),
+  minStock:    int(),
   imageUrl:    urlOrEmpty,
   datasheetUrl:urlOrEmpty,
 });

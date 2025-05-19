@@ -13,6 +13,7 @@
     "@clerk/nextjs": "^6.19.4",
     "@hookform/resolvers": "^5.0.1",
     "@prisma/client": "^6.8.2",
+    "@radix-ui/react-alert-dialog": "^1.1.13",
     "@radix-ui/react-slot": "^1.2.2",
     "@tanstack/react-table": "^8.21.3",
     "bcryptjs": "^3.0.2",

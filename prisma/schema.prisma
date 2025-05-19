@@ -40,13 +40,13 @@ enum ApprovalResult {
 /// Modelos
 model User {
   id             Int               @id @default(autoincrement())
-  clerkId        String?            @unique
+  clerkId        String?           @unique
   email          String            @unique
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
   // Relaciones
-  epps           EPP[]             @relation("UserEPPs")
+  //epps           EPP[]             @relation("UserEPPs")
   stockMovements StockMovement[]   
   deliveries     Delivery[]        
   returns        Return[]          
@@ -56,9 +56,9 @@ model User {
 
 model EPP {
   id           Int               @id @default(autoincrement())
-  code         String            @unique
-  name         String
-  category     String
+  code         String            @unique @db.VarChar(32)
+  name         String            @db.VarChar(128)
+  category     String            @db.VarChar(64)
   description  String?
   imageUrl     String?
   datasheetUrl String?
@@ -68,17 +68,20 @@ model EPP {
   updatedAt    DateTime          @updatedAt
 
   // Relaciones
-  users        User[]            @relation("UserEPPs")
+  //users        User[]            @relation("UserEPPs")
   movements    StockMovement[]   
   deliveries   Delivery[]        
   returns      Return[]          
-  requests     Request[]         
+  requests     Request[]  
+
+  @@index([name])
+  @@index([category])       
 }
 
 model StockMovement {
   id         Int               @id @default(autoincrement())
   type       StockMovementType
-  quantity   Int
+  quantity   Int 
   note       String?           
   createdAt  DateTime          @default(now())
 
