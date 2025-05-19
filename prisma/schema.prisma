@@ -1,0 +1,147 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Enumeraciones
+enum StockMovementType {
+  ENTRY
+  EXIT
+  ADJUSTMENT
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum DeliveryCondition {
+  REUSABLE
+  DISCARDED
+}
+
+enum ApprovalResult {
+  APPROVED
+  REJECTED
+}
+
+/// Modelos
+model User {
+  id             Int               @id @default(autoincrement())
+  clerkId        String?            @unique
+  email          String            @unique
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  // Relaciones
+  epps           EPP[]             @relation("UserEPPs")
+  stockMovements StockMovement[]   
+  deliveries     Delivery[]        
+  returns        Return[]          
+  requests       Request[]         
+  approvals      Approval[]        
+}
+
+model EPP {
+  id           Int               @id @default(autoincrement())
+  code         String            @unique
+  name         String
+  category     String
+  description  String?
+  imageUrl     String?
+  datasheetUrl String?
+  stock        Int               @default(0)
+  minStock     Int               @default(1)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  // Relaciones
+  users        User[]            @relation("UserEPPs")
+  movements    StockMovement[]   
+  deliveries   Delivery[]        
+  returns      Return[]          
+  requests     Request[]         
+}
+
+model StockMovement {
+  id         Int               @id @default(autoincrement())
+  type       StockMovementType
+  quantity   Int
+  note       String?           
+  createdAt  DateTime          @default(now())
+
+  // Relaciones
+  epp        EPP               @relation(fields: [eppId], references: [id])
+  eppId      Int
+  user       User              @relation(fields: [userId], references: [id])
+  userId     Int
+}
+
+model Delivery {
+  id         Int               @id @default(autoincrement())
+  employee   String
+  quantity   Int
+  createdAt  DateTime          @default(now())
+  condition  DeliveryCondition?
+
+  // Relaciones
+  epp        EPP               @relation(fields: [eppId], references: [id])
+  eppId      Int
+  user       User              @relation(fields: [userId], references: [id])
+  userId     Int
+}
+
+model Return {
+  id            Int               @id @default(autoincrement())
+  employee      String
+  quantity      Int
+  condition     DeliveryCondition
+  createdAt     DateTime          @default(now())
+
+  // Relaciones
+  epp           EPP               @relation(fields: [eppId], references: [id])
+  eppId         Int
+  user          User              @relation(fields: [userId], references: [id])
+  userId        Int
+}
+
+model Request {
+  id            Int               @id @default(autoincrement())
+  employee      String
+  quantity      Int
+  reason        String?
+  status        RequestStatus     @default(PENDING)
+  createdAt     DateTime          @default(now())
+
+  // Relaciones
+  epp           EPP               @relation(fields: [eppId], references: [id])
+  eppId         Int
+  user          User              @relation(fields: [userId], references: [id])
+  userId        Int
+  approvals     Approval[]        
+}
+
+model Approval {
+  id            Int               @id @default(autoincrement())
+  result        ApprovalResult
+  comment       String?
+  createdAt     DateTime          @default(now())
+
+  // Relaciones
+  request       Request           @relation(fields: [requestId], references: [id])
+  requestId     Int
+  user          User              @relation(fields: [userId], references: [id])
+  userId        Int
+}
