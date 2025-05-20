@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 export default function Home() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-6 py-12 bg-gradient-to-br from-primary-light to-primary-dark text-white">      
+    <div className="flex flex-col items-center justify-center min-h-screen px-6 py-12 bg-gradient-to-br from-primary-light to-primary-dark">      
       <h1 className="mt-6 text-4xl font-extrabold">Bienvenido a EPP Manager</h1>
       <p className="mt-2 text-lg max-w-xl text-center">
         Gestiona de manera eficiente tus Equipos de Protección Personal con nuestra plataforma intuitiva.
