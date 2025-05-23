@@ -12,6 +12,8 @@ export async function GET(req: Request) {
           OR: [
             { name: { contains: q, mode: "insensitive" } },
             { code: { contains: q, mode: "insensitive" } },
+            { name: { startsWith: q, mode: "insensitive" } },
+            { code: { startsWith: q, mode: "insensitive" } },
           ],
         }
       : {},

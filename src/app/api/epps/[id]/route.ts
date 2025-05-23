@@ -3,9 +3,12 @@ import { NextResponse } from 'next/server';
 
 interface Params { params: { id: string } }
 
-export async function GET(_: Request, { params }: Params) {
-  const epp = await prisma.ePP.findUnique({ where: { id: Number(params.id) } });
-  return epp ? NextResponse.json(epp) : NextResponse.json({ error: 'Not found' }, { status: 404 });
+export async function GET(_: Request, { params }: { params: { id: string } }) {
+  const epp = await prisma.ePP.findUnique({
+    where: { id: Number(params.id) },
+    select: { id: true, code: true, name: true },
+  });
+  return epp ? NextResponse.json(epp) : NextResponse.json({ error: "Not found" }, { status: 404 });
 }
 
 export async function PUT(req: Request, { params }: Params) {

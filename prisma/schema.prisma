@@ -40,8 +40,10 @@ enum ApprovalResult {
 /// Modelos
 model User {
   id             Int               @id @default(autoincrement())
-  clerkId        String?           @unique
+  clerkId        String           @unique
   email          String            @unique
+  name           String?
+  imageUrl       String?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
@@ -90,6 +92,7 @@ model StockMovement {
   eppId      Int
   user       User              @relation(fields: [userId], references: [id])
   userId     Int
+  @@index([eppId, createdAt])
 }
 
 model Delivery {

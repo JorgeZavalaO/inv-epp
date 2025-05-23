@@ -14,7 +14,7 @@ export interface Row {
   eppName: string;
   quantity: number;
   type: "ENTRY" | "EXIT" | "ADJUSTMENT";
-  user: string;        
+  operator: string;        
 }
 
 export default function MovementTable({ data }: { data: Row[] }) {
@@ -38,31 +38,46 @@ export default function MovementTable({ data }: { data: Row[] }) {
     },
     { accessorKey: "eppCode", header: "Código" },
     { accessorKey: "eppName", header: "EPP" },
-    { accessorKey: "quantity", header: "Cant." },
+    {
+      accessorKey: "quantity",
+      header: "Cant.",
+      cell: ({ row }) => {
+        const { quantity, type } = row.original;
+        const color = type === "ENTRY" ? "text-green-600" : type === "EXIT" ? "text-red-600" : "";
+        return <span className={`${color} font-medium`}>{quantity}</span>;
+      },
+    },
     {
         accessorKey: "type",
         header: "Tipo",
         cell: ({ getValue }) => typeBadge(getValue<Row["type"]>()),
     },
+    { accessorKey: "operator", header: "Operador" },
     {
-      id: "actions",
-      cell: ({ row }) =>
-        row.original.type === "ADJUSTMENT" ? null : (
-          <Button
-            size="sm"
-            variant="destructive"
-            disabled={isPending}
-            onClick={() =>
-              start(async () => {
-                await deleteMovement(row.original.id);
-                toast.success("Movimiento eliminado");
-              })
-            }
-          >
-            Deshacer
-          </Button>
-        ),
-    },
+          id: "actions",
+          header: " ",
+          cell: ({ row }) =>
+            row.original.type !== "ADJUSTMENT" && (
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={isPending}
+                onClick={() =>
+                  start(async () => {
+                    try {
+                      await deleteMovement(row.original.id);
+                      toast.success("Movimiento deshecho");
+                    } catch (e: unknown) {
+                      const message = e instanceof Error ? e.message : "Ocurrió un error";
+                      toast.error(message);
+                    }
+                  })
+                }
+              >
+                🗑 Deshacer
+              </Button>
+            ),
+      },
   ];
 
   return <DataTable columns={cols} data={data} />;
