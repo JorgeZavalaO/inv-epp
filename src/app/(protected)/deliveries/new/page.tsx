@@ -11,6 +11,7 @@ export default async function NewDeliveryPage() {
   const options = users.map(u => ({
     id:    u.id,
     label: u.name ?? u.email,
+    email:   u.email,
   }));
 
   return (

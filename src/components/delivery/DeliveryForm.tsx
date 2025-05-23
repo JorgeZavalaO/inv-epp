@@ -18,7 +18,7 @@ import { Label }     from "@/components/ui/label";
 import { Textarea }  from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
-type UserOption = { id: number; label: string };
+type UserOption = { id: number; label: string; email: string };
 
 export default function DeliveryForm({
   defaultEppId,

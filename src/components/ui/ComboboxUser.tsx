@@ -6,8 +6,9 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from "@
 import { Button } from "@/components/ui/button";
 
 interface UserOption {
-  id: number;
-  label: string;
+  id:    number;
+  label: string; // nombre
+  email: string;
 }
 
 export default function ComboboxUser({
@@ -57,7 +58,11 @@ export default function ComboboxUser({
                   setQuery("");
                 }}
               >
-                {u.label}
+                {/* {u.label} */}
+                <div className="flex flex-col">
+                    <span>{u.label}</span>
+                    <span className="text-xs text-muted-foreground">{u.email}</span>
+                </div>
               </CommandItem>
             ))}
           </CommandList>
