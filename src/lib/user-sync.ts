@@ -1,19 +1,19 @@
 // src/lib/user-sync.ts
 import prisma from "@/lib/prisma";
-import { auth, clerkClient } from "@clerk/nextjs/server";  // Helpers de Clerk para App Router :contentReference[oaicite:0]{index=0}
+import { auth, clerkClient } from "@clerk/nextjs/server";
 
 export async function ensureClerkUser() {
-  // Autenticación y extracción de userId (clerkId)
+  // 1️ Extrae el Clerk userId de la sesión
   const { userId: clerkId } = await auth();
   if (!clerkId) {
-    throw new Error("Sin sesión Clerk");
-  } 
+    throw new Error("Usuario no autenticado (sin Clerk userId).");
+  }
 
-  // Instancia el cliente Backend de Clerk y obtiene el objeto de usuario
-  const client = await clerkClient();                                      // create default instance :contentReference[oaicite:2]{index=2}
-  const backendUser = await client.users.getUser(clerkId);                 // backendUser incluye todas las emailAddresses :contentReference[oaicite:3]{index=3}
+  // 2️ Obtiene el objeto completo del usuario desde Clerk
+  const client = await clerkClient();
+  const backendUser = await client.users.getUser(clerkId);
 
-  // Extrae la email principal verificada
+  // 3️ Extrae email principal verificado
   const primaryEmail = backendUser.emailAddresses.find(
     (e) => e.id === backendUser.primaryEmailAddressId
   )?.emailAddress;
@@ -21,41 +21,51 @@ export async function ensureClerkUser() {
     throw new Error("El usuario de Clerk no tiene un email verificado.");
   }
 
-  // Sincronización en Prisma
+  // 4️ Extrae nombre, apellido e imagen (si existen)
+  const firstName = backendUser.firstName || null;
+  const lastName  = backendUser.lastName  || null;
+  //const imageUrl  = backendUser.profileImageUrl || null;
 
-  // 4.1) ¿Ya existe un usuario con este clerkId?
+  // 5️ Sincroniza en Prisma
+  // 5.1) Si ya existe registro con este clerkId...
   let user = await prisma.user.findUnique({ where: { clerkId } });
   if (user) {
-    // Si cambió el email, actualízalo
-    if (user.email !== primaryEmail) {
+    // Actualiza solo los campos que hayan cambiado
+    const updates: Partial<{ email: string; name: string; imageUrl: string }> = {};
+    if (user.email !== primaryEmail) updates.email = primaryEmail;
+    const fullName = [firstName, lastName].filter(Boolean).join(" ");
+    if (fullName && user.name !== fullName) updates.name = fullName;
+    //if (imageUrl && user.imageUrl !== imageUrl) updates.imageUrl = imageUrl;
+
+    if (Object.keys(updates).length > 0) {
       user = await prisma.user.update({
         where: { clerkId },
-        data: { email: primaryEmail },
+        data: updates,
       });
     }
     return user;
   }
 
-  // 4.2) ¿Existe un usuario con este email (pero sin clerkId aún)?
+  // 5.2) Si no existe por clerkId, pero sí hay un registro con ese email...
   user = await prisma.user.findUnique({ where: { email: primaryEmail } });
   if (user) {
-    // Asocia el clerkId al registro existente
     return prisma.user.update({
       where: { email: primaryEmail },
-      data: { clerkId },
+      data: {
+        clerkId,
+        name: [firstName, lastName].filter(Boolean).join(" "),
+        //imageUrl,
+      },
     });
   }
 
-  // 4.3) No existe ninguno → crea nuevo usuario
-  try {
-    return await prisma.user.create({
-      data: { clerkId, email: primaryEmail },
-    });
-  } catch (e: unknown) {
-    // Manejo explícito de violación de unicidad en email
-    if (typeof e === "object" && e !== null && "code" in e && (e as { code?: string }).code === "P2002") {
-      throw new Error("Ya existe un usuario con este email.");
-    }
-    throw e;
-  }
+  // 5.3) Finalmente, crea un nuevo registro
+  return prisma.user.create({
+    data: {
+      clerkId,
+      email: primaryEmail,
+      name: [firstName, lastName].filter(Boolean).join(" "),
+      //imageUrl,
+    },
+  });
 }
