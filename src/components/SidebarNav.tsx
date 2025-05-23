@@ -11,6 +11,7 @@ import {
   FileBarChart2,
   ShieldCheck,
   Settings,
+  RotateCcw 
 } from 'lucide-react';
 import {
   SignedIn,
@@ -26,6 +27,7 @@ const sections = [
       { href: '/epps', label: 'Inventario', icon: <Box size={18} /> },
       { href: '/stock-movements', label: 'Mov. Stock', icon: <Warehouse size={18} /> },
       { href: '/deliveries', label: 'Entregas', icon: <Handshake size={18} /> },
+      { href: "/returns", label: "Devoluciones", icon: <RotateCcw size={18}/> },
       { href: '/requests', label: 'Solicitudes', icon: <ClipboardList size={18} /> },
     ]
   },

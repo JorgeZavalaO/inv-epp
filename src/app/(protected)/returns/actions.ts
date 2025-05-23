@@ -6,8 +6,8 @@ import { revalidatePath } from "next/cache";
 import { ensureClerkUser } from "@/lib/user-sync";
 
 export async function createReturn(fd: FormData) {
-  const data = returnSchema.parse(Object.fromEntries(fd));
-  const dbUser = await ensureClerkUser();
+  const data   = returnSchema.parse(Object.fromEntries(fd));
+  const user   = await ensureClerkUser();
 
   await prisma.$transaction([
     prisma.return.create({
@@ -16,16 +16,33 @@ export async function createReturn(fd: FormData) {
         employee: data.employee,
         quantity: data.quantity,
         condition:data.condition,
-        userId:   dbUser.id,
+        userId:   user.id,
       },
     }),
-    // si reutilizable → incrementar stock; si descartado, no hacer nada
-    data.condition === "REUSABLE"
-      ? prisma.ePP.update({
+    ...(data.condition === "REUSABLE"
+      ? [prisma.ePP.update({
           where: { id: data.eppId },
           data:  { stock: { increment: data.quantity } },
-        })
-      : prisma.$executeRaw`SELECT 1`, // dummy op
+        })]
+      : []),
+  ]);
+
+  revalidatePath("/returns");
+  revalidatePath("/epps");
+}
+
+export async function deleteReturn(id: number) {
+  const ret = await prisma.return.findUnique({ where: { id } });
+  if (!ret) throw new Error("Devolución no encontrada");
+
+  await prisma.$transaction([
+    prisma.return.delete({ where: { id } }),
+    ...(ret.condition === "REUSABLE"
+      ? [prisma.ePP.update({
+          where: { id: ret.eppId },
+          data:  { stock: { decrement: ret.quantity } },
+        })]
+      : []),
   ]);
 
   revalidatePath("/returns");
