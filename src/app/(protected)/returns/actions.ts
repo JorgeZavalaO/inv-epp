@@ -47,4 +47,5 @@ export async function deleteReturn(id: number) {
 
   revalidatePath("/returns");
   revalidatePath("/epps");
+  revalidatePath("/dashboard");
 }

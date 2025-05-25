@@ -50,4 +50,5 @@ export async function deleteMovement(id: number) {
 
   revalidatePath("/stock-movements");
   revalidatePath("/epps");
+  revalidatePath("/dashboard");
 }

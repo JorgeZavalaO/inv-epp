@@ -35,5 +35,6 @@ export async function deleteEpp(id: number) {
 
   await prisma.ePP.delete({ where: { id } });
   revalidatePath("/epps");
+  revalidatePath("/dashboard");
 }
 

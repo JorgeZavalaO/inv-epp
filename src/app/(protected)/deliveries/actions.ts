@@ -54,4 +54,5 @@ export async function deleteDelivery(id: number) {
 
   revalidatePath("/deliveries");
   revalidatePath("/epps");
+  revalidatePath("/dashboard");
 }
