@@ -9,7 +9,7 @@ export default async function DeliveriesPage() {
   const list = await prisma.delivery.findMany({
     include: {
       epp:  { select: { code: true, name: true } },
-      user: { select: { name: true, email: true } },
+      batch:{select:{employee:true, user:{select:{name:true,email:true}}}}
     },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -20,9 +20,9 @@ export default async function DeliveriesPage() {
     date:     d.createdAt.toISOString(),
     eppCode:  d.epp.code,
     eppName:  d.epp.name,
-    employee: d.employee,
+    employee: d.batch.employee,
     quantity: d.quantity,
-    operator: d.user.name ?? d.user.email!,
+    operator: d.batch.user.name ?? d.batch.user.email!,
   }));
 
   return (

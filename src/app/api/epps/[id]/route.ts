@@ -6,7 +6,7 @@ interface Params { params: { id: string } }
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const epp = await prisma.ePP.findUnique({
     where: { id: Number(params.id) },
-    select: { id: true, code: true, name: true },
+    select: { id: true, code: true, name: true, stock: true },
   });
   return epp ? NextResponse.json(epp) : NextResponse.json({ error: "Not found" }, { status: 404 });
 }

@@ -48,9 +48,8 @@ model User {
   updatedAt      DateTime          @updatedAt
 
   // Relaciones
-  //epps           EPP[]             @relation("UserEPPs")
   stockMovements StockMovement[]   
-  deliveries     Delivery[]        
+  deliveryBatches DeliveryBatch[] 
   returns        Return[]          
   requests       Request[]         
   approvals      Approval[]        
@@ -95,19 +94,29 @@ model StockMovement {
   @@index([eppId, createdAt])
 }
 
-model Delivery {
-  id         Int               @id @default(autoincrement())
-  employee   String
-  quantity   Int
-  createdAt  DateTime          @default(now())
-  condition  DeliveryCondition?
+model DeliveryBatch {
+  id        Int      @id @default(autoincrement())
+  employee  String
+  note      String?
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
 
-  // Relaciones
-  epp        EPP               @relation(fields: [eppId], references: [id])
-  eppId      Int
-  user       User              @relation(fields: [userId], references: [id])
-  userId     Int
+  deliveries Delivery[]
 }
+
+model Delivery {
+  id         Int      @id @default(autoincrement())
+  batchId    Int
+  batch      DeliveryBatch @relation(fields:[batchId], references:[id])
+ 
+  eppId      Int
+  epp        EPP      @relation(fields:[eppId], references:[id])
+
+  quantity   Int
+  createdAt  DateTime @default(now())
+}
+
 
 model Return {
   id            Int               @id @default(autoincrement())

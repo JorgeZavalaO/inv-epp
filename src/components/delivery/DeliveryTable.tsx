@@ -1,6 +1,6 @@
 "use client";
 import { ColumnDef } from "@tanstack/react-table";
-import { deleteDelivery } from "@/app/(protected)/deliveries/actions";
+import { deleteDeliveryRow } from "@/app/(protected)/deliveries/actions";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -63,7 +63,7 @@ export default function DeliveryTable({ data }: { data: DeliveryRow[] }) {
           onClick={() =>
             startTransition(async () => {
               try {
-                await deleteDelivery(row.original.id);
+                await deleteDeliveryRow(row.original.id);
                 toast.success("Entrega deshecha");
               } catch (err: unknown) {
                 const errorMessage =
