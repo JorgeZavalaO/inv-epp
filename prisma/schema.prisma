@@ -103,6 +103,9 @@ model DeliveryBatch {
   createdAt DateTime @default(now())
 
   deliveries Delivery[]
+
+  @@index([createdAt])
+  @@index([employee])
 }
 
 model Delivery {

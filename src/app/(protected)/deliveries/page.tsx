@@ -1,28 +1,27 @@
+// src/app/(protected)/deliveries/page.tsx
 import prisma from "@/lib/prisma";
-import DeliveryTable from "@/components/delivery/DeliveryTable";
+import DeliveryBatchTable from "@/components/delivery/DeliveryBatchTable";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export const revalidate = 0;
 
 export default async function DeliveriesPage() {
-  const list = await prisma.delivery.findMany({
+  const batches = await prisma.deliveryBatch.findMany({
     include: {
-      epp:  { select: { code: true, name: true } },
-      batch:{select:{employee:true, user:{select:{name:true,email:true}}}}
+      _count: { select: { deliveries: true } },
+      user:   { select: { name: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
     take: 100,
   });
 
-  const data = list.map((d) => ({
-    id:       d.id,
-    date:     d.createdAt.toISOString(),
-    eppCode:  d.epp.code,
-    eppName:  d.epp.name,
-    employee: d.batch.employee,
-    quantity: d.quantity,
-    operator: d.batch.user.name ?? d.batch.user.email!,
+  const data = batches.map((b) => ({
+    id:       b.id,
+    date:     b.createdAt.toISOString(),
+    employee: b.employee,
+    operator: b.user.name ?? b.user.email!,
+    items:    b._count.deliveries,
   }));
 
   return (
@@ -34,7 +33,7 @@ export default async function DeliveriesPage() {
         </Link>
       </header>
       <div className="overflow-x-auto bg-white rounded shadow">
-        <DeliveryTable data={data} />
+        <DeliveryBatchTable data={data} />
       </div>
     </section>
   );

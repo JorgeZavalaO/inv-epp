@@ -8,50 +8,46 @@ import { revalidatePath } from "next/cache";
   1 · Crear un LOTE de entregas múltiples
 ----------------------------------------------------------*/
 export async function createDeliveryBatch(fd: FormData) {
-  const data = deliveryBatchSchema.parse(
-    JSON.parse(fd.get("payload") as string)
-  );
-  const user = await ensureClerkUser();
+  const payload = JSON.parse(fd.get("payload") as string);
+  const data    = deliveryBatchSchema.parse(payload);
+  const user    = await ensureClerkUser();
 
-  await prisma.$transaction(async (tx) => {
-    /* 1.1  Cabecera */
-    const batch = await tx.deliveryBatch.create({
-      data: {
-        employee: data.employee,
-        note: data.note,
-        userId: user.id,
-      },
+  const batchId = await prisma.$transaction(async (tx) => {
+    /* Cabecera */
+    const { id: batchId } = await tx.deliveryBatch.create({
+      data: { employee: data.employee, note: data.note, userId: user.id },
+      select: { id: true },
     });
 
-    /* 1.2  Renglones + actualización de stock */
-    for (const item of data.items) {
-      const epp = await tx.ePP.findUnique({
-        where: { id: item.eppId },
-        select: { id: true, name: true, stock: true },
-      });
-      if (!epp || epp.stock < item.quantity) {
-        throw new Error(
-          `Stock insuficiente para «${epp?.name ?? item.eppId}»`
-        );
-      }
+    /* Validar stock y preparar registros */
+    const rows = await Promise.all(
+      data.items.map(async (it) => {
+        const epp = await tx.ePP.findUnique({ where: { id: it.eppId }, select: { stock: true, name:true } });
+        if (!epp || epp.stock < it.quantity) {
+          throw new Error(`Stock insuficiente para «${epp?.name ?? it.eppId}»`);
+        }
+        return { batchId, eppId: it.eppId, quantity: it.quantity };
+      })
+    );
 
-      await tx.delivery.create({
-        data: {
-          batchId: batch.id,
-          eppId: item.eppId,
-          quantity: item.quantity,
-        },
-      });
+    /* Insertar renglones de una sola vez */
+    await tx.delivery.createMany({ data: rows });
 
-      await tx.ePP.update({
-        where: { id: item.eppId },
-        data: { stock: { decrement: item.quantity } },
-      });
-    }
+    /* Actualizar stock en lote */
+    await Promise.all(
+      rows.map((r) =>
+        tx.ePP.update({
+          where: { id: r.eppId },
+          data:  { stock: { decrement: r.quantity } },
+        })
+      )
+    );
+
+    return batchId;
   });
 
-  /* 1.3  Refrescar UI */
   ["/deliveries", "/epps", "/dashboard"].forEach((p) => revalidatePath(p));
+  return batchId;               //  ← importante
 }
 
 /*----------------------------------------------------------
