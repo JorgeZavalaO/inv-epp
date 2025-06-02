@@ -4,11 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-export default async function DeliveryBatchDetail({
-  params: { id },
-}: {
-  params: { id: string };
-}) {
+export default async function DeliveryBatchDetail(
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
   const batch = await prisma.deliveryBatch.findUnique({
     where: { id: Number(id) },
     include: {
