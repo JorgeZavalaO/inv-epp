@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { deliveryBatchSchema } from "@/schemas/delivery-batch-schema";
 import { ensureClerkUser } from "@/lib/user-sync";
 import { revalidatePath } from "next/cache";
+// ▶ Importar el tipo Prisma para tipar “tx”
 import { Prisma } from "@prisma/client";
 
 /*----------------------------------------------------------
@@ -10,8 +11,8 @@ import { Prisma } from "@prisma/client";
 ----------------------------------------------------------*/
 export async function createDeliveryBatch(fd: FormData) {
   const payload = JSON.parse(fd.get("payload") as string);
-  const data    = deliveryBatchSchema.parse(payload);
-  const user    = await ensureClerkUser();
+  const data = deliveryBatchSchema.parse(payload);
+  const user = await ensureClerkUser();
 
   const batchId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     /* Cabecera */
@@ -51,7 +52,7 @@ export async function createDeliveryBatch(fd: FormData) {
   });
 
   ["/deliveries", "/epps", "/dashboard"].forEach((p) => revalidatePath(p));
-  return batchId; // ← importante
+  return batchId;
 }
 
 /*----------------------------------------------------------
