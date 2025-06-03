@@ -1,3 +1,4 @@
+// src/app/(protected)/epps/page.tsx
 import prisma from "@/lib/prisma";
 import EppTable from "@/components/epp/EppTable";
 import Link from "next/link";
@@ -5,21 +6,32 @@ import { Button } from "@/components/ui/button";
 
 export const revalidate = 0;
 
-export default async function EppsPage({ searchParams }: { searchParams?: { q?: string } }) {
-  const q = searchParams?.q ?? "";
+type Props = {
+  searchParams: Promise<{ q?: string }>;
+};
+
+export default async function EppsPage({ searchParams }: Props) {
+  
+  const { q } = await searchParams;
+  const filtro = q ?? "";
+
   const epps = await prisma.ePP.findMany({
     where: {
       OR: [
-        { name: { contains: q, mode: "insensitive" } },
-        { code: { contains: q, mode: "insensitive" } },
-        { category: { contains: q, mode: "insensitive" } },
+        { name: { contains: filtro, mode: "insensitive" } },
+        { code: { contains: filtro, mode: "insensitive" } },
+        { category: { contains: filtro, mode: "insensitive" } },
       ],
     },
     select: {
-        id: true, code: true, name: true, category: true,
-        stock: true, minStock: true,
-        _count: { select: { movements: true } },
-      },
+      id: true,
+      code: true,
+      name: true,
+      category: true,
+      stock: true,
+      minStock: true,
+      _count: { select: { movements: true } },
+    },
     orderBy: { name: "asc" },
   });
 
@@ -39,15 +51,17 @@ export default async function EppsPage({ searchParams }: { searchParams?: { q?: 
           type="text"
           name="q"
           placeholder="Buscar por código, nombre o categoría..."
-          defaultValue={q}
+          defaultValue={filtro}
           className="w-full rounded-md border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </form>
 
-    <EppTable data={epps.map(e => ({
-      ...e,
-      hasMovement: e._count.movements > 0
-    }))} />
+      <EppTable
+        data={epps.map((e) => ({
+          ...e,
+          hasMovement: e._count.movements > 0,
+        }))}
+      />
     </section>
   );
 }

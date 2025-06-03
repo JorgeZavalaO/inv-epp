@@ -1,4 +1,4 @@
-// src/app/(protected)/stock-movements/page.tsx
+
 import prisma from "@/lib/prisma";
 import MovementTable from "@/components/stock/MovementTable";
 import Link from "next/link";
@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button";
 export const revalidate = 0;
 const PAGE_SIZE = 50;
 
-export default async function StockMovementsPage({
-  searchParams,
-}: {
-  searchParams?: { page?: string };
-}) {
-  // 1. Parsear el número de página (1-based)
-  const page = Math.max(1, Number(searchParams?.page ?? "1"));
+type Props = {
+  searchParams: Promise<{ page?: string }>;
+};
 
-  // 2. Traer PAGE_SIZE + 1 registros para saber si hay NEXT
+export default async function StockMovementsPage({ searchParams }: Props) {
+  
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam ?? "1"));
+
   const rawList = await prisma.stockMovement.findMany({
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE + 1,
@@ -26,14 +26,10 @@ export default async function StockMovementsPage({
     orderBy: { createdAt: "desc" },
   });
 
-  // 3. Determinar hasNext y recortar la lista si excede PAGE_SIZE
   const hasNext = rawList.length > PAGE_SIZE;
   const movements = hasNext ? rawList.slice(0, PAGE_SIZE) : rawList;
-
-  // 4. Determinar hasPrev
   const hasPrev = page > 1;
 
-  // 5. Mapear al formato que espera MovementTable
   const data = movements.map((mv) => ({
     id: mv.id,
     date: mv.createdAt.toISOString(),
@@ -41,7 +37,7 @@ export default async function StockMovementsPage({
     eppName: mv.epp.name,
     quantity: mv.quantity,
     type: mv.type,
-    operator: mv.user.email, // Asignar el operador (ajusta si tienes otro campo)
+    operator: mv.user.email,
   }));
 
   return (
@@ -59,7 +55,6 @@ export default async function StockMovementsPage({
         <MovementTable data={data} />
       </div>
 
-      {/* Paginación */}
       <nav className="flex justify-between">
         {hasPrev ? (
           <Link href={`/stock-movements?page=${page - 1}`}>
