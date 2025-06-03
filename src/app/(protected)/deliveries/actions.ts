@@ -3,8 +3,7 @@ import prisma from "@/lib/prisma";
 import { deliveryBatchSchema } from "@/schemas/delivery-batch-schema";
 import { ensureClerkUser } from "@/lib/user-sync";
 import { revalidatePath } from "next/cache";
-// ▶ Importar el tipo Prisma para tipar “tx”
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 /*----------------------------------------------------------
   1 · Crear un LOTE de entregas múltiples
