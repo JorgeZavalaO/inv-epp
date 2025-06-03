@@ -3,7 +3,6 @@ import prisma from "@/lib/prisma";
 import { deliveryBatchSchema } from "@/schemas/delivery-batch-schema";
 import { ensureClerkUser } from "@/lib/user-sync";
 import { revalidatePath } from "next/cache";
-import type { Prisma } from "@prisma/client";
 
 /*----------------------------------------------------------
   1 · Crear un LOTE de entregas múltiples
@@ -13,7 +12,7 @@ export async function createDeliveryBatch(fd: FormData) {
   const data = deliveryBatchSchema.parse(payload);
   const user = await ensureClerkUser();
 
-  const batchId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  const batchId = await prisma.$transaction(async (tx) => {
     /* Cabecera */
     const { id: batchId } = await tx.deliveryBatch.create({
       data: { employee: data.employee, note: data.note, userId: user.id },
@@ -58,7 +57,7 @@ export async function createDeliveryBatch(fd: FormData) {
   2 · Deshacer un renglón (botón “Deshacer” en la tabla)
 ----------------------------------------------------------*/
 export async function deleteDeliveryRow(id: number) {
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  await prisma.$transaction(async (tx) => {
     const row = await tx.delivery.findUnique({
       where: { id },
       select: { eppId: true, quantity: true },
@@ -83,7 +82,7 @@ export async function deleteDeliveryRow(id: number) {
      — Útil para una futura vista “detalle de batch”
 ----------------------------------------------------------*/
 export async function deleteBatch(batchId: number) {
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  await prisma.$transaction(async (tx) => {
     const rows = await tx.delivery.findMany({
       where: { batchId },
       select: { id: true, eppId: true, quantity: true },
