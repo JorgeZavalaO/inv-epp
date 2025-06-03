@@ -5,6 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
+type DeliveryEntry = {
+  id: number;
+  quantity: number;
+  epp: {
+    code: string;
+    name: string;
+  };
+};
+
 // En Next 15: params viene como Promise<{ id: string }>
 type Props = {
   params: Promise<{ id: string }>;
@@ -56,7 +65,7 @@ export default async function DeliveryBatchDetail({ params }: Props) {
             </tr>
           </thead>
           <tbody>
-            {batch.deliveries.map((r) => (
+            {batch.deliveries.map((r: DeliveryEntry) => (
               <tr key={r.id} className="border-b">
                 <td className="px-3 py-2">{r.epp.code}</td>
                 <td className="px-3 py-2">{r.epp.name}</td>
