@@ -1,16 +1,21 @@
+// src/app/(protected)/deliveries/[id]/page.tsx
 import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
+// En Next 15: params viene como Promise<{ id: string }>
 type Props = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export default async function DeliveryBatchDetail({ params }: Props) {
+  // “await params” es obligatorio para cumplir con el nuevo tipo
+  const { id } = await params;
+
   const batch = await prisma.deliveryBatch.findUnique({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
     include: {
       user: { select: { name: true, email: true } },
       deliveries: {
