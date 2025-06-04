@@ -11,7 +11,8 @@ import {
   FileBarChart2,
   ShieldCheck,
   Settings,
-  RotateCcw 
+  RotateCcw,
+  SendToBack
 } from 'lucide-react';
 import {
   SignedIn,
@@ -24,8 +25,9 @@ import {
 const sections = [
   { title: 'General', items: [{ href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> }] },
   { title: 'Gestión', items: [
+      { href: '/warehouses', label: 'Almacenes', icon: <Warehouse size={18} /> },
       { href: '/epps', label: 'Inventario', icon: <Box size={18} /> },
-      { href: '/stock-movements', label: 'Mov. Stock', icon: <Warehouse size={18} /> },
+      { href: '/stock-movements', label: 'Mov. Stock', icon: <SendToBack size={18} /> },
       { href: '/deliveries', label: 'Entregas', icon: <Handshake size={18} /> },
       { href: "/returns", label: "Devoluciones", icon: <RotateCcw size={18}/> },
       { href: '/requests', label: 'Solicitudes', icon: <ClipboardList size={18} /> },
