@@ -1,30 +1,23 @@
 import prisma from "@/lib/prisma";
-import { Button } from "@/components/ui/button";
-import { revalidatePath } from "next/cache";
+import { createWarehouseAction } from "./actions";
 
+/* Next.js no cachea la página, pues necesitamos ver cambios tras cada creación/eliminación */
 export const revalidate = 0;
 
 export default async function WarehousesPage() {
+  /* 1 · Obtener lista de almacenes con conteo de existencias */
   const list = await prisma.warehouse.findMany({
     include: { _count: { select: { stocks: true } } },
     orderBy: { name: "asc" },
   });
 
+  /* 2 · Server Action: createWarehouseAction —> validaciones y Prisma */
   return (
     <section className="space-y-6 px-4 md:px-8 py-6">
       <h1 className="text-3xl font-bold">Almacenes</h1>
 
       {/* Formulario servidor para crear nuevo almacén */}
-      <form
-        action={async (fd: FormData) => {
-          "use server";
-          const name = fd.get("name")?.toString() ?? "";
-          const location = fd.get("location")?.toString() || undefined;
-          await prisma.warehouse.create({ data: { name, location } });
-          revalidatePath("/warehouses");
-        }}
-        className="flex gap-2"
-      >
+      <form action={createWarehouseAction} className="flex gap-2">
         <input
           name="name"
           placeholder="Nombre del almacén…"
@@ -35,9 +28,15 @@ export default async function WarehousesPage() {
           placeholder="Ubicación (opcional)…"
           className="border px-3 py-2 rounded w-64"
         />
-        <Button type="submit">Crear</Button>
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          Crear
+        </button>
       </form>
 
+      {/* 3 · Tabla de almacenes */}
       <table className="w-full text-sm bg-white rounded shadow">
         <thead>
           <tr className="border-b">

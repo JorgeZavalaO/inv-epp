@@ -1,3 +1,4 @@
+// src/components/epp/EppForm.tsx
 "use client";
 
 import * as React from "react";
@@ -49,7 +50,7 @@ export default function EppForm({ defaultValues }: { defaultValues?: EppFormValu
     mode: "onChange",
   });
 
-  // Si cambia el autoCode después de obtenerlo, setea en el form
+  // Si cambia el autoCode después de obtenerlo, lo setea en el form
   React.useEffect(() => {
     if (!defaultValues?.id && autoCode) {
       setValue("code", autoCode);
@@ -57,7 +58,7 @@ export default function EppForm({ defaultValues }: { defaultValues?: EppFormValu
   }, [autoCode, defaultValues?.id, setValue]);
 
   const onSubmit = async (data: EppFormValues) => {
-    // Si estamos en creación, asegurar que el código sea el auto generado más reciente
+    // Si estamos en creación, asegurarnos de que el código sea el generado más reciente
     if (!data.id) {
       data.code = autoCode;
     }
