@@ -1,4 +1,3 @@
-// src/app/(protected)/epps/page.tsx
 import prisma from "@/lib/prisma";
 import EppTable from "@/components/epp/EppTable";
 import Link from "next/link";
@@ -11,10 +10,9 @@ type Props = {
 };
 
 export default async function EppsPage({ searchParams }: Props) {
-  
-  const { q } = await searchParams;
-  const filtro = q ?? "";
+  const { q: filtro = "" } = await searchParams;
 
+  // 1) Traer EPPs y sus stocks
   const epps = await prisma.ePP.findMany({
     where: {
       OR: [
@@ -28,11 +26,25 @@ export default async function EppsPage({ searchParams }: Props) {
       code: true,
       name: true,
       category: true,
-      stock: true,
       minStock: true,
+      stocks: { select: { quantity: true } },
       _count: { select: { movements: true } },
     },
     orderBy: { name: "asc" },
+  });
+
+  // 2) Mapear: calcular stock total
+  const data = epps.map((e) => {
+    const totalStock = e.stocks?.reduce((acc, s) => acc + (s.quantity || 0), 0) ?? 0;
+    return {
+      id: e.id,
+      code: e.code,
+      name: e.name,
+      category: e.category,
+      stock: totalStock,
+      minStock: e.minStock,
+      hasMovement: e._count.movements > 0,
+    };
   });
 
   return (
@@ -56,12 +68,7 @@ export default async function EppsPage({ searchParams }: Props) {
         />
       </form>
 
-      <EppTable
-        data={epps.map((e) => ({
-          ...e,
-          hasMovement: e._count.movements > 0,
-        }))}
-      />
+      <EppTable data={data} />
     </section>
   );
 }

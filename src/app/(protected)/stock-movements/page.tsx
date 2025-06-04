@@ -30,15 +30,20 @@ export default async function StockMovementsPage({ searchParams }: Props) {
   const movements = hasNext ? rawList.slice(0, PAGE_SIZE) : rawList;
   const hasPrev = page > 1;
 
-  const data = movements.map((mv) => ({
-    id: mv.id,
-    date: mv.createdAt.toISOString(),
-    eppCode: mv.epp.code,
-    eppName: mv.epp.name,
-    quantity: mv.quantity,
-    type: mv.type,
-    operator: mv.user.email,
-  }));
+  const allowedTypes = ["ENTRY", "EXIT", "ADJUSTMENT"] as const;
+  type AllowedType = typeof allowedTypes[number];
+
+  const data = movements
+    .filter((mv) => allowedTypes.includes(mv.type as AllowedType))
+    .map((mv) => ({
+      id:       mv.id,
+      date:     mv.createdAt.toISOString(),
+      eppCode:  mv.epp.code,
+      eppName:  mv.epp.name,
+      quantity: mv.quantity,
+      type:     mv.type as AllowedType,
+      operator: mv.user.email,
+    }));
 
   return (
     <section className="space-y-6 px-4 md:px-8 py-6">

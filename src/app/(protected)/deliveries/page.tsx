@@ -1,27 +1,37 @@
-// src/app/(protected)/deliveries/page.tsx
 import prisma from "@/lib/prisma";
-import DeliveryBatchTable from "@/components/delivery/DeliveryBatchTable";
+import DeliveryTable from "@/components/delivery/DeliveryTable";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export const revalidate = 0;
 
 export default async function DeliveriesPage() {
-  const batches = await prisma.deliveryBatch.findMany({
+  // 1) Traer entregas uniendo batches y EPP
+  const list = await prisma.delivery.findMany({
     include: {
-      _count: { select: { deliveries: true } },
-      user:   { select: { name: true, email: true } },
+      epp: { select: { code: true, name: true } },
+      batch: {
+        select: {
+          employee: true,
+          warehouse: { select: { name: true } },
+          user: { select: { name: true, email: true } },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 100,
   });
 
-  const data = batches.map((b) => ({
-    id:       b.id,
-    date:     b.createdAt.toISOString(),
-    employee: b.employee,
-    operator: b.user.name ?? b.user.email!,
-    items:    b._count.deliveries,
+  // 2) Mapear datos para tabla
+  const data = list.map((d) => ({
+    id:        d.id,
+    date:      d.createdAt.toISOString(),
+    eppCode:   d.epp.code,
+    eppName:   d.epp.name,
+    employee:  d.batch.employee,
+    warehouse: d.batch.warehouse.name,
+    quantity:  d.quantity,
+    operator:  d.batch.user.name ?? d.batch.user.email!,
   }));
 
   return (
@@ -33,7 +43,7 @@ export default async function DeliveriesPage() {
         </Link>
       </header>
       <div className="overflow-x-auto bg-white rounded shadow">
-        <DeliveryBatchTable data={data} />
+        <DeliveryTable data={data} />
       </div>
     </section>
   );

@@ -1,4 +1,5 @@
 "use client";
+
 import { ColumnDef } from "@tanstack/react-table";
 import { deleteDeliveryRow } from "@/app/(protected)/deliveries/actions";
 import { DataTable } from "@/components/ui/DataTable";
@@ -8,19 +9,19 @@ import { useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 
 export interface DeliveryRow {
-  id: number;
-  date: string;       // ISO
-  eppCode: string;
-  eppName: string;
-  employee: string;
-  quantity: number;
-  operator: string;
+  id:        number;
+  date:      string;   // ISO
+  eppCode:   string;
+  eppName:   string;
+  employee:  string;
+  warehouse: string;
+  quantity:  number;
+  operator:  string;
 }
 
 export default function DeliveryTable({ data }: { data: DeliveryRow[] }) {
   const [isPending, startTransition] = useTransition();
 
-  // Factory to render date + time
   const renderDate = (iso: string) => {
     const d = new Date(iso);
     return (
@@ -39,22 +40,17 @@ export default function DeliveryTable({ data }: { data: DeliveryRow[] }) {
     },
     { accessorKey: "eppCode", header: "Código" },
     { accessorKey: "eppName", header: "EPP" },
-    {
-      accessorKey: "employee",
-      header: "Empleado",
-      cell: ({ getValue }) => <span>{getValue<string>()}</span>,
-    },
+    { accessorKey: "employee", header: "Empleado" },
+    { accessorKey: "warehouse", header: "Almacén" },
     {
       accessorKey: "quantity",
       header: "Cant.",
-      cell: ({ getValue }) => (
-        <Badge variant="outline">{getValue<number>()}</Badge>
-      ),
+      cell: ({ getValue }) => <Badge variant="outline">{getValue<number>()}</Badge>,
     },
     { accessorKey: "operator", header: "Operador" },
     {
       id: "actions",
-      header: "",  // no header text for action column
+      header: "",
       cell: ({ row }) => (
         <Button
           size="sm"
@@ -66,11 +62,8 @@ export default function DeliveryTable({ data }: { data: DeliveryRow[] }) {
                 await deleteDeliveryRow(row.original.id);
                 toast.success("Entrega deshecha");
               } catch (err: unknown) {
-                const errorMessage =
-                  err instanceof Error
-                    ? err.message
-                    : "Error al deshacer entrega";
-                toast.error(errorMessage);
+                const msg = err instanceof Error ? err.message : "Error al deshacer";
+                toast.error(msg);
               }
             })
           }
@@ -82,10 +75,5 @@ export default function DeliveryTable({ data }: { data: DeliveryRow[] }) {
     },
   ];
 
-  return (
-    <DataTable
-      columns={columns}
-      data={data}
-    />
-  );
+  return <DataTable columns={columns} data={data} />;
 }

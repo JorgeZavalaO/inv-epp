@@ -1,26 +1,13 @@
 import { z } from "zod";
 
-const urlOrEmpty = z.preprocess(
-  v => (v === "" ? undefined : v),
-  z.string().url().optional()
-);
-
-const int = () => z.preprocess(v => Number(v), z.number().int().min(0));
-/**
- *  - id            → autoincrement / editar
- *  - stock         → cantidad real en almacén
- *  - minStock      → umbral de alerta
- */
 export const eppSchema = z.object({
-  id:          z.coerce.number().optional(),
-  code:        z.string().min(2, "Requerido"),
-  name:        z.string().min(2, "Requerido"),
-  category:    z.string().min(2, "Requerido"),
+  id:          z.number().optional(),
+  code:        z.string().optional(),    // si no viene, se autogenera
+  name:        z.string().min(1, "El nombre es requerido"),
+  category:    z.string().min(1, "La categoría es requerida"),
   description: z.string().optional(),
-  stock:       int(),
-  minStock:    int(),
-  imageUrl:    urlOrEmpty,
-  datasheetUrl:urlOrEmpty,
+  minStock:    z.number({ required_error: "El stock mínimo es requerido" })
+                   .min(0, "Stock mínimo debe ser ≥ 0"),
+  imageUrl:    z.string().optional(),
+  datasheetUrl:z.string().optional(),
 });
-
-export type EppFormValues = z.infer<typeof eppSchema>;

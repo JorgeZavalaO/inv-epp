@@ -12,21 +12,34 @@ export async function createMovement(fd: FormData) {
   await prisma.$transaction([
     prisma.stockMovement.create({
       data: {
-        eppId:   data.eppId,
-        type:    data.type,
-        quantity:data.quantity,
-        note:    data.note,
-        userId:  dbUser.id,
+        eppId:       data.eppId,
+        warehouseId: data.warehouseId,
+        type:        data.type,
+        quantity:    data.quantity,
+        note:        data.note,
+        userId:      dbUser.id,
       },
     }),
-    prisma.ePP.update({
-      where: { id: data.eppId },
-      data:
-        data.type === "ENTRY"
-          ? { stock: { increment: data.quantity } }
-        : data.type === "EXIT"
-          ? { stock: { decrement: data.quantity } }
-        : { stock: data.quantity },
+    prisma.ePPStock.upsert({
+      where: {
+        eppId_warehouseId: {
+          eppId:       data.eppId,
+          warehouseId: data.warehouseId,
+        },
+      },
+      update: {
+        quantity:
+          data.type === "ENTRY"
+            ? { increment: data.quantity }
+            : data.type === "EXIT"
+            ? { decrement: data.quantity }
+            : { set: data.quantity },
+      },
+      create: {
+        eppId:       data.eppId,
+        warehouseId: data.warehouseId,
+        quantity:    data.quantity,
+      },
     }),
   ]);
 
@@ -34,17 +47,26 @@ export async function createMovement(fd: FormData) {
   revalidatePath("/epps");
 }
 
+
 export async function deleteMovement(id: number) {
   const movement = await prisma.stockMovement.findUniqueOrThrow({ where: { id } });
   if (movement.type === "ADJUSTMENT") throw new Error("No se puede deshacer un ajuste.");
-  
+
   await prisma.$transaction([
     prisma.stockMovement.delete({ where: { id } }),
-    prisma.ePP.update({
-      where: { id: movement.eppId },
-      data: movement.type === "ENTRY"
-        ? { stock: { decrement: movement.quantity } }
-        : { stock: { increment: movement.quantity } },
+    prisma.ePPStock.update({
+      where: {
+        eppId_warehouseId: {
+          eppId:       movement.eppId,
+          warehouseId: movement.warehouseId,
+        },
+      },
+      data: {
+        quantity:
+          movement.type === "ENTRY"
+            ? { decrement: movement.quantity }
+            : { increment: movement.quantity },
+      },
     }),
   ]);
 

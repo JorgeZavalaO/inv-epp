@@ -17,6 +17,8 @@ datasource db {
 enum StockMovementType {
   ENTRY
   EXIT
+  TRANSFER_IN
+  TRANSFER_OUT
   ADJUSTMENT
 }
 
@@ -37,129 +39,174 @@ enum ApprovalResult {
   REJECTED
 }
 
-/// Modelos
+/// Modelo de usuarios
 model User {
-  id             Int               @id @default(autoincrement())
-  clerkId        String           @unique
-  email          String            @unique
+  id             Int                @id @default(autoincrement())
+  clerkId        String             @unique
+  email          String             @unique
   name           String?
   imageUrl       String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
-  // Relaciones
-  stockMovements StockMovement[]   
-  deliveryBatches DeliveryBatch[] 
-  returns        Return[]          
-  requests       Request[]         
-  approvals      Approval[]        
+  stockMovements StockMovement[]    
+  deliveryBatches DeliveryBatch[]   
+  returns        Return[]           
+  requests       Request[]          
+  approvals      Approval[]         
 }
 
+/// Artículos de protección personal
 model EPP {
-  id           Int               @id @default(autoincrement())
-  code         String            @unique @db.VarChar(32)
-  name         String            @db.VarChar(128)
-  category     String            @db.VarChar(64)
+  id           Int              @id @default(autoincrement())
+  code         String           @unique @db.VarChar(32)
+  name         String           @db.VarChar(128)
+  category     String           @db.VarChar(64)
   description  String?
   imageUrl     String?
   datasheetUrl String?
-  stock        Int               @default(0)
-  minStock     Int               @default(1)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  minStock     Int              @default(1)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @default(now()) @updatedAt
 
-  // Relaciones
-  //users        User[]            @relation("UserEPPs")
-  movements    StockMovement[]   
-  deliveries   Delivery[]        
-  returns      Return[]          
-  requests     Request[]  
+  // Inventario por almacén
+  stocks       EPPStock[]
+
+  // Movimientos de stock
+  movements    StockMovement[]
+
+  // Entregas (renglones) y devoluciones
+  deliveries   Delivery[]       
+  returns      Return[]         
+  requests     Request[]        
 
   @@index([name])
-  @@index([category])       
+  @@index([category])
 }
 
+/// Almacenes físicos
+model Warehouse {
+  id             Int               @id @default(autoincrement())
+  name           String            @unique
+  location       String?
+  createdAt      DateTime          @default(now())
+
+  // Existencias en este almacén
+  stocks         EPPStock[]
+
+  // Todos los movimientos de stock en este almacén
+  movements      StockMovement[]
+
+  // Lotes de entrega que parten de este almacén
+  deliveryBatches DeliveryBatch[]
+
+  // Devoluciones que ingresan a este almacén
+  returns        Return[]
+}
+
+/// Inventario de cada EPP en cada almacén
+model EPPStock {
+  eppId          Int
+  warehouseId    Int
+  quantity       Int               @default(0)
+
+  epp            EPP               @relation(fields: [eppId], references: [id])
+  warehouse      Warehouse         @relation(fields: [warehouseId], references: [id])
+
+  @@id([eppId, warehouseId])
+}
+
+/// Movimientos de stock (entra/sale/transfiere/ajusta) en un solo almacén
 model StockMovement {
-  id         Int               @id @default(autoincrement())
-  type       StockMovementType
-  quantity   Int 
-  note       String?           
-  createdAt  DateTime          @default(now())
+  id             Int               @id @default(autoincrement())
+  type           StockMovementType
+  quantity       Int
+  note           String?
+  createdAt      DateTime          @default(now())
 
-  // Relaciones
-  epp        EPP               @relation(fields: [eppId], references: [id])
-  eppId      Int
-  user       User              @relation(fields: [userId], references: [id])
-  userId     Int
-  @@index([eppId, createdAt])
+  eppId          Int
+  epp            EPP               @relation(fields: [eppId], references: [id])
+
+  warehouseId    Int
+  warehouse      Warehouse         @relation(fields: [warehouseId], references: [id])
+
+  userId         Int
+  user           User              @relation(fields: [userId], references: [id])
+
+  @@index([eppId, warehouseId, createdAt])
 }
 
+/// Lote de entregas múltiples desde un almacén
 model DeliveryBatch {
-  id        Int      @id @default(autoincrement())
-  employee  String
-  note      String?
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
+  id             Int                @id @default(autoincrement())
+  employee       String
+  note           String?
+  warehouseId    Int
+  warehouse      Warehouse          @relation(fields: [warehouseId], references: [id])
+  userId         Int
+  user           User               @relation(fields: [userId], references: [id])
+  createdAt      DateTime           @default(now())
 
-  deliveries Delivery[]
+  deliveries     Delivery[]
 
   @@index([createdAt])
   @@index([employee])
 }
 
+/// Cada línea de entrega dentro de un batch
 model Delivery {
-  id         Int      @id @default(autoincrement())
-  batchId    Int
-  batch      DeliveryBatch @relation(fields:[batchId], references:[id])
- 
-  eppId      Int
-  epp        EPP      @relation(fields:[eppId], references:[id])
+  id             Int               @id @default(autoincrement())
+  batchId        Int
+  batch          DeliveryBatch     @relation(fields: [batchId], references: [id])
 
-  quantity   Int
-  createdAt  DateTime @default(now())
+  eppId          Int
+  epp            EPP               @relation(fields: [eppId], references: [id])
+
+  quantity       Int
+  createdAt      DateTime          @default(now())
 }
 
-
+/// Devoluciones (vuelven inventario a un almacén)
 model Return {
-  id            Int               @id @default(autoincrement())
-  employee      String
-  quantity      Int
-  condition     DeliveryCondition
-  createdAt     DateTime          @default(now())
+  id             Int              @id @default(autoincrement())
+  employee       String
+  quantity       Int
+  condition      DeliveryCondition
+  warehouseId    Int
+  warehouse      Warehouse        @relation(fields: [warehouseId], references: [id])
+  createdAt      DateTime         @default(now())
 
-  // Relaciones
-  epp           EPP               @relation(fields: [eppId], references: [id])
-  eppId         Int
-  user          User              @relation(fields: [userId], references: [id])
-  userId        Int
+  eppId          Int
+  epp            EPP              @relation(fields: [eppId], references: [id])
+  userId         Int
+  user           User             @relation(fields: [userId], references: [id])
 }
 
+/// Solicitudes de EPP
 model Request {
-  id            Int               @id @default(autoincrement())
-  employee      String
-  quantity      Int
-  reason        String?
-  status        RequestStatus     @default(PENDING)
-  createdAt     DateTime          @default(now())
+  id             Int              @id @default(autoincrement())
+  employee       String
+  quantity       Int
+  reason         String?
+  status         RequestStatus    @default(PENDING)
+  createdAt      DateTime         @default(now())
 
-  // Relaciones
-  epp           EPP               @relation(fields: [eppId], references: [id])
-  eppId         Int
-  user          User              @relation(fields: [userId], references: [id])
-  userId        Int
-  approvals     Approval[]        
+  eppId          Int
+  epp            EPP              @relation(fields: [eppId], references: [id])
+  userId         Int
+  user           User             @relation(fields: [userId], references: [id])
+  approvals      Approval[]       
 }
 
+/// Aprobaciones sobre solicitudes
 model Approval {
-  id            Int               @id @default(autoincrement())
-  result        ApprovalResult
-  comment       String?
-  createdAt     DateTime          @default(now())
+  id             Int             @id @default(autoincrement())
+  result         ApprovalResult
+  comment        String?
+  createdAt      DateTime        @default(now())
 
-  // Relaciones
-  request       Request           @relation(fields: [requestId], references: [id])
-  requestId     Int
-  user          User              @relation(fields: [userId], references: [id])
-  userId        Int
+  requestId      Int
+  request        Request         @relation(fields: [requestId], references: [id])
+  userId         Int
+  user           User            @relation(fields: [userId], references: [id])
 }
