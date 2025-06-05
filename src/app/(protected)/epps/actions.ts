@@ -3,61 +3,85 @@
 import prisma from "@/lib/prisma";
 import { eppSchema } from "@/schemas/epp-schema";
 import { revalidatePath } from "next/cache";
-import { Prisma } from "@prisma/client";
 import { getNextEppCode } from "@/lib/next-epp-code";
 
 export async function createEpp(fd: FormData) {
-  try {
-    // 1️⃣ Parseo de formulario
-    const data = eppSchema.parse(Object.fromEntries(fd)); // puede no incluir “code”
-    
-    // 2️⃣ Si no vino “code” o vino en blanco, generar uno automáticamente
-    const code = data.code?.trim() || (await getNextEppCode());
+  // 1. Parsear todos los campos (incluyendo warehouseId e initialQty)
+  const data = eppSchema.parse(Object.fromEntries(fd));
+  const code = data.code?.trim() || (await getNextEppCode());
 
-    // 3️⃣ Crear EPP (solo campos de eppSchema + nuestro code)
-    await prisma.ePP.create({
-      data: {
-        code,
-        name: data.name,
-        category: data.category,
-        description: data.description,
-        imageUrl: data.imageUrl,
-        datasheetUrl: data.datasheetUrl,
-        minStock: data.minStock,
+  // 2. Crear el EPP
+  const newEpp = await prisma.ePP.create({
+    data: {
+      code,
+      name: data.name,
+      category: data.category,
+      description: data.description,
+      imageUrl: data.imageUrl,
+      datasheetUrl: data.datasheetUrl,
+      minStock: data.minStock,
+    },
+  });
+
+  // 3. Si el usuario indicó un warehouseId, crear o actualizar registro EPPStock
+  if (data.warehouseId !== undefined) {
+    await prisma.ePPStock.upsert({
+      where: {
+        eppId_warehouseId: {
+          eppId: newEpp.id,
+          warehouseId: data.warehouseId,
+        },
+      },
+      create: {
+        eppId: newEpp.id,
+        warehouseId: data.warehouseId,
+        quantity: data.initialQty ?? 0,
+      },
+      update: {
+        // si ya existía, sobreescribimos con initialQty (o quedamos en 0 si no se indicó)
+        quantity: data.initialQty ?? 0,
       },
     });
-
-    revalidatePath("/epps");
-  } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2002"
-    ) {
-      // Restricción unique (ej. code duplicado)
-      throw new Error("El código ya existe");
-    }
-    throw err;
   }
+
+  // 4. Invalidar cache de lista de EPPs
+  revalidatePath("/epps");
 }
 
 export async function updateEpp(fd: FormData) {
+  // 1. Parsear campos (incluyendo id, warehouseId e initialQty)
   const data = eppSchema.parse(Object.fromEntries(fd));
-  const { id, ...rest } = data;
-  if (!id) throw new Error("ID requerido para editar");
+  const { id, warehouseId, initialQty, ...rest } = data;
+  if (!id) throw new Error("ID requerido para editar EPP");
 
-  // NOTA: No permitimos cambiar “code” en esta versión; si deseas permitirlo,
-  // habría que validar que empieza con “EPP-” y no colisiona.
+  // 2. Actualizar datos básicos del EPP
   await prisma.ePP.update({
     where: { id },
-    data: { ...rest },
+    data: rest,
   });
 
+  // 3. Si hay warehouseId, hacer upsert sobre EPPStock
+  if (warehouseId !== undefined) {
+    await prisma.ePPStock.upsert({
+      where: {
+        eppId_warehouseId: { eppId: id, warehouseId },
+      },
+      create: {
+        eppId: id,
+        warehouseId,
+        quantity: initialQty ?? 0,
+      },
+      update: {
+        quantity: initialQty ?? 0,
+      },
+    });
+  }
+
+  // 4. Invalidar cache
   revalidatePath("/epps");
 }
 
 export async function deleteEpp(id: number) {
-  // Antes la aplicación contaba con “movements” en ePP.stock; ahora revisamos
-  // si hay movimientos para ese EPP en cualquier almacén.
   const anyMovement = await prisma.stockMovement.count({
     where: { eppId: id },
   });

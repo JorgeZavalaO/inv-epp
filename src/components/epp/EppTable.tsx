@@ -1,112 +1,125 @@
 "use client";
 
-//import { EPP } from "@prisma/client";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/DataTable";
-import { useTransition, useState } from "react";
+import { useState, useTransition } from "react";
 import { deleteEpp } from "@/app/(protected)/epps/actions";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-  AlertDialogPortal,
-  AlertDialogOverlay
 } from "@/components/ui/alert-dialog";
+import ModalCreateEpp from "@/components/epp/ModalCreateEpp";
+import ModalEditEpp from "@/components/epp/ModalEditEpp";
 
+/* ─────── Tipado de cada fila ─────────────────────────── */
 type Row = {
   id: number;
   code: string;
   name: string;
   category: string;
+  description: string | null;
   stock: number;
   minStock: number;
   hasMovement: boolean;
+  warehouseId: number | null;
+  initialQty: number | null;
 };
 
 export default function EppTable({ data }: { data: Row[] }) {
-  const [isPending, startTransition] = useTransition();
-  const [selected, setSelected] = useState<{
-    id: number;
-    name: string;
-    hasMovement: boolean;
-  } | null>(null);
+  const [pending, startTransition] = useTransition();
+  const [selected, setSelected] = useState<Row | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<Row | null>(null);
 
   const columns: ColumnDef<Row>[] = [
     { accessorKey: "code", header: "Código" },
     { accessorKey: "name", header: "Nombre" },
     { accessorKey: "category", header: "Categoría" },
-    { accessorKey: "stock", header: "Stock" },
+    { accessorKey: "stock", header: "Stock actual" },
     { accessorKey: "minStock", header: "Mínimo" },
+    // Podrías mostrar almacén e initialQty si quieres:
+    {
+      accessorKey: "warehouseId",
+      header: "Almacén",
+      cell: ({ row }) => (row.original.warehouseId ?? "-"),
+    },
+    {
+      accessorKey: "initialQty",
+      header: "Cant. inicial",
+      cell: ({ row }) => (row.original.initialQty ?? "-"),
+    },
     {
       id: "actions",
       cell: ({ row }) => {
         const item = row.original;
         return (
           <div className="flex gap-2">
-            <Link href={`/epps/${item.id}`}>
-              <Button size="sm" variant="secondary" aria-label="Editar EPP">
-                Editar
-              </Button>
-            </Link>
+            {/* Botón Editar */}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setEditing(item)}
+            >
+              Editar
+            </Button>
+
+            {/* Botón Eliminar con alerta */}
             <AlertDialog
               open={!!selected && selected.id === item.id}
-              onOpenChange={(open) => {
-                if (!open) setSelected(null);
-              }}
+              onOpenChange={(open) => !open && setSelected(null)}
             >
               <AlertDialogTrigger asChild>
                 <Button
                   size="sm"
                   variant="destructive"
-                  aria-label="Eliminar EPP"
                   onClick={() => setSelected(item)}
                 >
                   Eliminar
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogPortal>
-                <AlertDialogOverlay className="fixed inset-0 bg-black/50 z-40" />
-                <AlertDialogContent className="fixed z-50 left-1/2 top-1/2 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white dark:bg-zinc-900 p-6 shadow-lg">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Eliminar EPP?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {selected?.hasMovement
-                        ? `El EPP "${selected.name}" tiene movimientos registrados y no se puede eliminar.`
-                        : `¿Estás seguro de que deseas eliminar el EPP "${selected?.name}"? Esta acción no se puede deshacer.`}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel asChild>
-                      <Button variant="outline">Cancelar</Button>
-                    </AlertDialogCancel>
-                    <AlertDialogAction asChild>
-                      <Button
-                        variant="destructive"
-                        disabled={isPending || !!selected?.hasMovement}
-                        onClick={() =>
-                          startTransition(async () => {
-                            if (!selected || selected.hasMovement) return;
-                            await deleteEpp(selected.id);
-                            toast.success("EPP eliminado exitosamente");
-                            setSelected(null);
-                          })
+
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar EPP?</AlertDialogTitle>
+                </AlertDialogHeader>
+                <p className="text-sm text-muted-foreground">
+                  {selected?.hasMovement
+                    ? `El EPP "${selected.name}" tiene movimientos y no se puede eliminar.`
+                    : `¿Seguro que deseas eliminar "${selected?.name}"? Acción irreversible.`}
+                </p>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={pending || !!selected?.hasMovement}
+                    onClick={() =>
+                      startTransition(async () => {
+                        if (!selected || selected.hasMovement) return;
+                        try {
+                          await deleteEpp(selected.id);
+                          toast.success("EPP eliminado");
+                          setSelected(null);
+                        } catch (err) {
+                          toast.error(
+                            err instanceof Error
+                              ? err.message
+                              : "Error al eliminar"
+                          );
                         }
-                      >
-                        Eliminar
-                      </Button>
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialogPortal>
+                      })
+                    }
+                  >
+                    Eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
             </AlertDialog>
           </div>
         );
@@ -114,5 +127,20 @@ export default function EppTable({ data }: { data: Row[] }) {
     },
   ];
 
-  return <DataTable columns={columns} data={data} />;
+  return (
+    <>
+      {/* Botón “+ Nuevo EPP” */}
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => setShowCreate(true)}>+ Nuevo EPP</Button>
+      </div>
+
+      <DataTable columns={columns} data={data} />
+
+      {/* Modales */}
+      {showCreate && <ModalCreateEpp onClose={() => setShowCreate(false)} />}
+      {editing && (
+        <ModalEditEpp epp={editing} onClose={() => setEditing(null)} />
+      )}
+    </>
+  );
 }
