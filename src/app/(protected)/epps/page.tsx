@@ -11,11 +11,17 @@ type Props = {
 export default async function EppsPage({ searchParams }: Props) {
   const { q = "", warehouse = "" } = await searchParams;
 
-  // 1) Obtener lista de almacenes para el <select>
-  const warehouses = await prisma.warehouse.findMany({
+  // 1) Obtener lista de almacenes (para filtro y para el mapa id→name)
+  const warehousesList = await prisma.warehouse.findMany({
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
+
+  // Construir mapa de id→nombre
+  const warehouseMap: Record<number, string> = {};
+  for (const w of warehousesList) {
+    warehouseMap[w.id] = w.name;
+  }
 
   // 2) Configurar filtro de texto
   const contains = (val: string) => ({
@@ -32,10 +38,10 @@ export default async function EppsPage({ searchParams }: Props) {
       }
     : {};
 
-  // 3) Convertir parámetro warehouse a número (si existe)
+  // 3) Convertir parámetro "warehouse" a número
   const warehouseId = Number(warehouse) || undefined;
 
-  // 4) Consultar EPPs, incluyendo stocks filtrados por warehouseId (cuando corresponda)
+  // 4) Consultar EPPs, incluyendo stocks filtrados por warehouseId (si hay filtro)
   const epps = await prisma.ePP.findMany({
     where: whereEpp,
     select: {
@@ -54,13 +60,17 @@ export default async function EppsPage({ searchParams }: Props) {
     orderBy: { name: "asc" },
   });
 
-  // 5) Mapear datos para la tabla
+  // 5) Mapear datos para la tabla (usando warehouseMap)
   const data = epps.map((e) => {
     const totalQty = e.stocks.reduce((acc, s) => acc + (s.quantity || 0), 0);
-    // Si existe warehouseId, e.stocks sólo contendrá registros de ese almacén
+
+    // Si hay filtro por warehouseId, e.stocks sólo contendrá ese almacén.
+    // Si no, tomamos el primer registro (si existe) para mostrar nombre.
     const assocStock = warehouseId
       ? e.stocks.find((s) => s.warehouseId === warehouseId) ?? null
-      : null;
+      : e.stocks.find((s) => s.quantity > 0) 
+        ?? e.stocks[0]  
+        ?? null;
 
     return {
       id: e.id,
@@ -71,8 +81,21 @@ export default async function EppsPage({ searchParams }: Props) {
       stock: totalQty,
       minStock: e.minStock,
       hasMovement: e._count.movements > 0,
-      warehouseId: assocStock?.warehouseId ?? null,
-      initialQty: assocStock ? assocStock.quantity : null,
+
+      // ------------- Aquí guardamos el nombre del almacén -------------
+      warehouseName: assocStock
+        ? warehouseMap[assocStock.warehouseId]
+        : null,
+
+      // Y también el ID, para el Modal de edición
+      warehouseId: assocStock
+        ? assocStock.warehouseId
+        : null,
+
+      // La cantidad inicial que se registró en ese almacén
+      initialQty: assocStock
+        ? assocStock.quantity
+        : null,
     };
   });
 
@@ -98,7 +121,7 @@ export default async function EppsPage({ searchParams }: Props) {
           className="rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">Todos los almacenes</option>
-          {warehouses.map((w) => (
+          {warehousesList.map((w) => (
             <option key={w.id} value={w.id}>
               {w.name}
             </option>
@@ -106,6 +129,7 @@ export default async function EppsPage({ searchParams }: Props) {
         </select>
       </form>
 
+      {/* —————————————— Tabla —————————————— */}
       <EppTable data={data} />
     </section>
   );

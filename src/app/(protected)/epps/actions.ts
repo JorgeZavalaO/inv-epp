@@ -23,7 +23,7 @@ export async function createEpp(fd: FormData) {
     },
   });
 
-  // 3. Si el usuario indicó un warehouseId, crear o actualizar registro EPPStock
+  // 3. Si el usuario indicó un warehouseId, crear o reemplazar registro en EPPStock
   if (data.warehouseId !== undefined) {
     await prisma.ePPStock.upsert({
       where: {
@@ -38,7 +38,7 @@ export async function createEpp(fd: FormData) {
         quantity: data.initialQty ?? 0,
       },
       update: {
-        // si ya existía, sobreescribimos con initialQty (o quedamos en 0 si no se indicó)
+        // Reemplaza la cantidad en lugar de sumarla
         quantity: data.initialQty ?? 0,
       },
     });
@@ -49,37 +49,36 @@ export async function createEpp(fd: FormData) {
 }
 
 export async function updateEpp(fd: FormData) {
-  // 1. Parsear campos (incluyendo id, warehouseId e initialQty)
   const data = eppSchema.parse(Object.fromEntries(fd));
-  const { id, warehouseId, initialQty, ...rest } = data;
-  if (!id) throw new Error("ID requerido para editar EPP");
+  const { id, warehouseId, initialQty = 0, ...rest } = data;
+  if (!id) throw new Error("ID requerido");
 
-  // 2. Actualizar datos básicos del EPP
-  await prisma.ePP.update({
-    where: { id },
-    data: rest,
-  });
+  // ❶ actualizar los campos básicos del EPP
+  await prisma.ePP.update({ where: { id }, data: rest });
 
-  // 3. Si hay warehouseId, hacer upsert sobre EPPStock
+  // ❷ si se indicó un almacén ⇒ transacción:
   if (warehouseId !== undefined) {
-    await prisma.ePPStock.upsert({
-      where: {
-        eppId_warehouseId: { eppId: id, warehouseId },
-      },
-      create: {
-        eppId: id,
-        warehouseId,
-        quantity: initialQty ?? 0,
-      },
-      update: {
-        quantity: initialQty ?? 0,
-      },
-    });
+    await prisma.$transaction([
+      // a) upsert en el nuevo / mismo almacén
+      prisma.ePPStock.upsert({
+        where: { eppId_warehouseId: { eppId: id, warehouseId } },
+        create: { eppId: id, warehouseId, quantity: initialQty },
+        update: { quantity: initialQty },          // reemplazar
+      }),
+      // b) poner a 0 TODOS los demás almacenes
+      prisma.ePPStock.updateMany({
+        where: {
+          eppId: id,
+          warehouseId: { not: warehouseId },
+        },
+        data: { quantity: 0 },
+      }),
+    ]);
   }
 
-  // 4. Invalidar cache
   revalidatePath("/epps");
 }
+
 
 export async function deleteEpp(id: number) {
   const anyMovement = await prisma.stockMovement.count({

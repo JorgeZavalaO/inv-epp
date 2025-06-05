@@ -25,7 +25,7 @@ export default function ModalCreateEpp({ onClose }: { onClose: () => void }) {
     []
   );
 
-  /* ── Cargar código y lista de almacenes ── */
+  // Cargar próximo código e inventario de almacenes
   useEffect(() => {
     getNextEppCode().then(setAutoCode).catch(() => {});
     fetch("/api/warehouses")
@@ -53,7 +53,7 @@ export default function ModalCreateEpp({ onClose }: { onClose: () => void }) {
   });
 
   const onSubmit = async (data: FormValues) => {
-    // Construir FormData incluyendo code forzado
+    // Construir FormData, asegurando el code
     const fd = new FormData();
     Object.entries({ ...data, code: autoCode }).forEach(([k, v]) =>
       fd.append(k, String(v ?? ""))
@@ -81,17 +81,11 @@ export default function ModalCreateEpp({ onClose }: { onClose: () => void }) {
 
           {/* Nombre */}
           <Input {...register("name")} label="Nombre" />
-          {errors.name && (
-            <p className="text-destructive text-sm">{errors.name.message}</p>
-          )}
+          {errors.name && <p className="text-destructive text-sm">{errors.name.message}</p>}
 
           {/* Categoría */}
           <Input {...register("category")} label="Categoría" />
-          {errors.category && (
-            <p className="text-destructive text-sm">
-              {errors.category.message}
-            </p>
-          )}
+          {errors.category && <p className="text-destructive text-sm">{errors.category.message}</p>}
 
           {/* Descripción */}
           <Input {...register("description")} label="Descripción" />
@@ -102,11 +96,7 @@ export default function ModalCreateEpp({ onClose }: { onClose: () => void }) {
             {...register("minStock", { valueAsNumber: true })}
             label="Stock mínimo"
           />
-          {errors.minStock && (
-            <p className="text-destructive text-sm">
-              {errors.minStock.message}
-            </p>
-          )}
+          {errors.minStock && <p className="text-destructive text-sm">{errors.minStock.message}</p>}
 
           {/* Almacén inicial */}
           <select
@@ -120,11 +110,7 @@ export default function ModalCreateEpp({ onClose }: { onClose: () => void }) {
               </option>
             ))}
           </select>
-          {errors.warehouseId && (
-            <p className="text-destructive text-sm">
-              {errors.warehouseId.message}
-            </p>
-          )}
+          {errors.warehouseId && <p className="text-destructive text-sm">{errors.warehouseId.message}</p>}
 
           {/* Cantidad inicial */}
           <Input
@@ -132,11 +118,7 @@ export default function ModalCreateEpp({ onClose }: { onClose: () => void }) {
             {...register("initialQty", { valueAsNumber: true })}
             label="Cantidad inicial (opcional)"
           />
-          {errors.initialQty && (
-            <p className="text-destructive text-sm">
-              {errors.initialQty.message}
-            </p>
-          )}
+          {errors.initialQty && <p className="text-destructive text-sm">{errors.initialQty.message}</p>}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" type="button" onClick={onClose}>

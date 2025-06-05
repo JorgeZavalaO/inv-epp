@@ -16,6 +16,7 @@ import { updateEpp } from "@/app/(protected)/epps/actions";
 import type { z } from "zod";
 import { toast } from "sonner";
 
+// El tipo FormValues se infiere del schema
 type FormValues = z.infer<typeof eppSchema>;
 
 export default function ModalEditEpp({
@@ -38,11 +39,14 @@ export default function ModalEditEpp({
     []
   );
 
+  // Al cargar el modal, traemos la lista de almacenes para el <select>
   useEffect(() => {
     fetch("/api/warehouses")
       .then((res) => res.json())
       .then(setWarehouses)
-      .catch(() => {});
+      .catch(() => {
+        // No hacemos nada si falla
+      });
   }, []);
 
   const {
@@ -51,6 +55,9 @@ export default function ModalEditEpp({
     formState: { errors, isSubmitting, isValid },
   } = useForm<FormValues>({
     resolver: zodResolver(eppSchema),
+
+    // defaultValues incluyen ID, warehouseId y initialQty para que la select
+    // muestre el almacén actual y el input muestre la cantidad actual
     defaultValues: {
       id: epp.id,
       code: epp.code,
@@ -65,6 +72,8 @@ export default function ModalEditEpp({
   });
 
   const onSubmit = async (data: FormValues) => {
+    // Construir FormData: Zod ya nos convenció que 'id', 'warehouseId'
+    // y 'initialQty' vienen todos como números (gracias a z.coerce.number)
     const fd = new FormData();
     Object.entries(data).forEach(([k, v]) => fd.append(k, String(v ?? "")));
 
@@ -85,22 +94,19 @@ export default function ModalEditEpp({
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
+          {/* ◀︎ Input hidden para que el ID entre en FormData ya como número */}
+          <input type="hidden" {...register("id", { valueAsNumber: true })} />
+
           {/* Código (no editable) */}
           <Input disabled value={epp.code} label="Código" />
 
           {/* Nombre */}
           <Input {...register("name")} label="Nombre" />
-          {errors.name && (
-            <p className="text-destructive text-sm">{errors.name.message}</p>
-          )}
+          {errors.name && <p className="text-destructive text-sm">{errors.name.message}</p>}
 
           {/* Categoría */}
           <Input {...register("category")} label="Categoría" />
-          {errors.category && (
-            <p className="text-destructive text-sm">
-              {errors.category.message}
-            </p>
-          )}
+          {errors.category && <p className="text-destructive text-sm">{errors.category.message}</p>}
 
           {/* Descripción */}
           <Input {...register("description")} label="Descripción" />
@@ -111,13 +117,9 @@ export default function ModalEditEpp({
             {...register("minStock", { valueAsNumber: true })}
             label="Stock mínimo"
           />
-          {errors.minStock && (
-            <p className="text-destructive text-sm">
-              {errors.minStock.message}
-            </p>
-          )}
+          {errors.minStock && <p className="text-destructive text-sm">{errors.minStock.message}</p>}
 
-          {/* Almacén */}
+          {/* ► Select de almacén ◀︎ */}
           <select
             {...register("warehouseId", { valueAsNumber: true })}
             className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-ring"
@@ -129,23 +131,15 @@ export default function ModalEditEpp({
               </option>
             ))}
           </select>
-          {errors.warehouseId && (
-            <p className="text-destructive text-sm">
-              {errors.warehouseId.message}
-            </p>
-          )}
+          {errors.warehouseId && <p className="text-destructive text-sm">{errors.warehouseId.message}</p>}
 
-          {/* Cantidad inicial */}
+          {/* ► Cantidad inicial ◀︎ */}
           <Input
             type="number"
             {...register("initialQty", { valueAsNumber: true })}
             label="Cantidad inicial (opcional)"
           />
-          {errors.initialQty && (
-            <p className="text-destructive text-sm">
-              {errors.initialQty.message}
-            </p>
-          )}
+          {errors.initialQty && <p className="text-destructive text-sm">{errors.initialQty.message}</p>}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" type="button" onClick={onClose}>

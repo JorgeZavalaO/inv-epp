@@ -19,7 +19,6 @@ import {
 import ModalCreateEpp from "@/components/epp/ModalCreateEpp";
 import ModalEditEpp from "@/components/epp/ModalEditEpp";
 
-/* ─────── Tipado de cada fila ─────────────────────────── */
 type Row = {
   id: number;
   code: string;
@@ -29,6 +28,7 @@ type Row = {
   stock: number;
   minStock: number;
   hasMovement: boolean;
+  warehouseName: string | null;  // ► ahora mostramos el nombre
   warehouseId: number | null;
   initialQty: number | null;
 };
@@ -45,11 +45,10 @@ export default function EppTable({ data }: { data: Row[] }) {
     { accessorKey: "category", header: "Categoría" },
     { accessorKey: "stock", header: "Stock actual" },
     { accessorKey: "minStock", header: "Mínimo" },
-    // Podrías mostrar almacén e initialQty si quieres:
     {
-      accessorKey: "warehouseId",
+      accessorKey: "warehouseName",
       header: "Almacén",
-      cell: ({ row }) => (row.original.warehouseId ?? "-"),
+      cell: ({ row }) => row.original.warehouseName ?? "-",
     },
     {
       accessorKey: "initialQty",
@@ -62,7 +61,7 @@ export default function EppTable({ data }: { data: Row[] }) {
         const item = row.original;
         return (
           <div className="flex gap-2">
-            {/* Botón Editar */}
+            {/* Editar */}
             <Button
               size="sm"
               variant="secondary"
@@ -71,7 +70,7 @@ export default function EppTable({ data }: { data: Row[] }) {
               Editar
             </Button>
 
-            {/* Botón Eliminar con alerta */}
+            {/* Eliminar */}
             <AlertDialog
               open={!!selected && selected.id === item.id}
               onOpenChange={(open) => !open && setSelected(null)}
@@ -129,18 +128,14 @@ export default function EppTable({ data }: { data: Row[] }) {
 
   return (
     <>
-      {/* Botón “+ Nuevo EPP” */}
       <div className="flex justify-end mb-4">
         <Button onClick={() => setShowCreate(true)}>+ Nuevo EPP</Button>
       </div>
 
       <DataTable columns={columns} data={data} />
 
-      {/* Modales */}
       {showCreate && <ModalCreateEpp onClose={() => setShowCreate(false)} />}
-      {editing && (
-        <ModalEditEpp epp={editing} onClose={() => setEditing(null)} />
-      )}
+      {editing && <ModalEditEpp epp={editing} onClose={() => setEditing(null)} />}
     </>
   );
 }
