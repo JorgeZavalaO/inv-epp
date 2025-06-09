@@ -47,10 +47,11 @@ export async function createMovement(fd: FormData) {
   revalidatePath("/epps");
 }
 
-
 export async function deleteMovement(id: number) {
   const movement = await prisma.stockMovement.findUniqueOrThrow({ where: { id } });
-  if (movement.type === "ADJUSTMENT") throw new Error("No se puede deshacer un ajuste.");
+  if (movement.type !== "ADJUSTMENT" && movement.quantity === 0) {
+    throw new Error("La cantidad debe ser mayor que 0 para ENTRADA / SALIDA");
+  }
 
   await prisma.$transaction([
     prisma.stockMovement.delete({ where: { id } }),
