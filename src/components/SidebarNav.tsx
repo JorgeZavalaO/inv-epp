@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   Settings,
   RotateCcw,
-  SendToBack
+  SendToBack,
+  Users
 } from 'lucide-react';
 import {
   SignedIn,
@@ -31,6 +32,7 @@ const sections = [
       { href: '/deliveries', label: 'Entregas', icon: <Handshake size={18} /> },
       { href: "/returns", label: "Devoluciones", icon: <RotateCcw size={18}/> },
       { href: '/requests', label: 'Solicitudes', icon: <ClipboardList size={18} /> },
+      { href: '/collaborators', label: 'Colaboradores', icon: <Users size={18} /> },
     ]
   },
   { title: 'Análisis', items: [

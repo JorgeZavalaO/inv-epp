@@ -210,3 +210,15 @@ model Approval {
   userId         Int
   user           User            @relation(fields: [userId], references: [id])
 }
+
+/// Colaboradores (no usuarios de Clerk, solo para selección en formularios)
+model Collaborator {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(128)
+  email      String?  @db.VarChar(128)
+  position   String?  @db.VarChar(64)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([name])
+}
