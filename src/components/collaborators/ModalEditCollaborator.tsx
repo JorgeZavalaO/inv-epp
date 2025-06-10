@@ -15,7 +15,7 @@ export default function ModalEditCollaborator({
   collaborator,
   onClose,
 }: {
-  collaborator: { id: number; name: string; email: string | null; position: string | null };
+  collaborator: { id: number; name: string; email: string | null; position: string | null; location: string | null };
   onClose:      () => void;
 }) {
   const { register, handleSubmit, formState: { errors, isSubmitting, isValid } } =
@@ -26,6 +26,7 @@ export default function ModalEditCollaborator({
         name:     collaborator.name,
         email:    collaborator.email ?? undefined,
         position: collaborator.position ?? undefined,
+        location: collaborator.location ?? undefined,
       },
       mode: "onChange",
     });
@@ -65,6 +66,11 @@ export default function ModalEditCollaborator({
             <Label>Posición (opcional)</Label>
             <Input {...register("position")} />
             {errors.position && <p className="text-destructive text-sm">{errors.position.message}</p>}
+          </div>
+          <div>
+            <Label>Ubicación (opcional)</Label>
+            <Input {...register("location")} />
+            {errors.location && <p className="text-destructive text-sm">{errors.location.message}</p>}
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>

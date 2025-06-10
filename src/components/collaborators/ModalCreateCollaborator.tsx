@@ -52,6 +52,11 @@ export default function ModalCreateCollaborator({ onClose }: { onClose: () => vo
             <Input {...register("position")} />
             {errors.position && <p className="text-destructive text-sm">{errors.position.message}</p>}
           </div>
+          <div>
+            <Label>Ubicación (opcional)</Label>
+            <Input {...register("location")} />
+            {errors.location && <p className="text-destructive text-sm">{errors.location.message}</p>}
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>
               Cancelar

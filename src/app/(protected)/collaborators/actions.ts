@@ -11,6 +11,7 @@ export async function createCollaborator(fd: FormData) {
     name:     fd.get("name")?.toString() ?? "",
     email:    fd.get("email")?.toString() ?? undefined,
     position: fd.get("position")?.toString() ?? undefined,
+    location: fd.get("location")?.toString() ?? undefined,
   };
   try {
     const data = collaboratorSchema.parse(raw);
@@ -36,13 +37,14 @@ export async function updateCollaborator(fd: FormData) {
     name:     fd.get("name")?.toString() ?? "",
     email:    fd.get("email")?.toString() ?? undefined,
     position: fd.get("position")?.toString() ?? undefined,
+    location: fd.get("location")?.toString() ?? undefined,
   };
   try {
     const data = collaboratorSchema.parse(raw);
     if (!data.id) throw new Error("ID inválido");
     await prisma.collaborator.update({
       where: { id: data.id },
-      data:  { name: data.name, email: data.email, position: data.position },
+      data:  { name: data.name, email: data.email, position: data.position, location: data.location },
     });
     revalidatePath("/collaborators");
   } catch (err: unknown) {

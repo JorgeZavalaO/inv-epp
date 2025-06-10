@@ -13,6 +13,7 @@ interface Collaborator {
   name:      string;
   email:     string | null;
   position:  string | null;
+  location:  string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,6 +42,7 @@ export default function CollaboratorsClient({ list }: Props) {
               <th className="p-2 text-left">Nombre</th>
               <th className="p-2 text-left">Email</th>
               <th className="p-2 text-left">Posición</th>
+              <th className="p-2 text-left">Ubicación</th>
               <th className="p-2 text-center">Acciones</th>
             </tr>
           </thead>
@@ -50,6 +52,7 @@ export default function CollaboratorsClient({ list }: Props) {
                 <td className="p-2">{c.name}</td>
                 <td className="p-2">{c.email ?? "-"}</td>
                 <td className="p-2">{c.position ?? "-"}</td>
+                <td className="p-2">{c.location ?? "-"}</td>
                 <td className="p-2 text-center flex justify-center gap-2">
                   <Button
                     size="sm"

@@ -9,6 +9,7 @@ export default async function CollaboratorsPage() {
   });
   const serializedList = list.map((collaborator) => ({
     ...collaborator,
+    location: collaborator.location ?? null,
     createdAt: collaborator.createdAt.toISOString(),
     updatedAt: collaborator.updatedAt.toISOString(),
   }));
