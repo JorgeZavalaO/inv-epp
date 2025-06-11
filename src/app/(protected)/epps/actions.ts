@@ -5,90 +5,128 @@ import { eppSchema } from "@/schemas/epp-schema";
 import { revalidatePath } from "next/cache";
 import { getNextEppCode } from "@/lib/next-epp-code";
 
+function parseFormDataToEpp(fd: FormData) {
+  const entries = Array.from(fd.entries()) as [string, string][];
+  const data: Record<string, unknown> = {};
+  const itemsMap: Record<number, Record<string, number>> = {};
+
+  for (const [key, value] of entries) {
+    const match = key.match(/^items\.(\d+)\.(\w+)$/);
+    if (match) {
+      const idx = Number(match[1]);
+      const field = match[2];
+      itemsMap[idx] = itemsMap[idx] || {};
+      itemsMap[idx][field] = Number(value);
+    } else {
+      data[key] = value;
+    }
+  }
+
+  // Construir el array items ordenado
+  data.items = Object.keys(itemsMap)
+    .sort((a, b) => Number(a) - Number(b))
+    .map((i) => itemsMap[Number(i)]);
+
+  return data;
+}
+
 export async function createEpp(fd: FormData) {
-  // 1. Parsear todos los campos (incluyendo warehouseId e initialQty)
-  const data = eppSchema.parse(Object.fromEntries(fd));
+  // 1) parsear y validar
+  const raw = parseFormDataToEpp(fd);
+  const data = eppSchema.parse(raw);
+
+  // 2) código
   const code = data.code?.trim() || (await getNextEppCode());
 
-  // 2. Crear el EPP
+  // 3) crear EPP
   const newEpp = await prisma.ePP.create({
     data: {
       code,
-      name: data.name,
-      category: data.category,
+      name:        data.name,
+      category:    data.category,
       description: data.description,
-      imageUrl: data.imageUrl,
-      datasheetUrl: data.datasheetUrl,
-      minStock: data.minStock,
+      imageUrl:    data.imageUrl,
+      datasheetUrl:data.datasheetUrl,
+      minStock:    data.minStock,
     },
   });
 
-  // 3. Si el usuario indicó un warehouseId, crear o reemplazar registro en EPPStock
-  if (data.warehouseId !== undefined) {
-    await prisma.ePPStock.upsert({
-      where: {
-        eppId_warehouseId: {
-          eppId: newEpp.id,
-          warehouseId: data.warehouseId,
+  // 4) stocks iniciales (un upsert por cada item)
+  await prisma.$transaction(
+    data.items.map((it) =>
+      prisma.ePPStock.upsert({
+        where: {
+          eppId_warehouseId: {
+            eppId:       newEpp.id,
+            warehouseId: it.warehouseId,
+          },
         },
-      },
-      create: {
-        eppId: newEpp.id,
-        warehouseId: data.warehouseId,
-        quantity: data.initialQty ?? 0,
-      },
-      update: {
-        // Reemplaza la cantidad en lugar de sumarla
-        quantity: data.initialQty ?? 0,
-      },
-    });
-  }
+        create: {
+          eppId:       newEpp.id,
+          warehouseId: it.warehouseId,
+          quantity:    it.initialQty,
+        },
+        update: {
+          quantity:    it.initialQty,
+        },
+      })
+    )
+  );
 
-  // 4. Invalidar cache de lista de EPPs
   revalidatePath("/epps");
 }
+
 
 export async function updateEpp(fd: FormData) {
-  const data = eppSchema.parse(Object.fromEntries(fd));
-  const { id, warehouseId, initialQty = 0, ...rest } = data;
+  const raw = parseFormDataToEpp(fd);
+  const data = eppSchema.parse(raw);
+  const { id, items, ...rest } = data;
   if (!id) throw new Error("ID requerido");
 
-  // ❶ actualizar los campos básicos del EPP
+  // 1) actualizar EPP
   await prisma.ePP.update({ where: { id }, data: rest });
 
-  // ❷ si se indicó un almacén ⇒ transacción:
-  if (warehouseId !== undefined) {
-    await prisma.$transaction([
-      // a) upsert en el nuevo / mismo almacén
-      prisma.ePPStock.upsert({
-        where: { eppId_warehouseId: { eppId: id, warehouseId } },
-        create: { eppId: id, warehouseId, quantity: initialQty },
-        update: { quantity: initialQty },          // reemplazar
-      }),
-      // b) poner a 0 TODOS los demás almacenes
-      prisma.ePPStock.updateMany({
+  // 2) ajustar stocks
+  await prisma.$transaction(async (tx) => {
+    for (const it of items) {
+      await tx.ePPStock.upsert({
         where: {
-          eppId: id,
-          warehouseId: { not: warehouseId },
+          eppId_warehouseId: { eppId: id, warehouseId: it.warehouseId },
         },
-        data: { quantity: 0 },
-      }),
-    ]);
-  }
+        create: {
+          eppId:       id,
+          warehouseId: it.warehouseId,
+          quantity:    it.initialQty,
+        },
+        update: {
+          quantity:    it.initialQty,
+        },
+      });
+    }
+    const keep = items.map((it) => it.warehouseId);
+    await tx.ePPStock.updateMany({
+      where: {
+        eppId:         id,
+        warehouseId: { notIn: keep },
+      },
+      data: { quantity: 0 },
+    });
+  });
 
   revalidatePath("/epps");
 }
 
-
 export async function deleteEpp(id: number) {
-  const anyMovement = await prisma.stockMovement.count({
-    where: { eppId: id },
-  });
+  const anyMovement = await prisma.stockMovement.count({ where: { eppId: id } });
   if (anyMovement > 0) {
     throw new Error("El EPP tiene movimientos y no puede eliminarse.");
   }
 
-  await prisma.ePP.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.ePPStock.deleteMany({ where: { eppId: id } }),
+    prisma.ePP.delete({ where: { id } }),
+  ]);
+
   revalidatePath("/epps");
   revalidatePath("/dashboard");
 }

@@ -1,23 +1,18 @@
 "use client";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { eppSchema } from "@/schemas/epp-schema";
-import { updateEpp } from "@/app/(protected)/epps/actions";
-import type { z } from "zod";
-import { toast } from "sonner";
+import * as React from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button }       from "@/components/ui/button";
+import { Label }        from "@/components/ui/label";
+import { Input }        from "@/components/ui/input";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { zodResolver }  from "@hookform/resolvers/zod";
+import { toast }        from "sonner";
+import { Plus, Trash, Loader2 } from "lucide-react";
 
-// El tipo FormValues se infiere del schema
-type FormValues = z.infer<typeof eppSchema>;
+import { eppSchema, EppValues } from "@/schemas/epp-schema";
+import { updateEpp }    from "@/app/(protected)/epps/actions";
+import ComboboxWarehouse from "@/components/ui/ComboboxWarehouse";
 
 export default function ModalEditEpp({
   epp,
@@ -30,122 +25,178 @@ export default function ModalEditEpp({
     category: string;
     description: string | null;
     minStock: number;
-    warehouseId: number | null;
-    initialQty: number | null;
+    // stocks múltiples pasados desde la tabla
+    items: { warehouseId: number; initialQty: number }[];
   };
-  onClose: () => void;
+  onClose(): void;
 }) {
-  const [warehouses, setWarehouses] = useState<{ id: number; name: string }[]>(
-    []
-  );
+  const [warehouses, setWarehouses] = React.useState<{ id: number; name: string }[]>([]);
 
-  // Al cargar el modal, traemos la lista de almacenes para el <select>
-  useEffect(() => {
+  React.useEffect(() => {
     fetch("/api/warehouses")
-      .then((res) => res.json())
+      .then((r) => r.json())
       .then(setWarehouses)
-      .catch(() => {
-        // No hacemos nada si falla
-      });
+      .catch(() => {});
   }, []);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting, isValid },
-  } = useForm<FormValues>({
-    resolver: zodResolver(eppSchema),
-
-    // defaultValues incluyen ID, warehouseId y initialQty para que la select
-    // muestre el almacén actual y el input muestre la cantidad actual
+  const { control, register, handleSubmit, formState } = useForm<EppValues>({
+    resolver:    zodResolver(eppSchema),
+    mode:        "onChange",
     defaultValues: {
-      id: epp.id,
-      code: epp.code,
-      name: epp.name,
-      category: epp.category,
+      id:          epp.id,
+      code:        epp.code,
+      name:        epp.name,
+      category:    epp.category,
       description: epp.description ?? "",
-      minStock: epp.minStock,
-      warehouseId: epp.warehouseId ?? undefined,
-      initialQty: epp.initialQty ?? undefined,
+      minStock:    epp.minStock,
+      // cargamos los stocks existentes o dejamos dos filas vacías
+      items:
+        epp.items.length > 0
+          ? epp.items
+          : [
+              { warehouseId: undefined!, initialQty: 0 },
+              { warehouseId: undefined!, initialQty: 0 },
+            ],
     },
-    mode: "onChange",
   });
 
-  const onSubmit = async (data: FormValues) => {
-    // Construir FormData: Zod ya nos convenció que 'id', 'warehouseId'
-    // y 'initialQty' vienen todos como números (gracias a z.coerce.number)
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "items",
+  });
+
+  const onSubmit = async (data: EppValues) => {
     const fd = new FormData();
-    Object.entries(data).forEach(([k, v]) => fd.append(k, String(v ?? "")));
+    Object.entries(data).forEach(([key, val]) => {
+      if (key === "items" && Array.isArray(val)) {
+        val.forEach((it, i) => {
+          fd.append(`items.${i}.warehouseId`, String(it.warehouseId));
+          fd.append(`items.${i}.initialQty`, String(it.initialQty));
+        });
+      } else {
+        fd.append(key, String(val ?? ""));
+      }
+    });
 
     try {
       await updateEpp(fd);
       toast.success("EPP actualizado");
       onClose();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Error al actualizar");
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+          ? err
+          : "Error al actualizar";
+      toast.error(message);
     }
   };
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Editar EPP</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
-          {/* ◀︎ Input hidden para que el ID entre en FormData ya como número */}
+          {/* Oculto para que Zod reciba el id */}
           <input type="hidden" {...register("id", { valueAsNumber: true })} />
 
-          {/* Código (no editable) */}
           <Input disabled value={epp.code} label="Código" />
 
-          {/* Nombre */}
           <Input {...register("name")} label="Nombre" />
-          {errors.name && <p className="text-destructive text-sm">{errors.name.message}</p>}
+          {formState.errors.name && (
+            <p className="text-destructive text-sm">{formState.errors.name.message}</p>
+          )}
 
-          {/* Categoría */}
           <Input {...register("category")} label="Categoría" />
-          {errors.category && <p className="text-destructive text-sm">{errors.category.message}</p>}
+          {formState.errors.category && (
+            <p className="text-destructive text-sm">
+              {formState.errors.category.message}
+            </p>
+          )}
 
-          {/* Descripción */}
           <Input {...register("description")} label="Descripción" />
 
-          {/* Stock mínimo */}
           <Input
             type="number"
             {...register("minStock", { valueAsNumber: true })}
             label="Stock mínimo"
           />
-          {errors.minStock && <p className="text-destructive text-sm">{errors.minStock.message}</p>}
+          {formState.errors.minStock && (
+            <p className="text-destructive text-sm">
+              {formState.errors.minStock.message}
+            </p>
+          )}
 
-          {/* ► Select de almacén ◀︎ */}
-          <select
-            {...register("warehouseId", { valueAsNumber: true })}
-            className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-ring"
+          <Label>Stocks iniciales (por almacén)</Label>
+          {fields.map((f, idx) => (
+            <div key={f.id} className="grid grid-cols-12 gap-2 items-end">
+              <Controller
+                name={`items.${idx}.warehouseId`}
+                control={control}
+                render={({ field }) => (
+                  <div className="col-span-6">
+                    <ComboboxWarehouse
+                      value={field.value || null}
+                      onChange={field.onChange}
+                      options={warehouses.map((w) => ({ id: w.id, label: w.name }))}
+                    />
+                  </div>
+                )}
+              />
+              <Controller
+                name={`items.${idx}.initialQty`}
+                control={control}
+                render={({ field }) => (
+                  <div className="col-span-4">
+                    <Input
+                      type="number"
+                      min={0}
+                      {...field}
+                      placeholder="Cantidad"
+                    />
+                  </div>
+                )}
+              />
+              <div className="col-span-2 flex justify-end">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => remove(idx)}
+                >
+                  <Trash size={16} />
+                </Button>
+              </div>
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            onClick={() => append({ warehouseId: undefined!, initialQty: 0 })}
           >
-            <option value="">Almacén (opcional)</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-          {errors.warehouseId && <p className="text-destructive text-sm">{errors.warehouseId.message}</p>}
+            <Plus size={16} className="mr-1" /> Añadir almacén
+          </Button>
+          {formState.errors.items && (
+            <p className="text-destructive text-sm">{formState.errors.items.message}</p>
+          )}
 
-          {/* ► Cantidad inicial ◀︎ */}
-          <Input
-            type="number"
-            {...register("initialQty", { valueAsNumber: true })}
-            label="Cantidad inicial (opcional)"
-          />
-          {errors.initialQty && <p className="text-destructive text-sm">{errors.initialQty.message}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" type="button" onClick={onClose}>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={formState.isSubmitting}
+            >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting || !isValid}>
+            <Button
+              type="submit"
+              disabled={!formState.isValid || formState.isSubmitting}
+            >
+              {formState.isSubmitting && (
+                <Loader2 className="animate-spin mr-2 h-4 w-4" />
+              )}
               Guardar
             </Button>
           </div>

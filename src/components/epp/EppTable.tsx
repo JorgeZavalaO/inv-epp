@@ -16,101 +16,87 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import ModalCreateEpp from "@/components/epp/ModalCreateEpp";
-import ModalEditEpp from "@/components/epp/ModalEditEpp";
+import ModalCreateEpp from "./ModalCreateEpp";
+import ModalEditEpp   from "./ModalEditEpp";
+import ModalViewEpp   from "./ModalViewEpp";
 
-type Row = {
-  id: number;
-  code: string;
-  name: string;
-  category: string;
+export type EppRow = {
+  id:          number;
+  code:        string;
+  name:        string;
+  category:    string;
+  stock:       number;
   description: string | null;
-  stock: number;
-  minStock: number;
+  minStock:    number;
   hasMovement: boolean;
-  warehouseName: string | null;  // ► ahora mostramos el nombre
-  warehouseId: number | null;
-  initialQty: number | null;
+  items: {
+    warehouseId:   number;
+    warehouseName: string;
+    quantity:      number;
+  }[];
 };
 
-export default function EppTable({ data }: { data: Row[] }) {
+export default function EppTable({ data }: { data: EppRow[] }) {
   const [pending, startTransition] = useTransition();
-  const [selected, setSelected] = useState<Row | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [editing, setEditing] = useState<Row | null>(null);
+  const [editing, setEditing]       = useState<EppRow | null>(null);
+  const [viewing, setViewing]       = useState<EppRow | null>(null);
+  const [deleting, setDeleting]     = useState<EppRow | null>(null);
 
-  const columns: ColumnDef<Row>[] = [
+  const columns: ColumnDef<EppRow>[] = [
     { accessorKey: "code", header: "Código" },
     { accessorKey: "name", header: "Nombre" },
     { accessorKey: "category", header: "Categoría" },
     { accessorKey: "stock", header: "Stock actual" },
-    { accessorKey: "minStock", header: "Mínimo" },
-    {
-      accessorKey: "warehouseName",
-      header: "Almacén",
-      cell: ({ row }) => row.original.warehouseName ?? "-",
-    },
-    {
-      accessorKey: "initialQty",
-      header: "Cant. inicial",
-      cell: ({ row }) => (row.original.initialQty ?? "-"),
-    },
     {
       id: "actions",
+      header: "Acciones",
       cell: ({ row }) => {
-        const item = row.original;
+        const e = row.original;
         return (
           <div className="flex gap-2">
-            {/* Editar */}
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setEditing(item)}
-            >
+            <Button size="sm" onClick={() => setViewing(e)}>
+              Ver
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setEditing(e)}>
               Editar
             </Button>
-
-            {/* Eliminar */}
             <AlertDialog
-              open={!!selected && selected.id === item.id}
-              onOpenChange={(open) => !open && setSelected(null)}
+              open={deleting?.id === e.id}
+              onOpenChange={(o) => !o && setDeleting(null)}
             >
               <AlertDialogTrigger asChild>
                 <Button
                   size="sm"
                   variant="destructive"
-                  onClick={() => setSelected(item)}
+                  onClick={() => setDeleting(e)}
+                  disabled={pending || e.hasMovement}
                 >
                   Eliminar
                 </Button>
               </AlertDialogTrigger>
-
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>¿Eliminar EPP?</AlertDialogTitle>
+                  <AlertDialogTitle>
+                    {e.hasMovement
+                      ? `No se puede eliminar "${e.name}"`
+                      : `Eliminar "${e.name}"?`}
+                  </AlertDialogTitle>
                 </AlertDialogHeader>
-                <p className="text-sm text-muted-foreground">
-                  {selected?.hasMovement
-                    ? `El EPP "${selected.name}" tiene movimientos y no se puede eliminar.`
-                    : `¿Seguro que deseas eliminar "${selected?.name}"? Acción irreversible.`}
-                </p>
-                <AlertDialogFooter>
+                <AlertDialogFooter className="flex gap-2">
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                   <AlertDialogAction
-                    disabled={pending || !!selected?.hasMovement}
+                    disabled={pending || e.hasMovement}
                     onClick={() =>
                       startTransition(async () => {
-                        if (!selected || selected.hasMovement) return;
                         try {
-                          await deleteEpp(selected.id);
+                          await deleteEpp(e.id);
                           toast.success("EPP eliminado");
-                          setSelected(null);
-                        } catch (err) {
-                          toast.error(
-                            err instanceof Error
-                              ? err.message
-                              : "Error al eliminar"
-                          );
+                          setDeleting(null);
+                        } catch (err: unknown) {
+                          const message =
+                            err instanceof Error ? err.message : "Error desconocido";
+                          toast.error(message);
                         }
                       })
                     }
@@ -135,7 +121,19 @@ export default function EppTable({ data }: { data: Row[] }) {
       <DataTable columns={columns} data={data} />
 
       {showCreate && <ModalCreateEpp onClose={() => setShowCreate(false)} />}
-      {editing && <ModalEditEpp epp={editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <ModalEditEpp
+          epp={{
+            ...editing,
+            items: editing.items.map(item => ({
+              warehouseId: item.warehouseId,
+              initialQty: item.quantity,
+            })),
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {viewing && <ModalViewEpp epp={viewing} onClose={() => setViewing(null)} />}
     </>
   );
 }
