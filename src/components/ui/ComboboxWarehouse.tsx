@@ -16,12 +16,6 @@ interface WarehouseOption {
   label: string;
 }
 
-/**
- * Combobox para seleccionar un almacén. 
- * value = ID del almacén seleccionado (o null),
- * onChange = callback que recibe el nuevo ID,
- * options = lista de { id, label } de todos los almacenes.
- */
 export default function ComboboxWarehouse({
   value,
   onChange,
@@ -33,15 +27,28 @@ export default function ComboboxWarehouse({
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const [panelWidth, setPanelWidth] = React.useState<number>();
 
-  // Filtrar opciones según lo que el usuario teclee
+  // Ajustar ancho del panel al del trigger
+  React.useEffect(() => {
+    if (triggerRef.current) {
+      setPanelWidth(triggerRef.current.offsetWidth);
+    }
+  }, [open]);
+
+  // Limpiar query al abrir o cerrar
+  React.useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
   const filtered = React.useMemo(() => {
-    return options.filter((w) =>
-      w.label.toLowerCase().includes(query.toLowerCase())
-    );
+    const q = query.trim().toLowerCase();
+    return q
+      ? options.filter((w) => w.label.toLowerCase().includes(q))
+      : options;
   }, [options, query]);
 
-  // Etiqueta que se muestra cuando no ha seleccionado nada
   const selectedLabel =
     options.find((w) => w.id === value)?.label || "Selecciona un almacén";
 
@@ -49,6 +56,7 @@ export default function ComboboxWarehouse({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           variant="outline"
           role="combobox"
           aria-expanded={open}
@@ -68,7 +76,13 @@ export default function ComboboxWarehouse({
           </svg>
         </Button>
       </PopoverTrigger>
-      <PopoverContent sideOffset={8} align="start" className="p-0 w-full">
+
+      <PopoverContent
+        sideOffset={8}
+        align="start"
+        className="p-0"
+        style={panelWidth ? { width: panelWidth } : undefined}
+      >
         <Command>
           <CommandInput
             placeholder="Buscar almacén..."
@@ -84,7 +98,6 @@ export default function ComboboxWarehouse({
                 onSelect={() => {
                   onChange(w.id);
                   setOpen(false);
-                  setQuery("");
                 }}
               >
                 {w.label}

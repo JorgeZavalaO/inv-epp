@@ -29,15 +29,27 @@ export default function ComboboxCollaborator({
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const [panelWidth, setPanelWidth] = React.useState<number>();
+
+  React.useEffect(() => {
+    if (triggerRef.current) setPanelWidth(triggerRef.current.offsetWidth);
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
 
   const filtered = React.useMemo(() => {
-    const q = query.toLowerCase();
-    return options.filter(
-      (c) =>
-        c.label.toLowerCase().includes(q) ||
-        (c.position?.toLowerCase().includes(q) ?? false) ||
-        (c.location?.toLowerCase().includes(q) ?? false)
-    );
+    const q = query.trim().toLowerCase();
+    return q
+      ? options.filter(
+          (c) =>
+            c.label.toLowerCase().includes(q) ||
+            c.position?.toLowerCase().includes(q) ||
+            c.location?.toLowerCase().includes(q)
+        )
+      : options;
   }, [options, query]);
 
   const selectedLabel =
@@ -47,6 +59,7 @@ export default function ComboboxCollaborator({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           variant="outline"
           role="combobox"
           aria-expanded={open}
@@ -55,18 +68,17 @@ export default function ComboboxCollaborator({
           <span className={value ? "text-foreground" : "text-muted-foreground"}>
             {selectedLabel}
           </span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4 opacity-50"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </Button>
       </PopoverTrigger>
-      <PopoverContent sideOffset={8} align="start" className="p-0 w-full">
+      <PopoverContent
+        className="p-0"
+        sideOffset={8}
+        align="start"
+        style={panelWidth ? { width: panelWidth } : undefined}
+      >
         <Command>
           <CommandInput
             placeholder="Buscar colaborador..."
@@ -82,15 +94,13 @@ export default function ComboboxCollaborator({
                 onSelect={() => {
                   onChange(c.id);
                   setOpen(false);
-                  setQuery("");
                 }}
               >
                 <div className="flex flex-col">
                   <span>{c.label}</span>
                   {(c.position || c.location) && (
                     <span className="text-xs text-muted-foreground">
-                      {c.position ?? ""}{c.position && c.location ? " • " : ""}
-                      {c.location ?? ""}
+                      {c.position ?? ""}{c.position && c.location ? " • " : ""}{c.location ?? ""}
                     </span>
                   )}
                 </div>

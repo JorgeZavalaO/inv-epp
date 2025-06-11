@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button }    from "@/components/ui/button";
-import Link          from "next/link";
+import Link from "next/link";
 
 export interface BatchRow {
   id:           number;
@@ -31,8 +31,7 @@ export default function DeliveryBatchTable({ data, onEdit, onDelete }: Props) {
         const d   = new Date(iso);
         return (
           <time dateTime={iso}>
-            {d.toLocaleDateString()}{" "}
-            {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {d.toLocaleDateString()} {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </time>
         );
       },
@@ -50,28 +49,14 @@ export default function DeliveryBatchTable({ data, onEdit, onDelete }: Props) {
     },
     {
       id: "actions",
-      header: "",
+      header: "Acciones",
       cell: ({ row }) => (
-        <div className="flex gap-2">
-          <Link href={`/deliveries/${row.original.id}`}>
-            <Button size="sm" variant="outline">
-              Ver
-            </Button>
+        <div role="group" aria-label={`Acciones para entrega ${row.original.code}`} className="flex gap-2">
+          <Link href={`/deliveries/${row.original.id}`} aria-label={`Ver entrega ${row.original.code}`}>
+            <Button size="sm">Ver</Button>
           </Link>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => onEdit(row.original)}
-          >
-            Editar
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => onDelete(row.original)}
-          >
-            Eliminar
-          </Button>
+          <Button size="sm" variant="secondary" aria-label={`Editar entrega ${row.original.code}`} onClick={() => onEdit(row.original)}>Editar</Button>
+          <Button size="sm" variant="destructive" aria-label={`Eliminar entrega ${row.original.code}`} onClick={() => onDelete(row.original)}>Eliminar</Button>
         </div>
       ),
     },

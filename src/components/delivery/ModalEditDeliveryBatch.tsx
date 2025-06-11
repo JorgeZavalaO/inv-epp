@@ -1,15 +1,12 @@
 "use client";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button }     from "@/components/ui/button";
+import * as React from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+//import { Loader2 } from "lucide-react";
 import { useTransition, useEffect, useState } from "react";
-import { toast }      from "sonner";
-import { useRouter }  from "next/navigation";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import DeliveryBatchForm from "./DeliveryBatchForm";
 import { DeliveryBatchValues } from "@/schemas/delivery-batch-schema";
@@ -27,34 +24,32 @@ export default function ModalEditDeliveryBatch({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const [collaborators, setCollaborators] = useState<
-    { id: number; label: string; position?: string; location?: string }[]
-  >([]);
-  const [warehouses, setWarehouses] = useState<{ id: number; label: string }[]>(
-    []
-  );
+  const [collaborators, setCollaborators] = useState<{ id: number; label: string; position?: string; location?: string }[]>([]);
+  const [warehouses, setWarehouses]       = useState<{ id: number; label: string }[]>([]);
+  const [loadingCols, setLoadingCols]     = useState(true);
+  const [loadingWhs, setLoadingWhs]       = useState(true);
 
   useEffect(() => {
     fetch("/api/collaborators")
       .then((r) => r.json())
       .then((rows: { id: number; name: string; position?: string; location?: string }[]) =>
-        setCollaborators(
-          rows.map((c) => ({
-            id:       c.id,
-            label:    c.name,
-            position: c.position,
-            location: c.location,
-          }))
-        )
+        setCollaborators(rows.map((c) => ({
+          id:       c.id,
+          label:    c.name,
+          position: c.position,
+          location: c.location,
+        })))
       )
-      .catch(() => setCollaborators([]));
+      .catch(() => setCollaborators([]))
+      .finally(() => setLoadingCols(false));
 
     fetch("/api/warehouses")
       .then((r) => r.json())
       .then((rows: { id: number; name: string }[]) =>
         setWarehouses(rows.map((w) => ({ id: w.id, label: w.name })))
       )
-      .catch(() => setWarehouses([]));
+      .catch(() => setWarehouses([]))
+      .finally(() => setLoadingWhs(false));
   }, []);
 
   const handleSave = (values: DeliveryBatchValues) => {
@@ -63,23 +58,18 @@ export default function ModalEditDeliveryBatch({
         const fd = new FormData();
         fd.append("payload", JSON.stringify({ ...values, id: batch.id }));
         await updateDeliveryBatch(fd);
-        router.refresh();
         toast.success("Entrega actualizada");
         onSaved();
+        router.refresh();
       } catch (err: unknown) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : typeof err === "string"
-            ? err
-            : "Ocurrió un error";
+        const message = err instanceof Error ? err.message : "Ocurrió un error";
         toast.error(message);
       }
     });
   };
 
   return (
-    <Dialog open onOpenChange={onClose}>
+    <Dialog open>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Editar entrega {batch.code}</DialogTitle>
@@ -87,8 +77,8 @@ export default function ModalEditDeliveryBatch({
 
         <DeliveryBatchForm
           defaultValues={batch}
-          collaborators={collaborators}
-          warehouses={warehouses}
+          collaborators={loadingCols ? [] : collaborators}
+          warehouses={loadingWhs ? [] : warehouses}
           onSubmit={handleSave}
         />
 

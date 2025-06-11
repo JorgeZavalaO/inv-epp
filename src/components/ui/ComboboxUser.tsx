@@ -1,13 +1,19 @@
-// src/components/ui/ComboboxUser.tsx
 "use client";
+
 import * as React from "react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from "@/components/ui/command";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandItem,
+} from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 
 interface UserOption {
   id:    number;
-  label: string; // nombre
+  label: string;
   email: string;
 }
 
@@ -22,10 +28,24 @@ export default function ComboboxUser({
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const [panelWidth, setPanelWidth] = React.useState<number>();
+
+  React.useEffect(() => {
+    if (triggerRef.current) {
+      setPanelWidth(triggerRef.current.offsetWidth);
+    }
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
   const filtered = React.useMemo(() => {
-    return options.filter((u) =>
-      u.label.toLowerCase().includes(query.toLowerCase())
-    );
+    const q = query.trim().toLowerCase();
+    return q
+      ? options.filter((u) => u.label.toLowerCase().includes(q))
+      : options;
   }, [options, query]);
 
   const selectedLabel =
@@ -34,7 +54,13 @@ export default function ComboboxUser({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="w-full justify-between" role="combobox" aria-expanded={open}>
+        <Button
+          ref={triggerRef}
+          variant="outline"
+          className="w-full justify-between"
+          role="combobox"
+          aria-expanded={open}
+        >
           <span className={value ? "text-foreground" : "text-muted-foreground"}>
             {selectedLabel}
           </span>
@@ -43,9 +69,18 @@ export default function ComboboxUser({
           </svg>
         </Button>
       </PopoverTrigger>
-      <PopoverContent sideOffset={8} align="start" className="p-0 w-full">
+      <PopoverContent
+        sideOffset={8}
+        align="start"
+        className="p-0"
+        style={panelWidth ? { width: panelWidth } : undefined}
+      >
         <Command>
-          <CommandInput placeholder="Buscar usuario..." value={query} onValueChange={setQuery} />
+          <CommandInput
+            placeholder="Buscar usuario..."
+            value={query}
+            onValueChange={setQuery}
+          />
           <CommandList className="max-h-60 overflow-y-auto">
             {filtered.length === 0 && <CommandEmpty>No hay usuarios</CommandEmpty>}
             {filtered.map((u) => (
@@ -55,13 +90,11 @@ export default function ComboboxUser({
                 onSelect={() => {
                   onChange(u.id);
                   setOpen(false);
-                  setQuery("");
                 }}
               >
-                {/* {u.label} */}
                 <div className="flex flex-col">
-                    <span>{u.label}</span>
-                    <span className="text-xs text-muted-foreground">{u.email}</span>
+                  <span>{u.label}</span>
+                  <span className="text-xs text-muted-foreground">{u.email}</span>
                 </div>
               </CommandItem>
             ))}

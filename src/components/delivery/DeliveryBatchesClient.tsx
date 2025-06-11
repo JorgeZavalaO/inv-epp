@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-import DeliveryBatchTable       from "./DeliveryBatchTable";
+import DeliveryBatchTable from "./DeliveryBatchTable";
 import ModalCreateDeliveryBatch from "./ModalCreateDeliveryBatch";
-import ModalEditDeliveryBatch   from "./ModalEditDeliveryBatch";
+import ModalEditDeliveryBatch from "./ModalEditDeliveryBatch";
 import ModalDeleteDeliveryBatch from "./ModalDeleteDeliveryBatch";
 
 import type { DeliveryBatchValues } from "@/schemas/delivery-batch-schema";
@@ -19,7 +20,6 @@ export interface BatchRow {
   items:        number;
 }
 
-// Este tipo debe coincidir con el select de page.tsx:
 interface ListItem {
   id:             number;
   code:           string;
@@ -40,22 +40,26 @@ interface Props {
 export default function DeliveryBatchesClient({ list }: Props) {
   const [showCreate, setShowCreate]   = useState(false);
   const [editingItem, setEditingItem] = useState<ListItem | null>(null);
-  const [deleting, setDeleting]       = useState<BatchRow | null>(null);
+  const [deleting, setDeleting]       = useState<{ id: number; code: string } | null>(null);
+  const router = useRouter();
 
-  // Datos para la tabla resumen
-  const data: BatchRow[] = list.map((b) => ({
-    id:           b.id,
-    code:         b.code,
-    date:         b.createdAt.toISOString(),
-    collaborator: b.collaborator.name,
-    operator:     b.user.name ?? b.user.email,
-    items:        b._count.deliveries,
-  }));
+  // Memoizar el resumen de filas para no recalcular en cada render
+  const data: BatchRow[] = useMemo(
+    () =>
+      list.map((b) => ({
+        id:           b.id,
+        code:         b.code,
+        date:         b.createdAt.toISOString(),
+        collaborator: b.collaborator.name,
+        operator:     b.user.name ?? b.user.email,
+        items:        b._count.deliveries,
+      })),
+    [list]
+  );
 
-  // Preparar payload para el modal de edición
+  // Preparar el batch para el modal de edición
   const editingBatch =
-    editingItem &&
-    ({
+    editingItem && ({
       id:             editingItem.id,
       code:           editingItem.code,
       collaboratorId: editingItem.collaboratorId,
@@ -81,31 +85,40 @@ export default function DeliveryBatchesClient({ list }: Props) {
           const match = list.find((b) => b.id === row.id);
           if (match) setEditingItem(match);
         }}
-        onDelete={setDeleting}
+        onDelete={(row) => setDeleting({ id: row.id, code: row.code })}
       />
 
-      {/* — Modal Crear — */}
+      {/* Modal Crear */}
       {showCreate && (
         <ModalCreateDeliveryBatch
-          onClose={()   => setShowCreate(false)}
-          onCreated={() => setShowCreate(false)}
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            setShowCreate(false);
+            router.refresh();
+          }}
         />
       )}
 
-      {/* — Modal Editar — */}
+      {/* Modal Editar */}
       {editingBatch && (
         <ModalEditDeliveryBatch
-          batch   ={editingBatch}
-          onClose ={() => setEditingItem(null)}
-          onSaved ={() => setEditingItem(null)}
+          batch={editingBatch}
+          onClose={() => setEditingItem(null)}
+          onSaved={() => {
+            setEditingItem(null);
+            router.refresh();
+          }}
         />
       )}
 
-      {/* — Modal Eliminar — */}
+      {/* Modal Eliminar */}
       {deleting && (
         <ModalDeleteDeliveryBatch
-          batch   ={deleting}
-          onClose ={() => setDeleting(null)}
+          batch={deleting}
+          onClose={() => {
+            setDeleting(null);
+            router.refresh();
+          }}
         />
       )}
     </section>
