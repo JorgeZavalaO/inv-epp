@@ -1,3 +1,4 @@
+// 📁 src/app/(protected)/warehouses/WarehousesClient.tsx
 "use client";
 
 import { useState } from "react";
@@ -15,34 +16,30 @@ import {
 import { toast } from "sonner";
 
 import ModalCreateWarehouse from "@/components/warehouses/ModalCreateWarehouse";
-import ModalEditWarehouse from "@/components/warehouses/ModalEditWarehouse";
+import ModalEditWarehouse   from "@/components/warehouses/ModalEditWarehouse";
 import { deleteWarehouseAction } from "@/app/(protected)/warehouses/actions";
 
-/* ─────── Types ───────────────────────────────────────── */
-interface WarehouseFromDB {
-  id: number;
-  name: string;
-  location: string | null;
-  _count: { stocks: number };
+/* ─── Tipo con stock total ───────────────────────────────── */
+export interface WarehouseWithStock {
+  id:         number;
+  name:       string;
+  location:   string | null;
+  totalStock: number;
 }
 
 interface WarehousesClientProps {
-  list: WarehouseFromDB[];
+  list: WarehouseWithStock[];
 }
 
-/* ─────── Componente principal ───────────────────────── */
 export default function WarehousesClient({ list }: WarehousesClientProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingWarehouse, setEditingWarehouse] =
-    useState<WarehouseFromDB | null>(null);
-
+    useState<WarehouseWithStock | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
 
-  /* ——— Eliminar con verificación backend ——— */
   const handleDelete = (id: number) => {
     const fd = new FormData();
     fd.append("id", id.toString());
-
     setPendingId(id);
 
     (async () => {
@@ -51,10 +48,7 @@ export default function WarehousesClient({ list }: WarehousesClientProps) {
         toast.success("Almacén eliminado correctamente");
         if (editingWarehouse?.id === id) setEditingWarehouse(null);
       } catch (err: unknown) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "No se pudo eliminar el almacén";
+        const message = err instanceof Error ? err.message : "Error al eliminar";
         toast.error(message);
       } finally {
         setPendingId(null);
@@ -64,10 +58,12 @@ export default function WarehousesClient({ list }: WarehousesClientProps) {
 
   return (
     <section className="space-y-6 px-4 md:px-8 py-6">
-      {/* Header + Btn nuevo */}
+      {/* Header + Botón Nuevo */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Almacenes</h1>
-        <Button onClick={() => setShowCreateModal(true)}>+ Nuevo almacén</Button>
+        <Button onClick={() => setShowCreateModal(true)}>
+          + Nuevo almacén
+        </Button>
       </div>
 
       {/* Tabla */}
@@ -90,7 +86,7 @@ export default function WarehousesClient({ list }: WarehousesClientProps) {
                   <td className="p-2">{w.location || "-"}</td>
                   <td className="p-2 text-center">
                     <span className="inline-block bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs">
-                      {w._count.stocks}
+                      {w.totalStock}
                     </span>
                   </td>
                   <td className="p-2 text-center flex items-center justify-center gap-2">
@@ -100,10 +96,10 @@ export default function WarehousesClient({ list }: WarehousesClientProps) {
                       variant="secondary"
                       onClick={() => setEditingWarehouse(w)}
                     >
-                       Editar
+                      Editar
                     </Button>
 
-                    {/* Eliminar con AlertDialog */}
+                    {/* Eliminar */}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
@@ -111,7 +107,7 @@ export default function WarehousesClient({ list }: WarehousesClientProps) {
                           variant="destructive"
                           disabled={pendingId === w.id}
                         >
-                           Eliminar
+                          Eliminar
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
@@ -138,7 +134,6 @@ export default function WarehousesClient({ list }: WarehousesClientProps) {
                   </td>
                 </tr>
               ))}
-
               {list.length === 0 && (
                 <tr>
                   <td
@@ -154,7 +149,7 @@ export default function WarehousesClient({ list }: WarehousesClientProps) {
         </div>
       </div>
 
-      {/* MODALES */}
+      {/* Modales */}
       {showCreateModal && (
         <ModalCreateWarehouse onClose={() => setShowCreateModal(false)} />
       )}
