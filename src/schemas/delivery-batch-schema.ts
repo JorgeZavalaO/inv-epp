@@ -1,5 +1,3 @@
-// src/schemas/delivery-batch-schema.ts
-
 import { z } from "zod";
 
 export const itemSchema = z.object({
@@ -10,20 +8,14 @@ export const itemSchema = z.object({
 
 export const deliveryBatchSchema = z
   .object({
-    employee: z.string().min(2, "Selecciona un receptor"),
-    note:     z.string().max(255).optional(),
-    items:    z.array(itemSchema).min(1, "Añade al menos un ítem"),
+    collaboratorId: z.number().int().positive("Selecciona un colaborador"),
+    note:           z.string().max(255).optional(),
+    warehouseId:    z.number().int().positive("Selecciona un almacén"),
+    items:          z.array(itemSchema).min(1, "Añade al menos un ítem"),
   })
-  .refine(
-    (val) => {
-      // Todos los warehouseId dentro de items deber ser iguales
-      const ids = val.items.map((it) => it.warehouseId);
-      return Array.from(new Set(ids)).length === 1;
-    },
-    {
-      message: "Todos los ítems deben provenir del mismo almacén",
-      path: ["items"],
-    }
-  );
+  .refine((val) => val.items.every((it) => it.warehouseId === val.warehouseId), {
+    message: "Todos los ítems deben provenir del mismo almacén",
+    path: ["items"],
+  });
 
 export type DeliveryBatchValues = z.infer<typeof deliveryBatchSchema>;

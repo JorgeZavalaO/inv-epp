@@ -4,154 +4,145 @@ import * as React from "react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Plus, Trash } from "lucide-react";
-import { deliveryBatchSchema, DeliveryBatchValues } from "@/schemas/delivery-batch-schema";
-import { createDeliveryBatch } from "@/app/(protected)/deliveries/actions";
 
-import ComboboxEpp from "@/components/ui/ComboboxEpp";
-import ComboboxUser from "@/components/ui/ComboboxUser";
-import ComboboxWarehouse from "@/components/ui/ComboboxWarehouse";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-
-type UserOption = { id: number; label: string; email: string };
-type WarehouseOption = { id: number; label: string };
+import {
+  DeliveryBatchValues,
+  deliveryBatchSchema,
+} from "@/schemas/delivery-batch-schema";
+import ComboboxCollaborator from "@/components/ui/ComboboxCollaborator";
+import ComboboxWarehouse    from "@/components/ui/ComboboxWarehouse";
+import ComboboxEpp          from "@/components/ui/ComboboxEpp";
+import { Label }            from "@/components/ui/label";
+import { Input }            from "@/components/ui/input";
+import { Textarea }         from "@/components/ui/textarea";
+import { Button }           from "@/components/ui/button";
+import { Badge }            from "@/components/ui/badge";
 
 export default function DeliveryBatchForm({
-  users,
+  collaborators,
   warehouses,
+  defaultValues,
+  onSubmit,
 }: {
-  users: UserOption[];
-  warehouses: WarehouseOption[];
+  collaborators: { id: number; label: string; position?: string; location?: string }[];
+  warehouses:    { id: number; label: string }[];
+  defaultValues?: DeliveryBatchValues;
+  onSubmit(values: DeliveryBatchValues): void;
 }) {
-  const router = useRouter();
-
   const {
     control,
+    setValue,
     handleSubmit,
-    formState: { isSubmitting, isValid, errors },
     watch,
+    formState: { isSubmitting, errors, isValid },
   } = useForm<DeliveryBatchValues>({
     resolver: zodResolver(deliveryBatchSchema),
-    mode: "onChange",
-    defaultValues: {
-      employee: "",
-      note: "",
-      items: [
-        {
-          eppId: undefined,
-          warehouseId: undefined,
-          quantity: 1,
-        },
-      ],
-    },
+    mode:     "onChange",
+    defaultValues:
+      defaultValues ?? {
+        collaboratorId: undefined,
+        note:           "",
+        warehouseId:    undefined,
+        items: [{ eppId: undefined!, warehouseId: undefined!, quantity: 1 }],
+      },
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
-  const items = watch("items");
-
-  // Map: "<eppId>-<warehouseId>" → stock quantity
+  const values = watch();
   const [stockMap, setStockMap] = React.useState<Record<string, number>>({});
 
-  // Whenever items change, fetch stock for each (eppId, warehouseId) pair if not already cached:
+  // 🎯 Propagar warehouseId a todos los ítems automáticamente
   React.useEffect(() => {
-    items.forEach((it) => {
-      if (typeof it.eppId === "number" && typeof it.warehouseId === "number") {
+    if (values.warehouseId) {
+      setValue(
+        "items",
+        values.items.map((it) => ({
+          ...it,
+          warehouseId: values.warehouseId!,
+        })),
+        { shouldValidate: true }
+      );
+    }
+  }, [values.warehouseId, setValue, values.items]);
+
+  // Carga de existencias por ítem
+  React.useEffect(() => {
+    values.items.forEach((it) => {
+      if (it.eppId && it.warehouseId) {
         const key = `${it.eppId}-${it.warehouseId}`;
-        if (stockMap[key] === undefined) {
-          // Fire‐and‐forget: fetch current stock from our API:
-          (async () => {
-            try {
-              const stockRes = await fetch(
-                `/api/epp-stocks?eppId=${it.eppId}&warehouseId=${it.warehouseId}`,
-                { cache: "no-store" }
-              );
-              if (!stockRes.ok) throw new Error();
-              const { quantity } = await stockRes.json(); // { quantity }
-              setStockMap((prev) => ({ ...prev, [key]: quantity }));
-            } catch {
-              // On any failure, set to 0:
-              setStockMap((prev) => ({ ...prev, [key]: 0 }));
-            }
-          })();
+        if (stockMap[key] == null) {
+          fetch(`/api/epp-stocks?eppId=${it.eppId}&warehouseId=${it.warehouseId}`)
+            .then((r) => r.json())
+            .then(({ quantity }: { quantity: number }) =>
+              setStockMap((m) => ({ ...m, [key]: quantity }))
+            )
+            .catch(() => setStockMap((m) => ({ ...m, [key]: 0 })));
         }
       }
     });
-  }, [items, stockMap]);
-
-  const onSubmit = async (values: DeliveryBatchValues) => {
-    const fd = new FormData();
-    fd.append("payload", JSON.stringify(values));
-
-    try {
-      await createDeliveryBatch(fd);
-      toast.success("Entrega registrada");
-      router.push("/deliveries");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error al registrar";
-      toast.error(msg);
-    }
-  };
+  }, [values.items, stockMap]);
 
   return (
-    <form
-      onSubmit={handleSubmit(onSubmit)}
-      className="grid gap-6 max-w-3xl mx-auto py-6"
-    >
-      {/*==========================
-      |  1) Empleado receptor
-      ==========================*/}
+    <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6">
+      {/* Colaborador */}
       <Controller
-        name="employee"
+        name="collaboratorId"
         control={control}
         render={({ field }) => (
           <div className="space-y-1">
-            <Label>Empleado receptor</Label>
-            <ComboboxUser
-              value={users.find((u) => u.label === field.value)?.id ?? null}
-              onChange={(id) => {
-                const found = users.find((u) => u.id === id);
-                field.onChange(found?.label ?? "");
-              }}
-              options={users.map((u) => ({ id: u.id, label: u.label, email: u.email }))}
+            <Label>Colaborador</Label>
+            <ComboboxCollaborator
+              value={field.value ?? null}
+              onChange={field.onChange}
+              options={collaborators}
             />
-            {errors.employee && (
-              <p className="text-destructive text-sm">{errors.employee.message}</p>
+            {errors.collaboratorId && (
+              <p className="text-destructive text-sm">
+                {errors.collaboratorId.message}
+              </p>
             )}
           </div>
         )}
       />
 
-      {/*==========================
-      |  2) Items dinámicos
-      ==========================*/}
+      {/* Almacén */}
+      <Controller
+        name="warehouseId"
+        control={control}
+        render={({ field }) => (
+          <div className="space-y-1">
+            <Label>Almacén</Label>
+            <ComboboxWarehouse
+              value={field.value ?? null}
+              onChange={field.onChange}
+              options={warehouses}
+            />
+            {errors.warehouseId && (
+              <p className="text-destructive text-sm">
+                {errors.warehouseId.message}
+              </p>
+            )}
+          </div>
+        )}
+      />
+
+      {/* Ítems dinámicos */}
       <div className="space-y-4">
         {fields.map((f, idx) => {
-          const thisItem = items[idx];
-          const keyMap =
-            typeof thisItem.eppId === "number" && typeof thisItem.warehouseId === "number"
-              ? `${thisItem.eppId}-${thisItem.warehouseId}`
-              : "";
-          const currentStock = stockMap[keyMap] ?? null;
+          const item  = values.items[idx];
+          const key   = `${item.eppId}-${item.warehouseId}`;
+          const stock = stockMap[key];
 
           return (
             <div key={f.id} className="grid grid-cols-12 gap-2 items-end">
-              {/* 2.a) Seleccionar EPP */}
+              {/* EPP */}
               <Controller
                 name={`items.${idx}.eppId`}
                 control={control}
                 render={({ field }) => (
-                  <div className="col-span-4 space-y-1">
+                  <div className="col-span-5 space-y-1">
                     <Label>EPP</Label>
-                    <ComboboxEpp
-                      value={field.value}
-                      onChange={field.onChange}
-                    />
+                    <ComboboxEpp value={field.value} onChange={field.onChange} />
                     {errors.items?.[idx]?.eppId && (
                       <p className="text-destructive text-sm">
                         {errors.items[idx]?.eppId?.message}
@@ -161,74 +152,38 @@ export default function DeliveryBatchForm({
                 )}
               />
 
-              {/* 2.b) Seleccionar Almacén */}
+              {/* Cantidad */}
               <Controller
-                name={`items.${idx}.warehouseId`}
+                name={`items.${idx}.quantity`}
                 control={control}
                 render={({ field }) => (
                   <div className="col-span-3 space-y-1">
-                    <Label>Almacén</Label>
-                    <ComboboxWarehouse
-                      value={field.value ?? null}
-                      onChange={field.onChange}
-                      options={warehouses}
-                    />
-                    {errors.items?.[idx]?.warehouseId && (
+                    <Label>Cant.</Label>
+                    <Input type="number" min={1} {...field} />
+                    {errors.items?.[idx]?.quantity && (
                       <p className="text-destructive text-sm">
-                        {errors.items[idx]?.warehouseId?.message}
+                        {errors.items[idx]?.quantity?.message}
                       </p>
                     )}
                   </div>
                 )}
               />
 
-              {/* 2.c) Cantidad */}
-              <div className="col-span-2 space-y-1">
-                <Label>Cantidad</Label>
-                <Controller
-                  name={`items.${idx}.quantity`}
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      type="number"
-                      min={1}
-                      step={1}
-                      {...field}
-                    />
-                  )}
-                />
-                {errors.items?.[idx]?.quantity && (
-                  <p className="text-destructive text-sm">
-                    {errors.items[idx]?.quantity?.message}
-                  </p>
-                )}
-              </div>
-
-              {/* 2.d) Stock actual */}
-              <div className="col-span-2 space-y-1">
+              {/* Existencias disponibles */}
+              <div className="col-span-3 space-y-1">
                 <Label>Exist.</Label>
-                {currentStock !== null ? (
-                  <Badge
-                    variant={
-                      currentStock === 0 ? "destructive" : "secondary"
-                    }
-                  >
-                    {currentStock}
+                {stock != null ? (
+                  <Badge variant={stock === 0 ? "destructive" : "secondary"}>
+                    {stock}
                   </Badge>
                 ) : (
                   <span className="text-sm text-muted-foreground">–</span>
                 )}
               </div>
 
-              {/* 2.e) Botón Eliminar */}
+              {/* Botón eliminar ítem */}
               <div className="col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => remove(idx)}
-                  aria-label="Eliminar renglón"
-                >
+                <Button size="icon" variant="ghost" onClick={() => remove(idx)}>
                   <Trash size={16} />
                 </Button>
               </div>
@@ -236,46 +191,37 @@ export default function DeliveryBatchForm({
           );
         })}
 
-        {/* 2.f) Botón para agregar renglón */}
         <Button
-          type="button"
           variant="outline"
           onClick={() =>
-            append({ eppId: 0, warehouseId: 0, quantity: 1 })
+            append({
+              eppId:       undefined!,
+              warehouseId: values.warehouseId ?? undefined!,
+              quantity:    1,
+            })
           }
         >
           <Plus size={16} className="mr-1" /> Añadir ítem
         </Button>
       </div>
 
-      {/*==========================
-      |  3) Nota (opcional)
-      ==========================*/}
+      {/* Nota */}
       <div className="space-y-1">
-        <Label>Nota (opcional)</Label>
+        <Label>Nota</Label>
         <Controller
           name="note"
           control={control}
-          render={({ field }) => (
-            <Textarea {...field} rows={3} />
-          )}
+          render={({ field }) => <Textarea rows={3} {...field} />}
         />
       </div>
 
-      {/*==========================
-      |  4) Acciones: Cancelar / Guardar
-      ==========================*/}
+      {/* Acciones */}
       <div className="flex justify-end gap-4 pt-4">
-        <Button
-          variant="outline"
-          type="button"
-          onClick={() => router.back()}
-          disabled={isSubmitting}
-        >
+        <Button variant="outline" type="reset" disabled={isSubmitting}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={!isValid || isSubmitting}>
-          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button type="submit" disabled={!isValid || isSubmitting} aria-busy={isSubmitting}>
+          {isSubmitting && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
           Guardar
         </Button>
       </div>

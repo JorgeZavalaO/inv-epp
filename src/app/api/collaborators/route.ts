@@ -6,6 +6,12 @@ import { Prisma } from "@prisma/client";
 
 export async function GET() {
   const list = await prisma.collaborator.findMany({
+    select: {
+      id: true,
+      name: true,
+      position: true,
+      location: true,
+    },
     orderBy: { name: "asc" },
   });
   return NextResponse.json(list);

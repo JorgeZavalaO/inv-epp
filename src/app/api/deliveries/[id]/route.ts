@@ -1,34 +1,50 @@
-import prisma from '@/lib/prisma';
-import { NextResponse } from 'next/server';
+import prisma from "@/lib/prisma";
+import { NextResponse } from "next/server";
 
-
-interface Params {
-  params: Promise<{ id: string }>;
+export async function GET(_: Request, { params }: { params: { id: string } }) {
+  try {
+    const record = await prisma.delivery.findUnique({
+      where: { id: Number(params.id) },
+      include: {
+        batch: {
+          select: {
+            id: true,
+            code: true,
+            warehouse: { select: { name: true } },
+          },
+        },
+        epp: { select: { code: true, name: true } },
+      },
+    });
+    return record
+      ? NextResponse.json(record)
+      : NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
-export async function GET(_: Request, { params }: Params) {
-
-  const { id } = await params;
-  const record = await prisma.delivery.findUnique({
-    where: { id: Number(id) },
-  });
-  return record
-    ? NextResponse.json(record)
-    : NextResponse.json({ error: 'Not found' }, { status: 404 });
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
+  try {
+    const data = await req.json();
+    const updated = await prisma.delivery.update({
+      where: { id: Number(params.id) },
+      data,
+    });
+    return NextResponse.json(updated);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
-export async function PUT(req: Request, { params }: Params) {
-  const { id } = await params;
-  const data = await req.json();
-  const updated = await prisma.delivery.update({
-    where: { id: Number(id) },
-    data,
-  });
-  return NextResponse.json(updated);
-}
-
-export async function DELETE(_: Request, { params }: Params) {
-  const { id } = await params;
-  await prisma.delivery.delete({ where: { id: Number(id) } });
-  return NextResponse.json({});
+export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+  try {
+    await prisma.delivery.delete({ where: { id: Number(params.id) } });
+    return NextResponse.json({ ok: true });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

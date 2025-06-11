@@ -1,46 +1,78 @@
 "use client";
+
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/DataTable";
-import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { Button }    from "@/components/ui/button";
+import Link          from "next/link";
 
 export interface BatchRow {
-  id: number;
-  date: string;
-  employee: string;
-  operator: string;
-  items: number;
+  id:           number;
+  code:         string;
+  date:         string;
+  collaborator: string;
+  operator:     string;
+  items:        number;
 }
 
-export default function DeliveryBatchTable({ data }: { data: BatchRow[] }) {
+interface Props {
+  data: BatchRow[];
+  onEdit(row: BatchRow): void;
+  onDelete(row: BatchRow): void;
+}
+
+export default function DeliveryBatchTable({ data, onEdit, onDelete }: Props) {
   const columns: ColumnDef<BatchRow>[] = [
+    { accessorKey: "code", header: "Código" },
     {
       accessorKey: "date",
       header: "Fecha",
       cell: ({ getValue }) => {
-        const d = new Date(getValue<string>());
+        const iso = getValue<string>();
+        const d   = new Date(iso);
         return (
-          <time dateTime={getValue<string>()}>
+          <time dateTime={iso}>
             {d.toLocaleDateString()}{" "}
             {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </time>
         );
       },
     },
-    { accessorKey: "employee", header: "Empleado" },
-    { accessorKey: "operator", header: "Operador" },
+    { accessorKey: "collaborator", header: "Colaborador" },
+    { accessorKey: "operator",     header: "Operador" },
     {
       accessorKey: "items",
       header: "Ítems",
-      cell: ({ getValue }) => <Badge>{getValue<number>()}</Badge>,
+      cell: ({ getValue }) => (
+        <span className="inline-block bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">
+          {getValue<number>()}
+        </span>
+      ),
     },
     {
       id: "actions",
       header: "",
       cell: ({ row }) => (
-        <Link href={`/deliveries/${row.original.id}`}>
-          <span className="text-primary underline">Ver detalle</span>
-        </Link>
+        <div className="flex gap-2">
+          <Link href={`/deliveries/${row.original.id}`}>
+            <Button size="sm" variant="outline">
+              Ver
+            </Button>
+          </Link>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => onEdit(row.original)}
+          >
+            Editar
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => onDelete(row.original)}
+          >
+            Eliminar
+          </Button>
+        </div>
       ),
     },
   ];
