@@ -13,7 +13,7 @@ export async function createDeliveryBatch(fd: FormData) {
   const operator = await ensureClerkUser();
 
   const batchId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    // generar código
+    // Generar código
     const last = await tx.deliveryBatch.findFirst({
       where: { code: { startsWith: "DEL-" } },
       orderBy: { code: "desc" },
@@ -22,7 +22,7 @@ export async function createDeliveryBatch(fd: FormData) {
     const num  = last ? Number(last.code.replace("DEL-", "")) + 1 : 1;
     const code = `DEL-${String(num).padStart(4, "0")}`;
 
-    // crear batch
+    // Crear batch
     const { id } = await tx.deliveryBatch.create({
       data: {
         code,
@@ -34,11 +34,11 @@ export async function createDeliveryBatch(fd: FormData) {
       select: { id: true },
     });
 
-    // validar stock y armar rows
+    // Validar stock y armar rows usando data.warehouseId
     const rows = await Promise.all(
       data.items.map(async (it) => {
         const stockRow = await tx.ePPStock.findUnique({
-          where: { eppId_warehouseId: { eppId: it.eppId, warehouseId: it.warehouseId } },
+          where: { eppId_warehouseId: { eppId: it.eppId, warehouseId: data.warehouseId } },
           select: { quantity: true },
         });
         if (!stockRow || stockRow.quantity < it.quantity) {
@@ -49,14 +49,14 @@ export async function createDeliveryBatch(fd: FormData) {
       })
     );
 
-    // crear entregas
+    // Crear entregas
     await tx.delivery.createMany({ data: rows });
 
-    // descontar stock y registrar movimientos
+    // Descontar stock y registrar movimientos
     for (const r of rows) {
       await tx.ePPStock.update({
         where: { eppId_warehouseId: { eppId: r.eppId, warehouseId: data.warehouseId } },
-        data: { quantity: { decrement: r.quantity } },
+        data:  { quantity: { decrement: r.quantity } },
       });
       await tx.stockMovement.create({
         data: {
@@ -76,6 +76,7 @@ export async function createDeliveryBatch(fd: FormData) {
   ["deliveries", "dashboard", "epps"].forEach((p) => revalidatePath(`/${p}`));
   return batchId;
 }
+
 
 export async function updateDeliveryBatch(fd: FormData) {
   const raw        = JSON.parse(fd.get("payload") as string);

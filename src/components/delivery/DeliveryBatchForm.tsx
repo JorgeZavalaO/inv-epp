@@ -5,18 +5,15 @@ import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Plus, Trash } from "lucide-react";
 
-import {
-  DeliveryBatchValues,
-  deliveryBatchSchema,
-} from "@/schemas/delivery-batch-schema";
-import ComboboxCollaborator from "@/components/ui/ComboboxCollaborator";
-import ComboboxWarehouse    from "@/components/ui/ComboboxWarehouse";
-import ComboboxEpp          from "@/components/ui/ComboboxEpp";
-import { Label }            from "@/components/ui/label";
-import { Input }            from "@/components/ui/input";
-import { Textarea }         from "@/components/ui/textarea";
-import { Button }           from "@/components/ui/button";
-import { Badge }            from "@/components/ui/badge";
+import { DeliveryBatchValues, deliveryBatchSchema } from "@/schemas/delivery-batch-schema";
+import ComboboxCollaborator     from "@/components/ui/ComboboxCollaborator";
+import ComboboxWarehouse        from "@/components/ui/ComboboxWarehouse";
+import ComboboxEpp              from "@/components/ui/ComboboxEpp";
+import { Label }                from "@/components/ui/label";
+import { Input }                from "@/components/ui/input";
+import { Textarea }             from "@/components/ui/textarea";
+import { Button }               from "@/components/ui/button";
+import { Badge }                from "@/components/ui/badge";
 
 export default function DeliveryBatchForm({
   collaborators,
@@ -31,56 +28,44 @@ export default function DeliveryBatchForm({
 }) {
   const {
     control,
-    setValue,
     handleSubmit,
     watch,
     formState: { isSubmitting, errors, isValid },
   } = useForm<DeliveryBatchValues>({
-    resolver: zodResolver(deliveryBatchSchema),
-    mode:     "onChange",
-    defaultValues:
-      defaultValues ?? {
-        collaboratorId: undefined,
-        note:           "",
-        warehouseId:    undefined,
-        items: [{ eppId: undefined!, warehouseId: undefined!, quantity: 1 }],
-      },
+    resolver:    zodResolver(deliveryBatchSchema),
+    mode:        "onChange",
+    defaultValues: defaultValues ?? {
+      collaboratorId: undefined,
+      warehouseId:    undefined,
+      note:           "",
+      items:         [{ eppId: undefined!, quantity: 1 }],
+    },
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const values = watch();
   const [stockMap, setStockMap] = React.useState<Record<string, number>>({});
 
-  // 🎯 Propagar warehouseId a todos los ítems automáticamente
+  // Carga de existencias usando siempre warehouseId global
   React.useEffect(() => {
-    if (values.warehouseId) {
-      setValue(
-        "items",
-        values.items.map((it) => ({
-          ...it,
-          warehouseId: values.warehouseId!,
-        })),
-        { shouldValidate: true }
-      );
-    }
-  }, [values.warehouseId, setValue, values.items]);
-
-  // Carga de existencias por ítem
-  React.useEffect(() => {
-    values.items.forEach((it) => {
-      if (it.eppId && it.warehouseId) {
-        const key = `${it.eppId}-${it.warehouseId}`;
+    if (!values.warehouseId) return;
+    fields.forEach((f, idx) => {
+      const eppId = values.items[idx].eppId;
+      if (eppId) {
+        const key = `${eppId}-${values.warehouseId}`;
         if (stockMap[key] == null) {
-          fetch(`/api/epp-stocks?eppId=${it.eppId}&warehouseId=${it.warehouseId}`)
+          fetch(`/api/epp-stocks?eppId=${eppId}&warehouseId=${values.warehouseId}`)
             .then((r) => r.json())
             .then(({ quantity }: { quantity: number }) =>
               setStockMap((m) => ({ ...m, [key]: quantity }))
             )
-            .catch(() => setStockMap((m) => ({ ...m, [key]: 0 })));
+            .catch(() =>
+              setStockMap((m) => ({ ...m, [key]: 0 }))
+            );
         }
       }
     });
-  }, [values.items, stockMap]);
+  }, [values.warehouseId, values.items, fields, stockMap]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6">
@@ -129,8 +114,8 @@ export default function DeliveryBatchForm({
       {/* Ítems dinámicos */}
       <div className="space-y-4">
         {fields.map((f, idx) => {
-          const item  = values.items[idx];
-          const key   = `${item.eppId}-${item.warehouseId}`;
+          const eppId = values.items[idx].eppId;
+          const key   = `${eppId}-${values.warehouseId}`;
           const stock = stockMap[key];
 
           return (
@@ -140,12 +125,12 @@ export default function DeliveryBatchForm({
                 name={`items.${idx}.eppId`}
                 control={control}
                 render={({ field }) => (
-                  <div className="col-span-5 space-y-1">
+                  <div className="col-span-6 space-y-1">
                     <Label>EPP</Label>
                     <ComboboxEpp value={field.value} onChange={field.onChange} />
                     {errors.items?.[idx]?.eppId && (
                       <p className="text-destructive text-sm">
-                        {errors.items[idx]?.eppId?.message}
+                        {errors.items![idx]!.eppId!.message}
                       </p>
                     )}
                   </div>
@@ -162,28 +147,36 @@ export default function DeliveryBatchForm({
                     <Input type="number" min={1} {...field} />
                     {errors.items?.[idx]?.quantity && (
                       <p className="text-destructive text-sm">
-                        {errors.items[idx]?.quantity?.message}
+                        {errors.items![idx]!.quantity!.message}
                       </p>
                     )}
                   </div>
                 )}
               />
 
-              {/* Existencias disponibles */}
-              <div className="col-span-3 space-y-1">
+              {/* Existencias */}
+              <div className="col-span-2 space-y-1">
                 <Label>Exist.</Label>
-                {stock != null ? (
-                  <Badge variant={stock === 0 ? "destructive" : "secondary"}>
-                    {stock}
-                  </Badge>
+                {values.warehouseId ? (
+                  stock != null ? (
+                    <Badge variant={stock === 0 ? "destructive" : "secondary"}>
+                      {stock}
+                    </Badge>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">–</span>
+                  )
                 ) : (
-                  <span className="text-sm text-muted-foreground">–</span>
+                  <span className="text-sm text-muted-foreground">Selecciona almacén</span>
                 )}
               </div>
 
-              {/* Botón eliminar ítem */}
+              {/* Eliminar ítem */}
               <div className="col-span-1 flex justify-end">
-                <Button size="icon" variant="ghost" onClick={() => remove(idx)}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => remove(idx)}
+                >
                   <Trash size={16} />
                 </Button>
               </div>
@@ -193,13 +186,7 @@ export default function DeliveryBatchForm({
 
         <Button
           variant="outline"
-          onClick={() =>
-            append({
-              eppId:       undefined!,
-              warehouseId: values.warehouseId ?? undefined!,
-              quantity:    1,
-            })
-          }
+          onClick={() => append({ eppId: undefined!, quantity: 1 })}
         >
           <Plus size={16} className="mr-1" /> Añadir ítem
         </Button>
@@ -220,7 +207,11 @@ export default function DeliveryBatchForm({
         <Button variant="outline" type="reset" disabled={isSubmitting}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={!isValid || isSubmitting} aria-busy={isSubmitting}>
+        <Button
+          type="submit"
+          disabled={!isValid || isSubmitting}
+          aria-busy={isSubmitting}
+        >
           {isSubmitting && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
           Guardar
         </Button>

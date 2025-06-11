@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       const rows = await Promise.all(
         data.items.map(async (it) => {
           const stockRow = await tx.ePPStock.findUnique({
-            where: { eppId_warehouseId: { eppId: it.eppId, warehouseId: it.warehouseId } },
+            where: { eppId_warehouseId: { eppId: it.eppId, warehouseId: data.warehouseId } },
             select: { quantity: true },
           });
           if (!stockRow || stockRow.quantity < it.quantity) {
