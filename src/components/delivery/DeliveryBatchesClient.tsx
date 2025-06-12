@@ -3,34 +3,32 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-
 import DeliveryBatchTable from "./DeliveryBatchTable";
 import ModalCreateDeliveryBatch from "./ModalCreateDeliveryBatch";
 import ModalEditDeliveryBatch from "./ModalEditDeliveryBatch";
 import ModalDeleteDeliveryBatch from "./ModalDeleteDeliveryBatch";
-
 import type { DeliveryBatchValues } from "@/schemas/delivery-batch-schema";
 
 export interface BatchRow {
-  id:           number;
-  code:         string;
-  date:         string;
+  id: number;
+  code: string;
+  date: string;
   collaborator: string;
-  operator:     string;
-  items:        number;
+  operator: string;
+  items: number;
 }
 
 interface ListItem {
-  id:             number;
-  code:           string;
-  createdAt:      Date;
+  id: number;
+  code: string;
+  createdAt: string; // ahora string
   collaboratorId: number;
-  warehouseId:    number;
-  note?:          string | null;
-  collaborator:   { name: string };
-  user:           { name: string | null; email: string };
-  _count:         { deliveries: number };
-  deliveries:     { eppId: number; quantity: number }[];
+  warehouseId: number;
+  note?: string | null;
+  collaborator: { name: string };
+  user: { name: string | null; email: string };
+  _count: { deliveries: number };
+  deliveries: { eppId: number; quantity: number }[];
 }
 
 interface Props {
@@ -38,37 +36,34 @@ interface Props {
 }
 
 export default function DeliveryBatchesClient({ list }: Props) {
-  const [showCreate, setShowCreate]   = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const [editingItem, setEditingItem] = useState<ListItem | null>(null);
-  const [deleting, setDeleting]       = useState<{ id: number; code: string } | null>(null);
+  const [deleting, setDeleting] = useState<ListItem | null>(null);
   const router = useRouter();
 
-  // Memoizar el resumen de filas para no recalcular en cada render
   const data: BatchRow[] = useMemo(
     () =>
       list.map((b) => ({
-        id:           b.id,
-        code:         b.code,
-        date:         b.createdAt.toISOString(),
+        id: b.id,
+        code: b.code,
+        date: b.createdAt,
         collaborator: b.collaborator.name,
-        operator:     b.user.name ?? b.user.email,
-        items:        b._count.deliveries,
+        operator: b.user.name ?? b.user.email,
+        items: b._count.deliveries,
       })),
     [list]
   );
 
-  // Preparar el batch para el modal de edición
   const editingBatch =
     editingItem && ({
-      id:             editingItem.id,
-      code:           editingItem.code,
+      id: editingItem.id,
+      code: editingItem.code,
       collaboratorId: editingItem.collaboratorId,
-      warehouseId:    editingItem.warehouseId,
-      note:           editingItem.note ?? "",
+      warehouseId: editingItem.warehouseId,
+      note: editingItem.note ?? "",
       items: editingItem.deliveries.map((d) => ({
-        eppId:       d.eppId,
-        warehouseId: editingItem.warehouseId,
-        quantity:    d.quantity,
+        eppId: d.eppId,
+        quantity: d.quantity,
       })),
     } as DeliveryBatchValues & { id: number; code: string });
 
@@ -85,13 +80,19 @@ export default function DeliveryBatchesClient({ list }: Props) {
           const match = list.find((b) => b.id === row.id);
           if (match) setEditingItem(match);
         }}
-        onDelete={(row) => setDeleting({ id: row.id, code: row.code })}
+        onDelete={(row) => {
+          const match = list.find((b) => b.id === row.id);
+          if (match) setDeleting(match);
+        }}
       />
 
       {/* Modal Crear */}
       {showCreate && (
         <ModalCreateDeliveryBatch
-          onClose={() => setShowCreate(false)}
+          onClose={() => {
+            setShowCreate(false);
+            router.refresh();
+          }}
           onCreated={() => {
             setShowCreate(false);
             router.refresh();
@@ -103,7 +104,10 @@ export default function DeliveryBatchesClient({ list }: Props) {
       {editingBatch && (
         <ModalEditDeliveryBatch
           batch={editingBatch}
-          onClose={() => setEditingItem(null)}
+          onClose={() => {
+            setEditingItem(null);
+            router.refresh();
+          }}
           onSaved={() => {
             setEditingItem(null);
             router.refresh();
@@ -114,8 +118,15 @@ export default function DeliveryBatchesClient({ list }: Props) {
       {/* Modal Eliminar */}
       {deleting && (
         <ModalDeleteDeliveryBatch
-          batch={deleting}
-          onClose={() => {
+          open={!!deleting}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeleting(null);
+              router.refresh();
+            }
+          }}
+          batch={{ id: deleting.id, code: deleting.code }}
+          onConfirm={() => {
             setDeleting(null);
             router.refresh();
           }}

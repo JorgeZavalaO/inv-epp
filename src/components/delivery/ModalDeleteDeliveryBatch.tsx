@@ -2,7 +2,6 @@
 
 import {
   AlertDialog,
-  AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -12,17 +11,30 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useTransition } from "react";
-import { toast } from "sonner";
 import { deleteBatch } from "@/app/(protected)/deliveries/actions";
 
-export default function ModalDeleteDeliveryBatch({ batch, onClose }: { batch: { id: number; code: string }; onClose(): void }) {
+export default function ModalDeleteDeliveryBatch({
+  open,
+  onOpenChange,
+  batch,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  batch: { id: number; code: string };
+  onConfirm: () => void;
+}) {
   const [isPending, startTransition] = useTransition();
 
+  const confirmDelete = () => {
+    startTransition(async () => {
+      await deleteBatch(batch.id);
+      onConfirm();
+    });
+  };
+
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="destructive" disabled={isPending}>Eliminar entrega {batch.code}</Button>
-      </AlertDialogTrigger>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Eliminar entrega {batch.code}?</AlertDialogTitle>
@@ -31,15 +43,13 @@ export default function ModalDeleteDeliveryBatch({ batch, onClose }: { batch: { 
           Al confirmar, se devolverá el stock y se eliminará todo el lote.
         </p>
         <AlertDialogFooter className="flex justify-end gap-2 pt-4">
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={() =>
-            startTransition(async () => {
-              await deleteBatch(batch.id);
-              toast.success("Entrega eliminada");
-              onClose();
-            })
-          } disabled={isPending}>
-            Eliminar
+          <AlertDialogCancel asChild>
+            <Button variant="outline">Cancelar</Button>
+          </AlertDialogCancel>
+          <AlertDialogAction asChild>
+            <Button variant="destructive" onClick={confirmDelete} disabled={isPending}>
+              Eliminar
+            </Button>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
