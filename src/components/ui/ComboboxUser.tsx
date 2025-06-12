@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 
 interface UserOption {
   id:    number;
-  label: string;
+  label: string; // nombre
   email: string;
 }
 
@@ -32,9 +32,7 @@ export default function ComboboxUser({
   const [panelWidth, setPanelWidth] = React.useState<number>();
 
   React.useEffect(() => {
-    if (triggerRef.current) {
-      setPanelWidth(triggerRef.current.offsetWidth);
-    }
+    if (triggerRef.current) setPanelWidth(triggerRef.current.offsetWidth);
   }, [open]);
 
   React.useEffect(() => {
@@ -43,13 +41,14 @@ export default function ComboboxUser({
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q
-      ? options.filter((u) => u.label.toLowerCase().includes(q))
-      : options;
+    if (!q) return options;
+    return options.filter((u) =>
+      u.label.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q)
+    );
   }, [options, query]);
 
-  const selectedLabel =
-    options.find((u) => u.id === value)?.label || "Selecciona un usuario";
+  const selectedLabel = options.find((u) => u.id === value)?.label || "Selecciona un usuario";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -64,11 +63,13 @@ export default function ComboboxUser({
           <span className={value ? "text-foreground" : "text-muted-foreground"}>
             {selectedLabel}
           </span>
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-50" viewBox="0 0 24 24">
+            <path stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+              d="M19 9l-7 7-7-7" />
           </svg>
         </Button>
       </PopoverTrigger>
+
       <PopoverContent
         sideOffset={8}
         align="start"
@@ -86,7 +87,8 @@ export default function ComboboxUser({
             {filtered.map((u) => (
               <CommandItem
                 key={u.id}
-                value={String(u.id)}
+                // valor de filtro = nombre + email
+                value={`${u.label} ${u.email}`}
                 onSelect={() => {
                   onChange(u.id);
                   setOpen(false);
