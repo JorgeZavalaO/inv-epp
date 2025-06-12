@@ -1,7 +1,5 @@
 import prisma from "@/lib/prisma";
-import ReturnTable from "@/components/return/ReturnTable";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import ReturnClient, { ReturnRow } from "@/components/return/ReturnClient";
 
 export const revalidate = 0;
 
@@ -15,7 +13,7 @@ export default async function ReturnsPage() {
     take: 100,
   });
 
-  const data = list.map((r) => ({
+  const data: ReturnRow[] = list.map((r) => ({
     id:         r.id,
     date:       r.createdAt.toISOString(),
     eppCode:    r.epp.code,
@@ -26,18 +24,5 @@ export default async function ReturnsPage() {
     operator:   r.user.name ?? r.user.email,
   }));
 
-  return (
-    <section className="space-y-6 px-4 md:px-8 py-6">
-      <header className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Devoluciones</h1>
-        <Link href="/returns/new">
-          <Button>+ Nueva Devolución</Button>
-        </Link>
-      </header>
-
-      <div className="overflow-x-auto bg-white rounded shadow">
-        <ReturnTable data={data} />
-      </div>
-    </section>
-  );
+  return <ReturnClient initialData={data} />;
 }

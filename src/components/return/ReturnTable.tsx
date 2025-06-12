@@ -1,32 +1,17 @@
 "use client";
+
 import { ColumnDef } from "@tanstack/react-table";
-import { deleteReturn } from "@/app/(protected)/returns/actions";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
+import { ReturnRow } from "./ReturnClient";
 
-export interface ReturnRow {
-  id: number;
-  date: string;
-  eppCode: string;
-  eppName: string;
-  employee: string;
-  quantity: number;
-  condition: "REUSABLE" | "DISCARDED";
-  operator: string;
+interface Props {
+  data: ReturnRow[];
+  onDelete(row: ReturnRow): void;
 }
 
-export default function ReturnTable({ data }: { data: ReturnRow[] }) {
-  const [isPending, start] = useTransition();
-
-  const condBadge = (c: ReturnRow["condition"]) => (
-    <Badge variant={c === "REUSABLE" ? "default" : "destructive"}>
-      {c === "REUSABLE" ? "Reutilizable" : "Descartado"}
-    </Badge>
-  );
-
+export default function ReturnTable({ data, onDelete }: Props) {
   const cols: ColumnDef<ReturnRow>[] = [
     {
       accessorKey: "date",
@@ -40,7 +25,14 @@ export default function ReturnTable({ data }: { data: ReturnRow[] }) {
     {
       accessorKey: "condition",
       header: "Cond.",
-      cell: ({ getValue }) => condBadge(getValue<ReturnRow["condition"]>()),
+      cell: ({ getValue }) => {
+        const c = getValue<ReturnRow["condition"]>();
+        return (
+          <Badge variant={c === "REUSABLE" ? "default" : "destructive"}>
+            {c === "REUSABLE" ? "Reutilizable" : "Descartado"}
+          </Badge>
+        );
+      },
     },
     { accessorKey: "operator", header: "Operador" },
     {
@@ -49,19 +41,7 @@ export default function ReturnTable({ data }: { data: ReturnRow[] }) {
         <Button
           size="sm"
           variant="destructive"
-          disabled={isPending}
-          onClick={() =>
-            start(async () => {
-              try {
-                await deleteReturn(row.original.id);
-                toast.success("Devolución deshecha");
-              } catch (e: unknown) {
-                const message =
-                  e instanceof Error ? e.message : "Error";
-                toast.error(message);
-              }
-            })
-          }
+          onClick={() => onDelete(row.original)}
         >
           Deshacer
         </Button>

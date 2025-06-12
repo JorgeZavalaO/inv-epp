@@ -154,6 +154,7 @@ model DeliveryBatch {
   createdAt       DateTime     @default(now())
 
   deliveries      Delivery[]
+  returns         Return[]
 
   @@index([createdAt])
   @@index([collaboratorId])
@@ -175,6 +176,8 @@ model Delivery {
 /// Devoluciones (vuelven inventario a un almacén)
 model Return {
   id             Int              @id @default(autoincrement())
+  batchId        Int
+  batch          DeliveryBatch   @relation(fields: [batchId], references: [id])
   employee       String
   quantity       Int
   condition      DeliveryCondition

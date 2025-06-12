@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 
 interface UserOption {
   id:    number;
-  label: string; // nombre
+  label: string;
   email: string;
 }
 
