@@ -90,7 +90,7 @@ export default function ReturnForm({
         control={control}
         render={({ field }) => (
           <div className="space-y-1">
-            <Label>Pedido</Label>
+            <Label>Entrega</Label>
             <ComboboxBatch
               options={batches}
               value={field.value ?? null}

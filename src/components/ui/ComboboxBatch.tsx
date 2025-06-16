@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 interface BatchOption {
   id:   number;
   code: string;
-  date: string; // ISO
+  date: string;
 }
 
 export default function ComboboxBatch({
@@ -51,7 +51,7 @@ export default function ComboboxBatch({
   }, [options, query]);
 
   const label =
-    options.find((o) => o.id === value)?.code ?? "Selecciona pedido";
+    options.find((o) => o.id === value)?.code ?? "Selecciona una Entrega";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
