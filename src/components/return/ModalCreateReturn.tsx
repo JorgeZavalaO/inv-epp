@@ -11,23 +11,29 @@ import {
 } from "@/components/ui/dialog";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { useUser } from "@clerk/nextjs";
+
 import { createReturnBatch } from "@/app/(protected)/returns/actions";
-import ReturnForm from "./ReturnForm";
+import ReturnForm, { DetailRow } from "./ReturnForm";
 import { Button } from "@/components/ui/button";
 
-interface DeliveryBatchRow {
-  id: number;
+/* lote que se presenta en el combobox */
+interface BatchRow {
+  id:   number;
   code: string;
-  createdAt: string;
+  date: string;
 }
 
-interface Delivery {
-  eppId: number;
-  quantity: number;
-  epp: {
-    code: string;
-    name: string;
-  };
+/* estructuras que recibimos del endpoint /api/delivery-batches/[id] */
+interface DeliveryAPI {
+  eppId:   number;
+  quantity:number;
+  epp:     { code: string; name: string };
+}
+interface DeliveryBatchAPI {
+  warehouseId:   number;
+  warehouse:     { name: string };
+  deliveries:    DeliveryAPI[];
 }
 
 export default function ModalCreateReturn({
@@ -37,72 +43,73 @@ export default function ModalCreateReturn({
   onClose(): void;
   onCreated(): void;
 }) {
+  const { user } = useUser();
+  const [batches, setBatches] = React.useState<BatchRow[]>([]);
   const [isPending, start] = useTransition();
-  const [batches, setBatches] = React.useState<
-    { id: number; code: string; date: string }[]
-  >([]);
 
-  // 1) Carga la lista de lotes una sola vez
+  /* traemos sólo pedidos pendientes */
   React.useEffect(() => {
-    fetch("/api/delivery-batches")
+    fetch("/api/available-batches")
       .then((r) => r.json())
-      .then((rows: DeliveryBatchRow[]) =>
-        setBatches(
-          rows.map((b) => ({ id: b.id, code: b.code, date: b.createdAt }))
-        )
-      );
+      .then(setBatches);
   }, []);
 
-  // 2) Mantenemos fetchDetails estable con useCallback
+  /* devuelve el detalle tipado del pedido elegido */
   const fetchDetails = React.useCallback(
-    async (batchId: number) => {
+    async (batchId: number): Promise<DetailRow[]> => {
       const res = await fetch(`/api/delivery-batches/${batchId}`);
-      const b = await res.json();
-      return b.deliveries.map((d: Delivery) => ({
-        eppId: d.eppId,
-        warehouseId: b.warehouseId,
-        delivered: d.quantity,
-        code: d.epp.code,
-        name: d.epp.name,
+      const b: DeliveryBatchAPI = await res.json();
+
+      return b.deliveries.map((d) => ({
+        eppId:         d.eppId,
+        warehouseId:   b.warehouseId,
+        warehouseName: b.warehouse.name,
+        delivered:     d.quantity,
+        code:          d.epp.code,
+        name:          d.epp.name,
       }));
     },
-    [] // solo se define una vez
+    [],
   );
 
   return (
     <Dialog open>
       <DialogContent className="max-w-3xl">
-        <DialogHeader className="flex items-center justify-between">
-          <DialogTitle>Devolución por lote</DialogTitle>
-          <DialogClose />
+        <DialogHeader>
+          <div className="flex justify-between items-center">
+            <DialogTitle>Devolución por pedido</DialogTitle>
+            <DialogClose />
+          </div>
+
+          {user && (
+            <p className="text-sm text-muted-foreground">
+              Usuario: {user.fullName ?? user.primaryEmailAddress?.emailAddress}
+            </p>
+          )}
         </DialogHeader>
 
         <ReturnForm
           batches={batches}
           fetchDetails={fetchDetails}
-          onSubmit={(data) =>
+          onSubmit={(values) =>
             start(async () => {
               try {
                 const fd = new FormData();
-                fd.append("payload", JSON.stringify(data));
+                fd.append("payload", JSON.stringify(values));
                 await createReturnBatch(fd);
                 toast.success("Devolución registrada");
                 onCreated();
-              } catch (e: unknown) {
-                toast.error(
-                  e instanceof Error ? e.message : "Error al registrar"
-                );
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Error al registrar");
               }
             })
           }
         />
 
         <DialogFooter>
-          <div className="flex justify-end w-full">
-            <Button variant="outline" onClick={onClose} disabled={isPending}>
-              Cancelar
-            </Button>
-          </div>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
+            Cancelar
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

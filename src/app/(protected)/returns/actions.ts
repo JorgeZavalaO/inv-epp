@@ -1,45 +1,70 @@
 "use server";
 
-import prisma                from "@/lib/prisma";
-import { returnBatchSchema } from "@/schemas/return-schema";
-import { revalidatePath }    from "next/cache";
-import { ensureClerkUser }   from "@/lib/user-sync";
+import prisma                    from "@/lib/prisma";
+import { returnBatchSchema }     from "@/schemas/return-schema";
+import { revalidatePath }        from "next/cache";
+import { ensureClerkUser }       from "@/lib/user-sync";
+//import { z }                     from "zod";
 
+/*─────────────────────────────────────────────────────
+  CREA UN NUEVO LOTE de devolución (ReturnBatch)
+─────────────────────────────────────────────────────*/
 export async function createReturnBatch(fd: FormData) {
   const raw  = JSON.parse(fd.get("payload") as string);
   const data = returnBatchSchema.parse(raw);
 
-  const user = await ensureClerkUser();
+  const operator = await ensureClerkUser();
 
   await prisma.$transaction(async (tx) => {
+    /* ─ 1) Generar código correlativo RB-0001 … ─ */
+    const last   = await tx.returnBatch.findFirst({
+      where:  { code: { startsWith: "RB-" } },
+      select: { code: true },
+      orderBy: { code: "desc" },
+    });
+    const nextNum = last ? Number(last.code.replace("RB-", "")) + 1 : 1;
+    const code    = `RB-${String(nextNum).padStart(4, "0")}`;
+
+    /* ─ 2) Crear el batch ─ */
+    const { id: batchId } = await tx.returnBatch.create({
+      data: {
+        code,
+        warehouseId: data.warehouseId,
+        note:        data.note,
+        userId:      operator.id,
+      },
+      select: { id: true },
+    });
+
+    /* ─ 3) Crear las líneas + ajustar stock ─ */
     for (const it of data.items.filter((i) => i.quantity > 0)) {
-      await tx.return.create({
+      await tx.returnItem.create({
         data: {
-          batchId:      data.batchId,
-          eppId:        it.eppId,
-          warehouseId:  it.warehouseId,
-          quantity:     it.quantity,
-          employee:     "-",
-          condition:    "REUSABLE",
-          userId:       user.id,
+          batchId,
+          eppId:     it.eppId,
+          quantity:  it.quantity,
+          condition: data.condition,
         },
       });
 
-      // Ajustar stock
-      await tx.ePPStock.upsert({
-        where: {
-          eppId_warehouseId: {
+      if (data.condition === "REUSABLE") {
+        await tx.ePPStock.upsert({
+          where:  { eppId_warehouseId: { eppId: it.eppId, warehouseId: it.warehouseId } },
+          update: { quantity: { increment: it.quantity } },
+          create: { eppId: it.eppId, warehouseId: it.warehouseId, quantity: it.quantity },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            type:        "ENTRY",
             eppId:       it.eppId,
             warehouseId: it.warehouseId,
+            quantity:    it.quantity,
+            note:        `Devolución ${code}`,
+            userId:      operator.id,
           },
-        },
-        update: { quantity: { increment: it.quantity } },
-        create: {
-          eppId:       it.eppId,
-          warehouseId: it.warehouseId,
-          quantity:    it.quantity,
-        },
-      });
+        });
+      }
     }
   });
 
@@ -48,36 +73,41 @@ export async function createReturnBatch(fd: FormData) {
   revalidatePath("/dashboard");
 }
 
-
-
-export async function deleteReturn(id: number) {
-  const ret = await prisma.return.findUnique({ where: { id } });
-  if (!ret) throw new Error("Devolución no encontrada");
+/*─────────────────────────────────────────────────────
+  DESHACE / ELIMINA un lote de devolución completo
+─────────────────────────────────────────────────────*/
+export async function deleteReturnBatch(batchId: number) {
+  const batch = await prisma.returnBatch.findUnique({
+    where:  { id: batchId },
+    select: { id: true, code: true, items: true, warehouseId: true, userId: true },
+  });
+  if (!batch) throw new Error("Lote no encontrado");
 
   await prisma.$transaction(async (tx) => {
-    await tx.return.delete({ where: { id } });
-    if (ret.condition === "REUSABLE") {
-      await tx.ePPStock.update({
-        where: {
-          eppId_warehouseId: {
-            eppId:       ret.eppId,
-            warehouseId: ret.warehouseId,
+    /* Revertir stock SOLO si era reutilizable */
+    for (const it of batch.items) {
+      if (it.condition === "REUSABLE") {
+        await tx.ePPStock.update({
+          where:  { eppId_warehouseId: { eppId: it.eppId, warehouseId: batch.warehouseId } },
+          data:   { quantity: { decrement: it.quantity } },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            type:        "EXIT",
+            eppId:       it.eppId,
+            warehouseId: batch.warehouseId,
+            quantity:    it.quantity,
+            note:        `Deshacer devolución ${batch.code}`,
+            userId:      batch.userId,
           },
-        },
-        data: { quantity: { decrement: ret.quantity } },
-      });
-      // opcional: registro el movimiento de salida de stock al deshacer
-      await tx.stockMovement.create({
-        data: {
-          type:        "EXIT",
-          eppId:       ret.eppId,
-          warehouseId: ret.warehouseId,
-          quantity:    ret.quantity,
-          note:        `Deshacer devolución ${id}`,
-          userId:      ret.userId,
-        },
-      });
+        });
+      }
     }
+
+    /* Borramos líneas + cabecera */
+    await tx.returnItem.deleteMany({ where: { batchId } });
+    await tx.returnBatch.delete({ where: { id: batchId } });
   });
 
   revalidatePath("/returns");

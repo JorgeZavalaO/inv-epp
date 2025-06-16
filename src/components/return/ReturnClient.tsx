@@ -3,55 +3,70 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import ReturnTable from "./ReturnTable";
+
+import ReturnTable      from "./ReturnTable";
 import ModalCreateReturn from "./ModalCreateReturn";
 import ModalDeleteReturn from "./ModalDeleteReturn";
+import ModalViewReturn   from "./ModalViewReturn";
 
-export interface ReturnRow {
-  id:         number;
-  date:       string;
-  eppCode:    string;
-  eppName:    string;
-  employee:   string;
-  quantity:   number;
-  condition:  "REUSABLE" | "DISCARDED";
-  operator:   string;
+export interface ReturnBatchRow {
+  id:        number;
+  code:      string;
+  date:      string;
+  warehouse: string;
+  user:      string;
+  count:     number;
 }
 
 interface Props {
-  initialData: ReturnRow[];
+  initialData: ReturnBatchRow[];
 }
 
 export default function ReturnClient({ initialData }: Props) {
-  const [data]             = useState<ReturnRow[]>(initialData);
-  const [showCreate, setShowCreate] = useState(false);
-  const [deleting, setDeleting]     = useState<ReturnRow | null>(null);
-  const router                      = useRouter();
+  /* 🚫  no se guarda en estado — así router.refresh() actualiza props */
+  const data = initialData;
+
+  const [showNew,   setShowNew]   = useState(false);
+  const [deleting,  setDeleting]  = useState<ReturnBatchRow | null>(null);
+  const [viewing,   setViewing]   = useState<ReturnBatchRow | null>(null);
+  const router = useRouter();
 
   return (
-    <section className="space-y-6 px-4 md:px-8 py-6">
+    <section className="space-y-6 px-8 py-6">
       <header className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Devoluciones</h1>
-        <Button onClick={() => setShowCreate(true)}>+ Nueva Devolución</Button>
+        <h1 className="text-3xl font-bold">Devoluciones por lote</h1>
+        <Button onClick={() => setShowNew(true)}>+ Nueva devolución</Button>
       </header>
 
-      <div className="overflow-x-auto bg-white rounded shadow">
-        <ReturnTable data={data} onDelete={(row) => setDeleting(row)} />
-      </div>
+      <ReturnTable
+        data={data}
+        onDelete={(row) => setDeleting(row)}
+        onView={(row)  => setViewing(row)}
+      />
 
-      {showCreate && (
+      {/* ver detalle */}
+      {viewing && (
+        <ModalViewReturn
+          batchId={viewing.id}
+          onClose={() => setViewing(null)}
+        />
+      )}
+
+      {/* crear */}
+      {showNew && (
         <ModalCreateReturn
-          onClose={() => setShowCreate(false)}
+          onClose={() => setShowNew(false)}
           onCreated={() => {
-            setShowCreate(false);
-            router.refresh();
+            setShowNew(false);
+            router.refresh();        // revalida server component
           }}
         />
       )}
 
+      {/* eliminar */}
       {deleting && (
         <ModalDeleteReturn
-          ret={deleting}
+          batch={deleting}
           onClose={() => {
             setDeleting(null);
             router.refresh();

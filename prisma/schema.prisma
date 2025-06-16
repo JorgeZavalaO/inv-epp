@@ -39,7 +39,7 @@ enum ApprovalResult {
   REJECTED
 }
 
-/// Modelo de usuarios
+/// Usuarios (de Clerk)
 model User {
   id             Int                @id @default(autoincrement())
   clerkId        String             @unique
@@ -49,11 +49,11 @@ model User {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  stockMovements StockMovement[]    
-  deliveryBatches DeliveryBatch[]   
-  returns        Return[]           
-  requests       Request[]          
-  approvals      Approval[]         
+  stockMovements StockMovement[]
+  deliveryBatches DeliveryBatch[]
+  returnBatches  ReturnBatch[]
+  requests       Request[]
+  approvals      Approval[]
 }
 
 /// Artículos de protección personal
@@ -69,16 +69,11 @@ model EPP {
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @default(now()) @updatedAt
 
-  // Inventario por almacén
   stocks       EPPStock[]
-
-  // Movimientos de stock
   movements    StockMovement[]
-
-  // Entregas (renglones) y devoluciones
-  deliveries   Delivery[]       
-  returns      Return[]         
-  requests     Request[]        
+  deliveries   Delivery[]
+  returnItems  ReturnItem[]
+  requests     Request[]
 
   @@index([name])
   @@index([category])
@@ -86,150 +81,153 @@ model EPP {
 
 /// Almacenes físicos
 model Warehouse {
-  id             Int               @id @default(autoincrement())
-  name           String            @unique
-  location       String?
-  createdAt      DateTime          @default(now())
+  id              Int               @id @default(autoincrement())
+  name            String            @unique
+  location        String?
+  createdAt       DateTime          @default(now())
 
-  // Existencias en este almacén
-  stocks         EPPStock[]
-
-  // Todos los movimientos de stock en este almacén
-  movements      StockMovement[]
-
-  // Lotes de entrega que parten de este almacén
+  stocks          EPPStock[]
+  movements       StockMovement[]
   deliveryBatches DeliveryBatch[]
+  returnBatches   ReturnBatch[]
 
-  // Devoluciones que ingresan a este almacén
-  returns        Return[]
+  @@index([name])
 }
 
-/// Inventario de cada EPP en cada almacén
+/// Inventario por almacén
 model EPPStock {
-  eppId          Int
-  warehouseId    Int
-  quantity       Int               @default(0)
+  eppId       Int
+  warehouseId Int
+  quantity    Int               @default(0)
 
-  epp            EPP               @relation(fields: [eppId], references: [id])
-  warehouse      Warehouse         @relation(fields: [warehouseId], references: [id])
+  epp         EPP               @relation(fields: [eppId], references: [id])
+  warehouse   Warehouse         @relation(fields: [warehouseId], references: [id])
 
   @@id([eppId, warehouseId])
 }
 
-/// Movimientos de stock (entra/sale/transfiere/ajusta) en un solo almacén
+/// Movimientos de stock
 model StockMovement {
-  id             Int               @id @default(autoincrement())
-  type           StockMovementType
-  quantity       Int
-  note           String?
-  createdAt      DateTime          @default(now())
+  id          Int               @id @default(autoincrement())
+  type        StockMovementType
+  quantity    Int
+  note        String?
+  createdAt   DateTime          @default(now())
 
-  eppId          Int
-  epp            EPP               @relation(fields: [eppId], references: [id])
+  eppId       Int
+  epp         EPP               @relation(fields: [eppId], references: [id])
 
-  warehouseId    Int
-  warehouse      Warehouse         @relation(fields: [warehouseId], references: [id])
+  warehouseId Int
+  warehouse   Warehouse         @relation(fields: [warehouseId], references: [id])
 
-  userId         Int
-  user           User              @relation(fields: [userId], references: [id])
+  userId      Int
+  user        User              @relation(fields: [userId], references: [id])
 
   @@index([eppId, warehouseId, createdAt])
 }
 
-/// Lote de entregas múltiples desde un almacén
+/// Lote de entregas
 model DeliveryBatch {
-  id              Int           @id @default(autoincrement())
-  code            String        @unique @db.VarChar(32)
+  id             Int           @id @default(autoincrement())
+  code           String        @unique @db.VarChar(32)
+  collaboratorId Int
+  collaborator   Collaborator  @relation(fields: [collaboratorId], references: [id])
+  note           String?
+  warehouseId    Int
+  warehouse      Warehouse     @relation(fields: [warehouseId], references: [id])
+  userId         Int
+  user           User          @relation(fields: [userId], references: [id])
+  createdAt      DateTime      @default(now())
 
-  collaboratorId  Int 
-  collaborator    Collaborator @relation(fields: [collaboratorId], references: [id])
-
-  note            String?                                        
-  warehouseId     Int                                       
-  warehouse       Warehouse   @relation(fields: [warehouseId], references: [id])
-
-  userId          Int                                        
-  user            User        @relation(fields: [userId], references: [id])
-
-  createdAt       DateTime     @default(now())
-
-  deliveries      Delivery[]
-  returns         Return[]
+  deliveries     Delivery[]
 
   @@index([createdAt])
   @@index([collaboratorId])
 }
 
-/// Cada línea de entrega dentro de un batch
+/// Cada línea de entrega
 model Delivery {
-  id             Int               @id @default(autoincrement())
-  batchId        Int
-  batch          DeliveryBatch     @relation(fields: [batchId], references: [id])
+  id         Int           @id @default(autoincrement())
+  batchId    Int
+  batch      DeliveryBatch @relation(fields: [batchId], references: [id])
+  eppId      Int
+  epp        EPP           @relation(fields: [eppId], references: [id])
+  quantity   Int
+  createdAt  DateTime      @default(now())
 
-  eppId          Int
-  epp            EPP               @relation(fields: [eppId], references: [id])
-
-  quantity       Int
-  createdAt      DateTime          @default(now())
+  @@index([batchId, eppId])
 }
 
-/// Devoluciones (vuelven inventario a un almacén)
-model Return {
-  id             Int              @id @default(autoincrement())
-  batchId        Int
-  batch          DeliveryBatch   @relation(fields: [batchId], references: [id])
-  employee       String
-  quantity       Int
-  condition      DeliveryCondition
-  warehouseId    Int
-  warehouse      Warehouse        @relation(fields: [warehouseId], references: [id])
-  createdAt      DateTime         @default(now())
+/// Lote de devoluciones
+model ReturnBatch {
+  id           Int          @id @default(autoincrement())
+  code         String       @unique @db.VarChar(32)
+  warehouseId  Int
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id])
+  userId       Int
+  user         User         @relation(fields: [userId], references: [id])
+  note         String?
+  createdAt    DateTime     @default(now())
 
-  eppId          Int
-  epp            EPP              @relation(fields: [eppId], references: [id])
-  userId         Int
-  user           User             @relation(fields: [userId], references: [id])
+  items        ReturnItem[]
+
+  @@index([createdAt])
+}
+
+/// Cada línea de devolución
+model ReturnItem {
+  id           Int               @id @default(autoincrement())
+  batchId      Int
+  batch        ReturnBatch       @relation(fields: [batchId], references: [id])
+  eppId        Int
+  epp          EPP               @relation(fields: [eppId], references: [id])
+  quantity     Int
+  condition    DeliveryCondition
+  createdAt    DateTime          @default(now())
+
+  @@index([batchId, eppId])
 }
 
 /// Solicitudes de EPP
 model Request {
-  id             Int              @id @default(autoincrement())
-  employee       String
-  quantity       Int
-  reason         String?
-  status         RequestStatus    @default(PENDING)
-  createdAt      DateTime         @default(now())
+  id         Int           @id @default(autoincrement())
+  employee   String
+  quantity   Int
+  reason     String?
+  status     RequestStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
 
-  eppId          Int
-  epp            EPP              @relation(fields: [eppId], references: [id])
-  userId         Int
-  user           User             @relation(fields: [userId], references: [id])
-  approvals      Approval[]       
+  eppId      Int
+  epp        EPP           @relation(fields: [eppId], references: [id])
+  userId     Int
+  user       User          @relation(fields: [userId], references: [id])
+  approvals  Approval[]
 }
 
-/// Aprobaciones sobre solicitudes
+/// Aprobaciones
 model Approval {
-  id             Int             @id @default(autoincrement())
-  result         ApprovalResult
-  comment        String?
-  createdAt      DateTime        @default(now())
+  id         Int             @id @default(autoincrement())
+  result     ApprovalResult
+  comment    String?
+  createdAt  DateTime        @default(now())
 
-  requestId      Int
-  request        Request         @relation(fields: [requestId], references: [id])
-  userId         Int
-  user           User            @relation(fields: [userId], references: [id])
+  requestId  Int
+  request    Request         @relation(fields: [requestId], references: [id])
+  userId     Int
+  user       User            @relation(fields: [userId], references: [id])
 }
 
-/// Colaboradores (no usuarios de Clerk, solo para selección en formularios)
+/// Colaboradores de entregas
 model Collaborator {
-  id         Int      @id @default(autoincrement())
-  name       String   @db.VarChar(128)
-  email      String?  @db.VarChar(128)
-  position   String?  @db.VarChar(64)
-  location   String?  @db.VarChar(128)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id               Int               @id @default(autoincrement())
+  name             String            @db.VarChar(128)
+  email            String?           @db.VarChar(128)
+  position         String?           @db.VarChar(64)
+  location         String?           @db.VarChar(128)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
-  DeliveryBatches DeliveryBatch[]  // relación inversa
+  deliveryBatches  DeliveryBatch[]
+
   @@index([name])
 }

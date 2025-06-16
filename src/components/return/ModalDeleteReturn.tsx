@@ -9,43 +9,47 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { useTransition } from "react";
-import { toast } from "sonner";
-import { deleteReturn } from "@/app/(protected)/returns/actions";
-import { ReturnRow } from "./ReturnClient";
+import { useTransition }  from "react";
+import { toast }          from "sonner";
+import { deleteReturnBatch } from "@/app/(protected)/returns/actions";
+import { ReturnBatchRow } from "./ReturnClient";
 
 interface Props {
-  ret: ReturnRow;
+  batch: ReturnBatchRow;
   onClose(): void;
 }
 
-export default function ModalDeleteReturn({ ret, onClose }: Props) {
+export default function ModalDeleteReturn({ batch, onClose }: Props) {
   const [isPending, start] = useTransition();
 
   return (
     <AlertDialog open>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Deshacer devolución #{ret.id}?</AlertDialogTitle>
+          <AlertDialogTitle>Deshacer lote {batch.code}?</AlertDialogTitle>
         </AlertDialogHeader>
         <p className="mt-2 text-sm text-muted-foreground">
-          Esto restará las existencias si la condición es “Reutilizable”.
+          Se revertirán los movimientos de stock de este lote.
         </p>
+
         <AlertDialogFooter className="flex justify-end gap-2 pt-4">
           <AlertDialogCancel onClick={onClose}>Cancelar</AlertDialogCancel>
+
           <AlertDialogAction
+            disabled={isPending}
             onClick={() =>
               start(async () => {
                 try {
-                  await deleteReturn(ret.id);
-                  toast.success("Devolución deshecha");
+                  await deleteReturnBatch(batch.id);
+                  toast.success("Lote deshecho");
                   onClose();
-                } catch (e: unknown) {
-                  toast.error(e instanceof Error ? e.message : "Error al deshacer");
+                } catch (err) {
+                  toast.error(
+                    err instanceof Error ? err.message : "Error al deshacer"
+                  );
                 }
               })
             }
-            disabled={isPending}
           >
             Deshacer
           </AlertDialogAction>
