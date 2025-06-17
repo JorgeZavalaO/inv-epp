@@ -4,6 +4,7 @@ import {
 } from '@clerk/nextjs';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import { Analytics } from '@vercel/analytics/next';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <h1 className="text-xl font-bold">EPP Manager</h1>
           </header>
           <main className="min-h-screen mt-4">{children}</main>
+          <Analytics />
           <footer className="bg-white border-t py-4 px-6 text-center text-sm text-muted-foreground">
             © {new Date().getFullYear()} EPP Manager. Todos los derechos reservados.
           </footer>
