@@ -19,6 +19,7 @@ import {
 import ModalCreateEpp from "./ModalCreateEpp";
 import ModalEditEpp   from "./ModalEditEpp";
 import ModalViewEpp   from "./ModalViewEpp";
+import ModalImportEpp from "./ModalImportEpp";
 
 export type EppRow = {
   id:          number;
@@ -41,6 +42,7 @@ export default function EppTable({ data }: { data: EppRow[] }) {
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing]       = useState<EppRow | null>(null);
   const [viewing, setViewing]       = useState<EppRow | null>(null);
+  const [importing, setImporting]   = useState(false);
   const [deleting, setDeleting]     = useState<EppRow | null>(null);
 
   const columns: ColumnDef<EppRow>[] = [
@@ -115,7 +117,12 @@ export default function EppTable({ data }: { data: EppRow[] }) {
   return (
     <>
       <div className="flex justify-end mb-4">
-        <Button onClick={() => setShowCreate(true)}>+ Nuevo EPP</Button>
+        <Button variant="outline" onClick={() => setImporting(true)}>
+          Importar
+        </Button>
+        <Button className="ml-2" onClick={() => setShowCreate(true)}>
+          + Nuevo EPP
+        </Button>
       </div>
 
       <DataTable columns={columns} data={data} />
@@ -134,6 +141,7 @@ export default function EppTable({ data }: { data: EppRow[] }) {
         />
       )}
       {viewing && <ModalViewEpp epp={viewing} onClose={() => setViewing(null)} />}
+      {importing && <ModalImportEpp onClose={() => setImporting(false)} />}
     </>
   );
 }
