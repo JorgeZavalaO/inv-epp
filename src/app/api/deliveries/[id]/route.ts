@@ -1,10 +1,12 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  
   try {
     const record = await prisma.delivery.findUnique({
-      where: { id: Number(params.id) },
+      where: { id: Number(id) },
       include: {
         batch: {
           select: {
@@ -16,6 +18,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
         epp: { select: { code: true, name: true } },
       },
     });
+    
     return record
       ? NextResponse.json(record)
       : NextResponse.json({ error: "No encontrado" }, { status: 404 });
@@ -25,13 +28,16 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   }
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  
   try {
     const data = await req.json();
     const updated = await prisma.delivery.update({
-      where: { id: Number(params.id) },
+      where: { id: Number(id) },
       data,
     });
+    
     return NextResponse.json(updated);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -39,9 +45,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  
   try {
-    await prisma.delivery.delete({ where: { id: Number(params.id) } });
+    await prisma.delivery.delete({ where: { id: Number(id) } });
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
