@@ -1,48 +1,49 @@
 import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import Link      from "next/link";
-import { Button }from "@/components/ui/button";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default async function DeliveryBatchDetail({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
+  
   const b = await prisma.deliveryBatch.findUnique({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
     include: {
       collaborator: { select: { name: true, position: true, location: true } },
-      user:         { select: { name: true, email: true } },
-      deliveries:  {
+      user: { select: { name: true, email: true } },
+      deliveries: {
         include: { epp: { select: { code: true, name: true } } },
         orderBy: { id: "asc" },
       },
-      warehouse:   { select: { name: true } },
+      warehouse: { select: { name: true } },
     },
   });
+  
   if (!b) notFound();
-
+  
   return (
     <section className="space-y-6 px-4 md:px-8 py-6">
       <header className="flex items-center gap-4">
         <h1 className="text-3xl font-bold">Entrega #{b.code}</h1>
         <Badge variant="secondary">{b.deliveries.length} ítems</Badge>
       </header>
-
       <div className="grid md:grid-cols-2 gap-6">
         <div className="space-y-1">
           <p><strong>Colaborador:</strong> {b.collaborator.name}</p>
-          <p><strong>Cargo:</strong>       {b.collaborator.position ?? "-"}</p>
-          <p><strong>Ubicación:</strong>   {b.collaborator.location ?? "-"}</p>
+          <p><strong>Cargo:</strong> {b.collaborator.position ?? "-"}</p>
+          <p><strong>Ubicación:</strong> {b.collaborator.location ?? "-"}</p>
         </div>
         <div className="space-y-1">
-          <p><strong>Operador:</strong>    {b.user.name ?? b.user.email}</p>
+          <p><strong>Operador:</strong> {b.user.name ?? b.user.email}</p>
           {b.note && <p><strong>Nota:</strong> {b.note}</p>}
-          <p><strong>Almacén:</strong>    {b.warehouse.name}</p>
+          <p><strong>Almacén:</strong> {b.warehouse.name}</p>
         </div>
       </div>
-
       <div className="overflow-x-auto bg-white rounded shadow">
         <table className="w-full text-sm">
           <thead>
@@ -63,7 +64,6 @@ export default async function DeliveryBatchDetail({
           </tbody>
         </table>
       </div>
-
       <Link href="/deliveries">
         <Button variant="outline">← Volver</Button>
       </Link>
