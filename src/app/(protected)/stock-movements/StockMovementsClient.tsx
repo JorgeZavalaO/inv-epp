@@ -8,6 +8,7 @@ import MovementTable, { Row as MovementRow } from "@/components/stock/MovementTa
 import ModalCreateMovement from "@/components/stock/ModalCreateMovement";
 import ModalEditMovement from "@/components/stock/ModalEditMovement";
 import ModalDeleteMovement from "@/components/stock/ModalDeleteMovement";
+import ModalCreateEntryBatch from "@/components/stock/ModalCreateEntryBatch";
 
 interface Props {
   data: MovementRow[];
@@ -24,6 +25,7 @@ export default function StockMovementsClient({
 }: Props) {
   /* control de modales */
   const [showCreate, setShowCreate] = useState(false);
+  const [showBatch,  setShowBatch]  = useState(false);
   const [editing, setEditing] = useState<MovementRow | null>(null);
   const [deleting, setDeleting] = useState<MovementRow | null>(null);
 
@@ -32,7 +34,12 @@ export default function StockMovementsClient({
       {/* header */}
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-3xl font-bold">Movimientos de Stock</h1>
-        <Button onClick={() => setShowCreate(true)}>+ Nuevo Movimiento</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowBatch(true)}>
+            + Entrada múltiple
+          </Button>
+          <Button onClick={() => setShowCreate(true)}>+ Movimiento simple</Button>
+        </div>
       </header>
 
       {/* tabla */}
@@ -58,6 +65,7 @@ export default function StockMovementsClient({
 
       {/* modales */}
       {showCreate && <ModalCreateMovement onClose={() => setShowCreate(false)} />}
+      {showBatch  && <ModalCreateEntryBatch onClose={() => setShowBatch(false)} />}
       {editing && (
         <ModalEditMovement
           movement={{
