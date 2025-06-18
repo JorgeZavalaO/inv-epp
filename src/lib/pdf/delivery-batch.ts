@@ -18,13 +18,15 @@ export async function buildDeliveryBatchPdf(batch: DeliveryBatchFull) {
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
   
-  // Colores
+  // Colores mejorados basados en la imagen
   const colors = {
-    primary: rgb(0.2, 0.4, 0.8),      // Azul corporativo
-    secondary: rgb(0.4, 0.4, 0.4),    // Gris oscuro
-    text: rgb(0.1, 0.1, 0.1),         // Negro suave
-    lightGray: rgb(0.9, 0.9, 0.9),   // Gris claro
-    accent: rgb(0.8, 0.2, 0.2),       // Rojo para acentos
+    primary: rgb(0.259, 0.420, 0.875),   // Azul más vibrante #4267df
+    secondary: rgb(0.329, 0.329, 0.329), // Gris medio
+    text: rgb(0.2, 0.2, 0.2),            // Gris oscuro para texto
+    lightGray: rgb(0.941, 0.941, 0.941), // Gris muy claro #f0f0f0
+    accent: rgb(0.863, 0.196, 0.184),    // Rojo corporativo #dc322f
+    white: rgb(1, 1, 1),                 // Blanco puro
+    yellowBg: rgb(0.992, 0.969, 0.808),  // Amarillo suave para observaciones
   };
 
   // Función helper para dibujar texto
@@ -35,7 +37,7 @@ export async function buildDeliveryBatchPdf(batch: DeliveryBatchFull) {
     options: {
       bold?: boolean;
       size?: number;
-      color?: import("pdf-lib").RGB;
+      color?: ReturnType<typeof rgb>;
       align?: 'left' | 'center' | 'right';
     } = {}
   ) => {
@@ -60,14 +62,7 @@ export async function buildDeliveryBatchPdf(batch: DeliveryBatchFull) {
   };
 
   // Función para dibujar rectángulos
-  const drawRect = (
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    color: import("pdf-lib").RGB,
-    filled = true
-  ) => {
+  const drawRect = (x: number, y: number, width: number, height: number, color: ReturnType<typeof rgb>, filled = true) => {
     if (filled) {
       page.drawRectangle({ x, y, width, height, color });
     } else {
@@ -85,24 +80,25 @@ export async function buildDeliveryBatchPdf(batch: DeliveryBatchFull) {
     });
   };
 
-  let currentY = height - 50;
+  let currentY = height - 40;
 
-  // HEADER - Banda superior con color
-  drawRect(0, currentY - 10, width, 60, colors.primary);
+  // HEADER - Banda superior con color (más alta)
+  drawRect(0, currentY - 15, width, 75, colors.primary);
   
-  // Logo/Icono placeholder (puedes reemplazar con tu logo)
-  drawRect(40, currentY + 15, 30, 30, rgb(1, 1, 1));
-  drawText("EPP", 47, currentY + 25, { bold: true, size: 12, color: colors.primary });
+  // Logo/Icono mejorado
+  drawRect(50, currentY + 20, 40, 35, colors.white);
+  drawRect(52, currentY + 22, 36, 31, colors.primary);
+  drawText("EPP", 62, currentY + 32, { bold: true, size: 14, color: colors.white });
   
-  // Título principal
-  drawText("CONSTANCIA DE ENTREGA DE EPP", width / 2, currentY + 25, {
+  // Título principal con mejor tipografía
+  drawText("CONSTANCIA DE ENTREGA DE EPP", width / 2, currentY + 32, {
     bold: true,
-    size: 16,
-    color: rgb(1, 1, 1),
+    size: 18,
+    color: colors.white,
     align: 'center'
   });
   
-  currentY -= 80;
+  currentY -= 95;
 
   // Información del documento
   const formatDate = (date: Date) => {
@@ -115,26 +111,36 @@ export async function buildDeliveryBatchPdf(batch: DeliveryBatchFull) {
     }).format(date);
   };
 
-  // Código y fecha en header
-  drawText(`CÓDIGO: ${batch.code}`, 50, currentY, { bold: true, size: 12, color: colors.primary });
+  // Código y fecha en header con mejor formato
+  drawText(`CÓDIGO: ${batch.code}`, 50, currentY, { 
+    bold: true, 
+    size: 11, 
+    color: colors.primary 
+  });
   drawText(`FECHA: ${formatDate(batch.createdAt)}`, width - 50, currentY, { 
     bold: true, 
-    size: 12, 
+    size: 11, 
     color: colors.primary,
     align: 'right'
   });
   
-  currentY -= 30;
+  currentY -= 35;
 
   // SECCIÓN 1: INFORMACIÓN DEL COLABORADOR
-  drawRect(40, currentY - 5, width - 80, 2, colors.accent);
-  currentY -= 15;
-  
-  drawText("INFORMACIÓN DEL COLABORADOR", 50, currentY, { bold: true, size: 12, color: colors.accent });
+  // Línea divisoria roja
+  drawLine(50, currentY, width - 50, currentY, 2, colors.accent);
   currentY -= 20;
+  
+  drawText("INFORMACIÓN DEL COLABORADOR", 50, currentY, { 
+    bold: true, 
+    size: 11, 
+    color: colors.accent 
+  });
+  currentY -= 25;
 
-  // Fondo suave para la sección
-  drawRect(40, currentY - 60, width - 80, 70, colors.lightGray);
+  // Fondo gris para la sección
+  const collaboratorSectionHeight = 80;
+  drawRect(50, currentY - collaboratorSectionHeight + 10, width - 100, collaboratorSectionHeight, colors.lightGray);
   
   const collaboratorData = [
     { label: "Nombre:", value: batch.collaborator.name },
@@ -143,22 +149,27 @@ export async function buildDeliveryBatchPdf(batch: DeliveryBatchFull) {
   ];
 
   collaboratorData.forEach((item, index) => {
-    const yPos = currentY - (index * 18) - 10;
-    drawText(item.label, 50, yPos, { bold: true, size: 10 });
-    drawText(item.value, 130, yPos, { size: 10 });
+    const yPos = currentY - (index * 20) - 15;
+    drawText(item.label, 60, yPos, { bold: true, size: 10, color: colors.text });
+    drawText(item.value, 130, yPos, { size: 10, color: colors.text });
   });
 
-  currentY -= 90;
+  currentY -= collaboratorSectionHeight + 15;
 
   // SECCIÓN 2: INFORMACIÓN DE LA ENTREGA
-  drawRect(40, currentY - 5, width - 80, 2, colors.accent);
-  currentY -= 15;
-  
-  drawText("INFORMACIÓN DE LA ENTREGA", 50, currentY, { bold: true, size: 12, color: colors.accent });
+  drawLine(50, currentY, width - 50, currentY, 2, colors.accent);
   currentY -= 20;
+  
+  drawText("INFORMACIÓN DE LA ENTREGA", 50, currentY, { 
+    bold: true, 
+    size: 11, 
+    color: colors.accent 
+  });
+  currentY -= 25;
 
-  // Fondo suave para la sección
-  drawRect(40, currentY - 60, width - 80, 70, colors.lightGray);
+  // Fondo gris para la sección
+  const deliverySectionHeight = 80;
+  drawRect(50, currentY - deliverySectionHeight + 10, width - 100, deliverySectionHeight, colors.lightGray);
 
   const deliveryData = [
     { label: "Operador:", value: batch.user.name || batch.user.email },
@@ -167,74 +178,128 @@ export async function buildDeliveryBatchPdf(batch: DeliveryBatchFull) {
   ];
 
   deliveryData.forEach((item, index) => {
-    const yPos = currentY - (index * 18) - 10;
-    drawText(item.label, 50, yPos, { bold: true, size: 10 });
-    drawText(item.value, 130, yPos, { size: 10 });
+    const yPos = currentY - (index * 20) - 15;
+    drawText(item.label, 60, yPos, { bold: true, size: 10, color: colors.text });
+    drawText(item.value, 130, yPos, { size: 10, color: colors.text });
   });
 
-  currentY -= 90;
+  currentY -= deliverySectionHeight + 15;
 
   // SECCIÓN 3: DETALLE DE ARTÍCULOS
-  drawRect(40, currentY - 5, width - 80, 2, colors.accent);
-  currentY -= 15;
+  drawLine(50, currentY, width - 50, currentY, 2, colors.accent);
+  currentY -= 20;
   
-  drawText("DETALLE DE ARTÍCULOS ENTREGADOS", 50, currentY, { bold: true, size: 12, color: colors.accent });
-  currentY -= 25;
+  drawText("DETALLE DE ARTÍCULOS ENTREGADOS", 50, currentY, { 
+    bold: true, 
+    size: 11, 
+    color: colors.accent 
+  });
+  currentY -= 30;
 
-  // Cabecera de tabla
-  const tableY = currentY;
+  // Tabla mejorada
+  const tableStartY = currentY;
   const rowHeight = 25;
-  const tableWidth = width - 80;
+  const tableWidth = width - 100;
   
-  // Fondo de cabecera
-  drawRect(40, tableY - rowHeight, tableWidth, rowHeight, colors.primary);
+  // Cabecera de tabla con altura exacta
+  drawRect(50, tableStartY - rowHeight, tableWidth, rowHeight, colors.primary);
   
-  // Columnas de la tabla
+  // Columnas de la tabla (ajustadas para mejor distribución)
   const colPositions = {
-    num: 60,
-    code: 120,
-    description: 200,
-    quantity: width - 100,
+    num: 75,
+    code: 140,
+    description: 220,
+    quantity: width - 85,
   };
 
-  // Headers
-  drawText("#", colPositions.num, tableY - 15, { bold: true, size: 10, color: rgb(1, 1, 1), align: 'center' });
-  drawText("CÓDIGO", colPositions.code, tableY - 15, { bold: true, size: 10, color: rgb(1, 1, 1) });
-  drawText("DESCRIPCIÓN", colPositions.description, tableY - 15, { bold: true, size: 10, color: rgb(1, 1, 1) });
-  drawText("CANT.", colPositions.quantity, tableY - 15, { bold: true, size: 10, color: rgb(1, 1, 1), align: 'center' });
-
-  currentY = tableY - rowHeight;
-
-  // Filas de datos
-  batch.deliveries.forEach((delivery, index) => {
-    const rowY = currentY - (index + 1) * 20;
-    
-    // Alternar color de fondo
-    if (index % 2 === 0) {
-      drawRect(40, rowY - 5, tableWidth, 20, rgb(0.98, 0.98, 0.98));
-    }
-    
-    drawText(`${index + 1}`, colPositions.num, rowY, { size: 9, align: 'center' });
-    drawText(delivery.epp.code, colPositions.code, rowY, { size: 9, bold: true });
-    
-    // Truncar descripción si es muy larga
-    let description = delivery.epp.name;
-    if (description.length > 40) {
-      description = description.substring(0, 37) + "...";
-    }
-    drawText(description, colPositions.description, rowY, { size: 9 });
-    drawText(`${delivery.quantity}`, colPositions.quantity, rowY, { size: 9, bold: true, align: 'center' });
+  // Headers con mejor alineación
+  drawText("#", colPositions.num, tableStartY - 15, { 
+    bold: true, 
+    size: 10, 
+    color: colors.white, 
+    align: 'center' 
+  });
+  drawText("CÓDIGO", colPositions.code, tableStartY - 15, { 
+    bold: true, 
+    size: 10, 
+    color: colors.white 
+  });
+  drawText("DESCRIPCIÓN", colPositions.description, tableStartY - 15, { 
+    bold: true, 
+    size: 10, 
+    color: colors.white 
+  });
+  drawText("CANT.", colPositions.quantity, tableStartY - 15, { 
+    bold: true, 
+    size: 10, 
+    color: colors.white, 
+    align: 'center' 
   });
 
-  currentY -= (batch.deliveries.length * 20) + 20;
+  const currentTableY = tableStartY - rowHeight;
 
-  // Total de unidades
+  // Filas de datos con mejor formato
+  batch.deliveries.forEach((delivery, index) => {
+    const rowY = currentTableY - (index + 1) * 22;
+    
+    // Fondo alternado solo para filas pares
+    if (index % 2 === 0) {
+      drawRect(50, rowY - 3, tableWidth, 22, colors.lightGray);
+    }
+    
+    // Número con formato
+    drawText((index + 1).toString(), colPositions.num, rowY + 3, { 
+      size: 10, 
+      align: 'center',
+      color: colors.text
+    });
+    
+    // Código en negrita
+    drawText(delivery.epp.code, colPositions.code, rowY + 3, { 
+      size: 10, 
+      bold: true,
+      color: colors.text
+    });
+    
+    // Descripción con manejo de texto largo
+    let description = delivery.epp.name;
+    if (description.length > 35) {
+      description = description.substring(0, 32) + "...";
+    }
+    drawText(description, colPositions.description, rowY + 3, { 
+      size: 10,
+      color: colors.text
+    });
+    
+    // Cantidad destacada
+    drawText(delivery.quantity.toString(), colPositions.quantity, rowY + 3, { 
+      size: 11, 
+      bold: true, 
+      align: 'center',
+      color: colors.text
+    });
+  });
+
+  currentY = currentTableY - (batch.deliveries.length * 22) - 15;
+
+  // Total de unidades mejorado
   const totalUnits = batch.deliveries.reduce((sum, d) => sum + d.quantity, 0);
-  drawRect(40, currentY - 5, tableWidth, 25, colors.lightGray);
-  drawText("TOTAL DE UNIDADES ENTREGADAS:", width - 200, currentY + 5, { bold: true, size: 10 });
-  drawText(`${totalUnits}`, colPositions.quantity, currentY + 5, { bold: true, size: 12, color: colors.accent, align: 'center' });
+  const totalRowY = currentY;
+  drawRect(50, totalRowY - 8, tableWidth, 25, colors.lightGray);
+  
+  drawText("TOTAL DE UNIDADES ENTREGADAS:", colPositions.description, totalRowY + 3, { 
+    bold: true, 
+    size: 10,
+    color: colors.text
+  });
+  drawText(totalUnits.toString(), colPositions.quantity, totalRowY + 3, { 
+    bold: true, 
+    size: 12, 
+    color: colors.accent, 
+    align: 'center' 
+  });
 
-  currentY -= 40;
+  currentY -= 45;
 
   // Nota si existe
   if (batch.note) {

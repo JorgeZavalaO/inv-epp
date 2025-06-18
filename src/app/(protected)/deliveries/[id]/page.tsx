@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import ExportExcelButton from "@/components/delivery/ExportExcelButton";
+
 import { 
   FileText, 
   Package, 
@@ -82,6 +84,7 @@ export default async function DeliveryBatchDetail({
               </Link>
               Exportar PDF
             </Button>
+            <ExportExcelButton batchId={b.id} />
           </div>
         </div>
 

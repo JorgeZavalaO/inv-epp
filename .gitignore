@@ -39,3 +39,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+public/templates/REGISTRO DE ENTREGA EPP REV3 2025.xlsx
