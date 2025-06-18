@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EPP Manager
 
-## Getting Started
+EPP Manager es una aplicación para administrar el inventario de Equipos de Protección Personal (EPP). Permite registrar artículos, controlar el stock de múltiples almacenes y llevar un historial de entregas y devoluciones. Además cuenta con un panel de control con indicadores clave y gráficos.
 
-First, run the development server:
+## Funcionalidades principales
+
+- Gestión de EPP y categorías.
+- Control de stock por almacén.
+- Registro de entregas y devoluciones.
+- Solicitudes internas de EPP y aprobaciones.
+- Panel de dashboard con KPIs y gráficas.
+- Autenticación de usuarios mediante Clerk.
+
+## Instalación
+
+1. Clona el repositorio y entra en la carpeta del proyecto.
+2. Instala las dependencias con **pnpm** (o npm):
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Configura las variables de entorno necesarias, por ejemplo:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `DATABASE_URL` – cadena de conexión para PostgreSQL.
+- Variables de Clerk (`CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, ...).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Ejecuta las migraciones de Prisma:
 
-## Learn More
+```bash
+npx prisma migrate deploy
+```
 
-To learn more about Next.js, take a look at the following resources:
+5. Inicia el servidor de desarrollo:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+pnpm dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Visita <http://localhost:3000> para ver la aplicación.
 
-## Deploy on Vercel
+## Construcción para producción
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm build
+pnpm start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Tecnologías usadas
+
+- [Next.js 15](https://nextjs.org/)
+- [React 19](https://react.dev/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [Prisma](https://www.prisma.io/) + PostgreSQL
+- [Clerk](https://clerk.com/) para autenticación
