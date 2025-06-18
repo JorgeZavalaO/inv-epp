@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-//import { toast } from "sonner";
 
 import ModalCreateCollaborator from "@/components/collaborators/ModalCreateCollaborator";
 import ModalEditCollaborator   from "@/components/collaborators/ModalEditCollaborator";
