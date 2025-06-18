@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import ModalCreateCollaborator from "@/components/collaborators/ModalCreateCollaborator";
 import ModalEditCollaborator   from "@/components/collaborators/ModalEditCollaborator";
 import ModalDeleteCollaborator from "@/components/collaborators/ModalDeleteCollaborator";
+import ModalImportCollaborators from "@/components/collaborators/ModalImportCollaborators"
 
 interface Collaborator {
   id:        number;
@@ -26,15 +27,19 @@ export default function CollaboratorsClient({ list }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing]     = useState<Collaborator | null>(null);
   const [deleting, setDeleting]   = useState<Collaborator | null>(null);
-  //const [isPending, start]        = useTransition();
+  const [showImport, setShowImport]  = useState(false);
 
   return (
     <section className="space-y-6 px-4 md:px-8 py-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Colaboradores</h1>
-        <Button onClick={() => setShowCreate(true)}>+ Nuevo</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowImport(true)}>
+            Importar
+          </Button>
+          <Button onClick={() => setShowCreate(true)}>+ Nuevo</Button>
+        </div>
       </div>
-
       <div className="overflow-x-auto bg-white rounded-lg shadow">
         <table className="w-full text-sm">
           <thead>
@@ -83,6 +88,7 @@ export default function CollaboratorsClient({ list }: Props) {
       </div>
 
       {showCreate && <ModalCreateCollaborator onClose={() => setShowCreate(false)} />}
+      {showImport && <ModalImportCollaborators onClose={() => setShowImport(false)} />}
       {editing   && <ModalEditCollaborator   collaborator={editing} onClose={() => setEditing(null)} />}
       {deleting  && <ModalDeleteCollaborator collaborator={deleting} onClose={() => setDeleting(null)} />}
     </section>
