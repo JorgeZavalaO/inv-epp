@@ -11,24 +11,24 @@ const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'EPP Manager',
-  description: 'Gestión de Equipos de Protección Personal',
+  title: 'EPP Manager - Gestión de Equipos de Protección Personal',
+  description: 'Sistema corporativo para la gestión eficiente de Equipos de Protección Personal. Control de inventario, entregas y trazabilidad.',
+  keywords: 'EPP, equipos protección personal, gestión inventario, seguridad industrial, sistema corporativo',
+  openGraph: {
+    title: 'EPP Manager - Sistema Corporativo',
+    description: 'Gestión Profesional de Equipos de Protección Personal',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider>
-      <html lang="es">
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900`}>
-          <header className="sticky top-0 z-50 bg-white shadow-sm px-6 py-3">
-            <h1 className="text-xl font-bold">EPP Manager</h1>
-          </header>
-          <main className="min-h-screen mt-4">{children}</main>
-          <Analytics />
+      <html lang="es" className="h-full">
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased h-full bg-slate-50 text-slate-900`}>
+          {children}
+          <Analytics /> 
           <SpeedInsights />
-          <footer className="bg-white border-t py-4 px-6 text-center text-sm text-muted-foreground">
-            © {new Date().getFullYear()} EPP Manager. Todos los derechos reservados.
-          </footer>
         </body>
       </html>
     </ClerkProvider>
