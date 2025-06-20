@@ -7,10 +7,10 @@ import {
   Box,
   Warehouse,
   Handshake,
-  ClipboardList,
-  FileBarChart2,
-  ShieldCheck,
-  Settings,
+  // ClipboardList,
+  // FileBarChart2,
+  // ShieldCheck,
+  // Settings,
   RotateCcw,
   SendToBack,
   Users,
@@ -44,23 +44,23 @@ const sections = [
     items: [
       { href: '/deliveries', label: 'Entregas', icon: <Handshake size={18} />, description: 'Asignaciones activas' },
       { href: "/returns", label: "Devoluciones", icon: <RotateCcw size={18}/>, description: 'Equipos devueltos' },
-      { href: '/requests', label: 'Solicitudes', icon: <ClipboardList size={18} />, description: 'Pedidos pendientes' },
+      // { href: '/requests', label: 'Solicitudes', icon: <ClipboardList size={18} />, description: 'Pedidos pendientes' },
       { href: '/collaborators', label: 'Colaboradores', icon: <Users size={18} />, description: 'Personal registrado' },
     ]
   },
-  { 
-    title: 'Reportes', 
-    items: [
-      { href: '/reports', label: 'Informes', icon: <FileBarChart2 size={18} />, description: 'Reportes y métricas' },
-      { href: '/audit', label: 'Auditoría', icon: <ShieldCheck size={18} />, description: 'Control y trazabilidad' },
-    ]
-  },
-  { 
-    title: 'Sistema', 
-    items: [
-      { href: '/settings', label: 'Configuración', icon: <Settings size={18} />, description: 'Parámetros generales' }
-    ] 
-  },
+  // { 
+  //   title: 'Reportes', 
+  //   items: [
+  //     { href: '/reports', label: 'Informes', icon: <FileBarChart2 size={18} />, description: 'Reportes y métricas' },
+  //     { href: '/audit', label: 'Auditoría', icon: <ShieldCheck size={18} />, description: 'Control y trazabilidad' },
+  //   ]
+  // },
+  // { 
+  //   title: 'Sistema', 
+  //   items: [
+  //     { href: '/settings', label: 'Configuración', icon: <Settings size={18} />, description: 'Parámetros generales' }
+  //   ] 
+  // },
 ];
 
 export default function SidebarNav() {
