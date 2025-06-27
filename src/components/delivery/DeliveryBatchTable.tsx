@@ -3,6 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button }    from "@/components/ui/button";
+import { formatDateLima } from "@/lib/formatDate";
 import Link from "next/link";
 
 export interface BatchRow {
@@ -28,12 +29,13 @@ export default function DeliveryBatchTable({ data, onEdit, onDelete }: Props) {
       header: "Fecha",
       cell: ({ getValue }) => {
         const iso = getValue<string>();
-        const d   = new Date(iso);
-        return (
-          <time dateTime={iso}>
-            {d.toLocaleDateString()} {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </time>
-        );
+        return <time dateTime={iso}>{formatDateLima(iso)}</time>;
+        // const d   = new Date(iso);
+        // return (
+        //   <time dateTime={iso}>
+        //     {d.toLocaleDateString()} {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        //   </time>
+        // );
       },
     },
     { accessorKey: "collaborator", header: "Colaborador" },

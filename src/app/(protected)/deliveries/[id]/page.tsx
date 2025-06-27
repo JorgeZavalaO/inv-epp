@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import ExportExcelButton from "@/components/delivery/ExportExcelButton";
+import { formatDateLima } from "@/lib/formatDate";
 
 import { 
   FileText, 
@@ -42,15 +43,15 @@ export default async function DeliveryBatchDetail({
   
   if (!b) notFound();
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('es-PE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
+  // const formatDate = (date: Date) => {
+  //   return new Intl.DateTimeFormat('es-PE', {
+  //     day: '2-digit',
+  //     month: '2-digit',
+  //     year: 'numeric',
+  //     hour: '2-digit',
+  //     minute: '2-digit'
+  //   }).format(date);
+  // };
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-6">
@@ -68,7 +69,7 @@ export default async function DeliveryBatchDetail({
               </h1>
               <p className="text-slate-600 flex items-center gap-1 mt-1">
                 <Calendar className="w-4 h-4" />
-                {formatDate(b.createdAt)}
+               {formatDateLima(b.createdAt)}
               </p>
             </div>
           </div>

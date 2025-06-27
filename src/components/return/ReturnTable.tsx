@@ -4,6 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button }    from "@/components/ui/button";
 import { ReturnBatchRow } from "./ReturnClient";
+import { formatDateLima } from "@/lib/formatDate";
 
 interface Props {
   data: ReturnBatchRow[];
@@ -17,8 +18,9 @@ export default function ReturnTable({ data, onDelete, onView }: Props) {
     {
       accessorKey: "date",
       header: "Fecha",
-      cell: ({ getValue }) =>
-        new Date(getValue<string>()).toLocaleString(),
+      cell: ({ getValue }) => <span>{formatDateLima(getValue<string>())}</span>,
+      // cell: ({ getValue }) =>
+      //   new Date(getValue<string>()).toLocaleString(),
     },
     { accessorKey: "warehouse", header: "Almacén" },
     { accessorKey: "user",      header: "Usuario" },
