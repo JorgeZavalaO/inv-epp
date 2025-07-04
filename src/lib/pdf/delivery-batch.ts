@@ -3,7 +3,6 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { DeliveryBatch } from "@prisma/client";
 
-// Modelo con relaciones que necesitamos
 export type DeliveryBatchFull = DeliveryBatch & {
   collaborator: { name: string; position?: string | null; location?: string | null };
   user: { name?: string | null; email: string };
@@ -23,22 +22,20 @@ export async function buildDeliveryBatchPdf(
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  // Colores exactos del modelo
+  // Paleta de colores simplificada y profesional
   const colors = {
-    primary: rgb(0.267, 0.396, 0.875),
-    headerText: rgb(1, 1, 1),
-    redSection: rgb(0.863, 0.196, 0.184),
-    text: rgb(0.2, 0.2, 0.2),
-    lightGray: rgb(0.95, 0.95, 0.95),
-    tableHeader: rgb(0.267, 0.396, 0.875),
-    border: rgb(0.8, 0.8, 0.8),
+    primary: rgb(0.18, 0.31, 0.56),      // Azul corporativo
+    secondary: rgb(0.95, 0.95, 0.95),     // Gris muy claro
+    accent: rgb(0.13, 0.59, 0.95),        // Azul brillante
+    success: rgb(0.16, 0.66, 0.25),       // Verde
+    warning: rgb(0.99, 0.76, 0.05),       // Amarillo
+    text: rgb(0.2, 0.2, 0.2),             // Gris oscuro
+    textLight: rgb(0.5, 0.5, 0.5),        // Gris medio
     white: rgb(1, 1, 1),
-    success: rgb(0.133, 0.545, 0.133),
-    observationsBg: rgb(0.4, 0.4, 0.4),
-    notesBg: rgb(0.98, 0.95, 0.85),
+    border: rgb(0.9, 0.9, 0.9),           // Gris claro para bordes
   };
 
-  // Helper para texto
+  // Helpers simplificados
   const drawText = (
     text: string,
     x: number,
@@ -53,36 +50,54 @@ export async function buildDeliveryBatchPdf(
   ) => {
     const { bold = false, size = 10, color = colors.text, align = 'left', maxWidth } = options;
     let displayText = text;
+    
     if (maxWidth) {
       const fontRef = bold ? fontBold : font;
-      while (fontRef.widthOfTextAtSize(displayText + '...', size) > maxWidth && displayText.length) {
+      while (fontRef.widthOfTextAtSize(displayText, size) > maxWidth && displayText.length > 0) {
         displayText = displayText.slice(0, -1);
       }
-      if (displayText !== text) displayText += '...';
+      if (displayText !== text && displayText.length > 0) {
+        displayText = displayText.slice(0, -3) + '...';
+      }
     }
+    
     let adjustedX = x;
-    const fontRef = bold ? fontBold : font;
-    const textWidth = fontRef.widthOfTextAtSize(displayText, size);
-    if (align === 'center') adjustedX = x - textWidth / 2;
-    if (align === 'right') adjustedX = x - textWidth;
-    page.drawText(displayText, { x: adjustedX, y, font: fontRef, size, color });
+    if (align === 'center') {
+      const textWidth = (bold ? fontBold : font).widthOfTextAtSize(displayText, size);
+      adjustedX = x - textWidth / 2;
+    } else if (align === 'right') {
+      const textWidth = (bold ? fontBold : font).widthOfTextAtSize(displayText, size);
+      adjustedX = x - textWidth;
+    }
+    
+    page.drawText(displayText, { 
+      x: adjustedX, 
+      y, 
+      font: bold ? fontBold : font, 
+      size, 
+      color 
+    });
   };
 
-  // Helper para rectángulos
   const drawRect = (
     x: number,
     y: number,
     w: number,
     h: number,
     color: ReturnType<typeof rgb>,
-    opts: { filled?: boolean; borderColor?: ReturnType<typeof rgb>; borderWidth?: number } = {}
+    borderColor?: ReturnType<typeof rgb>
   ) => {
-    const { filled = true, borderColor, borderWidth = 1 } = opts;
-    if (filled) page.drawRectangle({ x, y, width: w, height: h, color });
-    if (borderColor) page.drawRectangle({ x, y, width: w, height: h, borderColor, borderWidth, color: filled ? color : undefined });
+    page.drawRectangle({ x, y, width: w, height: h, color });
+    if (borderColor) {
+      page.drawRectangle({ 
+        x, y, width: w, height: h, 
+        borderColor, 
+        borderWidth: 1,
+        color: undefined
+      });
+    }
   };
 
-  // Helper para líneas
   const drawLine = (
     x1: number,
     y1: number,
@@ -98,172 +113,356 @@ export async function buildDeliveryBatchPdf(
   const formatDate = (date: Date) =>
     new Intl.DateTimeFormat('es-PE', {
       day: '2-digit',
-      month: '2-digit',
+      month: 'long',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     }).format(date);
 
-  let currentY = height - 30;
+  let currentY = height - 5;
 
-  // ===== HEADER =====
-  const headerHeight = 70;
-  drawRect(0, currentY - headerHeight, width, headerHeight, colors.primary);
+// ===== HEADER LIMPIO =====
+const headerHeight = 80;
 
-  // === Logo real ===
-  const logoWidth = 180;
-  const logoHeight = 50;
-  const logoX = 20;
-  const logoY = currentY - headerHeight + 10;
+// Fondo del header
+drawRect(0, currentY - headerHeight, width, headerHeight, colors.primary);
+
+// Logo
+const logoWidth = 120;
+const logoHeight = 35;
+const logoX = 40;
+const logoY = currentY - headerHeight/2 - logoHeight/2;
+
+try {
   const logoPath = path.resolve(process.cwd(), 'public', 'assets', 'logo-dimahisac.png');
-  try {
-    const logoBytes = await readFile(logoPath);
-    const logoImage = await pdf.embedPng(logoBytes);
-    page.drawImage(logoImage, { x: logoX, y: logoY, width: logoWidth, height: logoHeight });
-  } catch {
-    // Si falla, mantiene un placeholder mínimo
-    drawRect(logoX, logoY, logoWidth, logoHeight, colors.white, { borderColor: colors.primary, borderWidth: 2 });
-    drawText('DIMAHISAC', logoX + 10, logoY + 32, { bold: true, size: 16, color: colors.primary });
+  const logoBytes = await readFile(logoPath);
+  const logoImage = await pdf.embedPng(logoBytes);
+  
+  // Fondo blanco para el logo
+  drawRect(logoX - 10, logoY - 5, logoWidth + 20, logoHeight + 10, colors.white);
+  page.drawImage(logoImage, { x: logoX, y: logoY, width: logoWidth, height: logoHeight });
+} catch {
+  drawRect(logoX - 10, logoY - 5, logoWidth + 20, logoHeight + 10, colors.white);
+  drawText('DIMAHISAC', logoX + 10, logoY + 18, { 
+    bold: true, 
+    size: 16, 
+    color: colors.primary 
+  });
+}
+
+// Código de entrega 
+const codeWidth = 150;
+const codeHeight = 50;
+const codeX = width - codeWidth - 30; // Margen de 30px desde el borde derecho
+const codeY = currentY - 15; // Posición desde la parte superior del header
+
+drawRect(codeX, codeY - codeHeight, codeWidth, codeHeight, colors.white);
+drawText('CÓDIGO DE ENTREGA', codeX + 10, codeY - 15, { 
+  bold: true, 
+  size: 10, 
+  color: colors.textLight 
+});
+drawText(batch.code, codeX + 10, codeY - 35, { 
+  bold: true, 
+  size: 16, 
+  color: colors.success 
+});
+
+// Título principal (ajustado para no sobreponerse con el código)
+const titleX = logoX + logoWidth + 60;
+const titleMaxWidth = codeX - titleX - 20; // Espacio disponible hasta el código
+
+drawText('CONSTANCIA', titleX, currentY - 30, { 
+  bold: true, 
+  size: 18, // Reducido ligeramente para mejor ajuste
+  color: colors.white,
+  maxWidth: titleMaxWidth
+});
+drawText('EQUIPOS DE PROTECCIÓN', titleX, currentY - 50, { 
+  size: 11, // Reducido ligeramente para mejor ajuste
+  color: colors.white,
+  maxWidth: titleMaxWidth
+});
+
+currentY -= headerHeight + 30;
+  // ===== INFORMACIÓN BÁSICA =====
+  const infoY = currentY;
+  const leftColX = 40;
+  const rightColX = width / 2 + 20;
+  const colWidth = (width - 100) / 2;
+  
+  // Título de sección
+  drawText('INFORMACIÓN DE LA ENTREGA', leftColX, infoY, { 
+    bold: true, 
+    size: 14, 
+    color: colors.primary 
+  });
+  
+  currentY -= 30;
+
+  // Información del colaborador
+  drawText('COLABORADOR:', leftColX, currentY, { 
+    bold: true, 
+    size: 11, 
+    color: colors.textLight 
+  });
+  drawText(batch.collaborator.name, leftColX, currentY - 15, { 
+    bold: true, 
+    size: 12, 
+    color: colors.text 
+  });
+  
+  if (batch.collaborator.position) {
+    drawText('Cargo:', leftColX, currentY - 30, { 
+      bold: true, 
+      size: 9, 
+      color: colors.textLight 
+    });
+    drawText(batch.collaborator.position, leftColX, currentY - 42, { 
+      size: 10, 
+      color: colors.text 
+    });
+  }
+  
+  if (batch.collaborator.location) {
+    drawText('Ubicación:', leftColX, currentY - 57, { 
+      bold: true, 
+      size: 9, 
+      color: colors.textLight 
+    });
+    drawText(batch.collaborator.location, leftColX, currentY - 69, { 
+      size: 10, 
+      color: colors.text 
+    });
   }
 
-  // Títulos
-  const titleX = logoX + logoWidth + 30;
-  drawText('CONSTANCIA DE ENTREGA', titleX, currentY - 25, { bold: true, size: 18, color: colors.headerText });
-  drawText('EQUIPOS DE PROTECCIÓN PERSONAL', titleX, currentY - 45, { bold: true, size: 14, color: colors.headerText });
-
-  currentY -= headerHeight + 20;
-
-  // ===== Secciones lado a lado =====
-  const sectionHeaderH = 35;
-  const sectionContentH = 100;
-  const sectionW = (width - 60) / 2;
-  const leftX = 30;
-  const rightX = leftX + sectionW + 15;
-
-  // Colaborador
-  drawRect(leftX, currentY - sectionHeaderH, sectionW, sectionHeaderH, colors.redSection);
-  drawText('1. INFORMACIÓN DEL COLABORADOR', leftX + 10, currentY - 22, { bold: true, size: 11, color: colors.headerText });
-  drawRect(leftX, currentY - sectionHeaderH - sectionContentH, sectionW, sectionContentH, colors.white, { borderColor: colors.border, borderWidth: 1 });
-  [
-    { label: 'Nombre completo:', value: batch.collaborator.name },
-    { label: 'Cargo/Posición:', value: batch.collaborator.position || 'No especificado' },
-    { label: 'Área/Ubicación:', value: batch.collaborator.location || 'No especificada' },
-  ].forEach((f, i) => {
-    const y = currentY - sectionHeaderH - 25 - i * 25;
-    drawText(f.label, leftX + 15, y, { bold: true, size: 9 });
-    drawText(f.value, leftX + 15, y - 12, { size: 9, maxWidth: sectionW - 30 });
+  // Información de la entrega
+  drawText('ENTREGADO POR:', rightColX, currentY, { 
+    bold: true, 
+    size: 11, 
+    color: colors.textLight 
+  });
+  drawText(batch.user.name || batch.user.email, rightColX, currentY - 15, { 
+    bold: true, 
+    size: 12, 
+    color: colors.text,
+    maxWidth: colWidth - 20
+  });
+  
+  drawText('Almacén:', rightColX, currentY - 30, { 
+    bold: true, 
+    size: 9, 
+    color: colors.textLight 
+  });
+  drawText(batch.warehouse.name, rightColX, currentY - 42, { 
+    size: 10, 
+    color: colors.text 
+  });
+  
+  drawText('Fecha:', rightColX, currentY - 57, { 
+    bold: true, 
+    size: 9, 
+    color: colors.textLight 
+  });
+  drawText(formatDate(batch.createdAt), rightColX, currentY - 69, { 
+    size: 10, 
+    color: colors.text 
   });
 
-  // Entrega
-  drawRect(rightX, currentY - sectionHeaderH, sectionW, sectionHeaderH, colors.redSection);
-  drawText('2. INFORMACIÓN DE LA ENTREGA', rightX + 10, currentY - 22, { bold: true, size: 11, color: colors.headerText });
-  drawRect(rightX, currentY - sectionHeaderH - sectionContentH, sectionW, sectionContentH, colors.white, { borderColor: colors.border, borderWidth: 1 });
-  [
-    { label: 'Entregado por:', value: batch.user.name || batch.user.email },
-    { label: 'Almacén origen:', value: batch.warehouse.name },
-    { label: 'Tipos de EPP:', value: `${batch.deliveries.length} diferentes` },
-  ].forEach((f, i) => {
-    const y = currentY - sectionHeaderH - 25 - i * 25;
-    drawText(f.label, rightX + 15, y, { bold: true, size: 9 });
-    drawText(f.value, rightX + 15, y - 12, { size: 9, maxWidth: sectionW - 30 });
+  currentY -= 100;
+
+  // ===== TABLA DE EQUIPOS =====
+  const tableX = 40;
+  const tableWidth = width - 80;
+  
+  // Título de la tabla
+  drawText('DETALLE DE EQUIPOS ENTREGADOS', tableX, currentY, { 
+    bold: true, 
+    size: 14, 
+    color: colors.primary 
+  });
+  
+  // Resumen
+  const totalQty = batch.deliveries.reduce((sum, d) => sum + d.quantity, 0);
+  drawText(`Total: ${totalQty} unidades | ${batch.deliveries.length} tipos`, 
+    tableX + tableWidth - 20, currentY, { 
+    size: 11, 
+    color: colors.textLight,
+    align: 'right'
   });
 
-  currentY -= sectionHeaderH + sectionContentH + 25;
+  currentY -= 35;
 
-  // ===== Detalle equipos =====
-  const fullW = width - 60;
-  drawRect(leftX, currentY - sectionHeaderH, fullW, sectionHeaderH, colors.redSection);
-  drawText('3. DETALLE DE EQUIPOS ENTREGADOS', leftX + 10, currentY - 22, { bold: true, size: 11, color: colors.headerText });
-  currentY -= sectionHeaderH;
-
-  const rowH = 30;
-  const colW = { num: 40, code: 90, description: fullW - 40 - 90 - 80, quantity: 80 };
-  let xCursor = leftX;
-  const positions = {
-    num: xCursor + colW.num / 2,
-    code: (xCursor += colW.num) + 10,
-    description: (xCursor += colW.code) + 10,
-    quantity: xCursor + colW.description + colW.quantity / 2,
+  // Encabezados de la tabla
+  const rowHeight = 25;
+  const colWidths = {
+    num: 40,
+    code: 80,
+    description: tableWidth - 40 - 80 - 80,
+    quantity: 80
   };
 
-  // Encabezado tabla
-  drawRect(leftX, currentY - rowH, fullW, rowH, colors.tableHeader);
-  let tmpX = leftX;
-  [colW.num, colW.code, colW.description].forEach(w => {
-    tmpX += w;
-    drawLine(tmpX, currentY, tmpX, currentY - rowH, 1, colors.white);
+  let colX = tableX;
+  const colPositions = {
+    num: colX + colWidths.num / 2,
+    code: (colX += colWidths.num) + 10,
+    description: (colX += colWidths.code) + 10,
+    quantity: (colX += colWidths.description) + colWidths.quantity / 2
+  };
+
+  // Fondo del encabezado
+  drawRect(tableX, currentY - rowHeight, tableWidth, rowHeight, colors.primary);
+  
+  // Separadores verticales
+  let sepX = tableX;
+  [colWidths.num, colWidths.code, colWidths.description].forEach(width => {
+    sepX += width;
+    drawLine(sepX, currentY, sepX, currentY - rowHeight, 1, colors.white);
   });
-  drawText('N°', positions.num, currentY - 20, { bold: true, size: 10, color: colors.headerText, align: 'center' });
-  drawText('CÓDIGO', positions.code, currentY - 20, { bold: true, size: 10, color: colors.headerText });
-  drawText('DESCRIPCIÓN DEL EQUIPO', positions.description, currentY - 20, { bold: true, size: 10, color: colors.headerText });
-  drawText('CANT.', positions.quantity, currentY - 20, { bold: true, size: 10, color: colors.headerText, align: 'center' });
 
-  currentY -= rowH;
+  // Textos del encabezado
+  drawText('N°', colPositions.num, currentY - 17, { 
+    bold: true, size: 10, color: colors.white, align: 'center' 
+  });
+  drawText('CÓDIGO', colPositions.code, currentY - 17, { 
+    bold: true, size: 10, color: colors.white 
+  });
+  drawText('DESCRIPCIÓN', colPositions.description, currentY - 17, { 
+    bold: true, size: 10, color: colors.white 
+  });
+  drawText('CANTIDAD', colPositions.quantity, currentY - 17, { 
+    bold: true, size: 10, color: colors.white, align: 'center' 
+  });
 
-  // Filas datos
-  batch.deliveries.forEach((d, i) => {
-    const yRow = currentY - i * rowH;
-    if (i % 2 === 0) drawRect(leftX, yRow - rowH, fullW, rowH, colors.lightGray);
-    drawRect(leftX, yRow - rowH, fullW, rowH, colors.white, { filled: false, borderColor: colors.border, borderWidth: 0.5 });
-    let sepX = leftX;
-    [colW.num, colW.code, colW.description].forEach(w => {
-      sepX += w;
-      drawLine(sepX, yRow, sepX, yRow - rowH, 0.5, colors.border);
+  currentY -= rowHeight;
+
+  // Filas de datos
+  batch.deliveries.forEach((delivery, index) => {
+    const rowY = currentY - (index * rowHeight);
+    const isEven = index % 2 === 0;
+    
+    // Fondo alternado
+    if (isEven) {
+      drawRect(tableX, rowY - rowHeight, tableWidth, rowHeight, colors.secondary);
+    }
+    
+    // Bordes
+    drawRect(tableX, rowY - rowHeight, tableWidth, rowHeight, colors.white, colors.border);
+    
+    // Separadores verticales
+    let sepX = tableX;
+    [colWidths.num, colWidths.code, colWidths.description].forEach(width => {
+      sepX += width;
+      drawLine(sepX, rowY, sepX, rowY - rowHeight, 1, colors.border);
     });
-    drawText((i + 1).toString(), positions.num, yRow - 20, { size: 10, align: 'center' });
-    drawText(d.epp.code, positions.code, yRow - 20, { bold: true, size: 10 });
-    drawText(d.epp.name, positions.description, yRow - 20, { size: 10, maxWidth: colW.description - 20 });
-    drawText(d.quantity.toString(), positions.quantity, yRow - 20, { bold: true, size: 11, align: 'center' });
+
+    // Contenido
+    drawText((index + 1).toString(), colPositions.num, rowY - 17, { 
+      size: 10, align: 'center', color: colors.text 
+    });
+    
+    drawText(delivery.epp.code, colPositions.code, rowY - 17, { 
+      bold: true, size: 10, color: colors.primary 
+    });
+    
+    drawText(delivery.epp.name, colPositions.description, rowY - 17, { 
+      size: 10, color: colors.text, maxWidth: colWidths.description - 20 
+    });
+    
+    drawText(delivery.quantity.toString(), colPositions.quantity, rowY - 17, { 
+      bold: true, size: 11, color: colors.success, align: 'center' 
+    });
   });
 
-  currentY -= batch.deliveries.length * rowH;
+  currentY -= batch.deliveries.length * rowHeight;
 
-  // Totales
-  const totalH = 35;
-  drawRect(leftX, currentY - totalH, fullW, totalH, colors.lightGray, { borderColor: colors.border, borderWidth: 1 });
-  const totalQty = batch.deliveries.reduce((s, d) => s + d.quantity, 0);
-  drawText('TOTAL DE UNIDADES ENTREGADAS:', leftX + colW.num + colW.code + 10, currentY - 22, { bold: true, size: 11 });
-  drawText(totalQty.toString(), positions.quantity, currentY - 22, { bold: true, size: 14, color: colors.success, align: 'center' });
+  // Total
+  const totalRowHeight = 35;
+  drawRect(tableX, currentY - totalRowHeight, tableWidth, totalRowHeight, colors.success);
+  
+  drawText('TOTAL DE UNIDADES ENTREGADAS:', tableX + 20, currentY - 22, { 
+    bold: true, size: 12, color: colors.white 
+  });
+  
+  drawText(totalQty.toString(), tableX + tableWidth - 50, currentY - 22, { 
+    bold: true, size: 16, color: colors.white, align: 'center' 
+  });
 
-  currentY -= totalH + 25;
+  currentY -= totalRowHeight + 30;
 
-  // Observaciones
+  // ===== OBSERVACIONES =====
   if (batch.note) {
-    drawRect(leftX, currentY - sectionHeaderH, fullW, sectionHeaderH, colors.observationsBg);
-    drawText('4. OBSERVACIONES', leftX + 10, currentY - 22, { bold: true, size: 11, color: colors.headerText });
-    currentY -= sectionHeaderH;
-    const noteH = 50;
-    drawRect(leftX, currentY - noteH, fullW, noteH, colors.notesBg, { borderColor: colors.border, borderWidth: 1 });
-    drawText(batch.note, leftX + 15, currentY - 25, { size: 10, maxWidth: fullW - 30 });
-    currentY -= noteH + 30;
+    drawText('OBSERVACIONES:', tableX, currentY, { 
+      bold: true, 
+      size: 12, 
+      color: colors.primary 
+    });
+    
+    currentY -= 25;
+    const noteHeight = 40;
+    drawRect(tableX, currentY - noteHeight, tableWidth, noteHeight, colors.secondary, colors.border);
+    
+    drawText(batch.note, tableX + 15, currentY - 20, { 
+      size: 10, 
+      color: colors.text,
+      maxWidth: tableWidth - 30
+    });
+    
+    currentY -= noteHeight + 30;
   }
 
-  // Firmas
-  const sigW = 200;
-  const sigH = 80;
-  const space = (width - 60 - sigW * 2) / 3;
-  let minY = currentY;
-  if (minY < 150) minY = 150;
+  // ===== FIRMAS =====
+  const signatureY = Math.max(currentY - 80, 120);
+  const signatureWidth = 200;
+  const signatureHeight = 60;
+  const signatureSpacing = (width - 80 - signatureWidth * 2) / 3;
+  
+  const leftSignX = 40 + signatureSpacing;
+  const rightSignX = leftSignX + signatureWidth + signatureSpacing;
 
-  const x1 = 30 + space;
-  const x2 = x1 + sigW + space;
-  drawRect(x1, minY - sigH, sigW, sigH, colors.white, { borderColor: colors.border, borderWidth: 1 });
-  drawText('COLABORADOR', x1 + sigW/2, minY - 20, { bold: true, align: 'center' });
-  drawLine(x1 + 20, minY - 45, x1 + sigW - 20, minY - 45);
-  drawText(batch.collaborator.name, x1 + sigW/2, minY - 65, { size: 9, align: 'center', maxWidth: sigW - 20 });
+  // Firma del colaborador
+  drawRect(leftSignX, signatureY - signatureHeight, signatureWidth, signatureHeight, colors.white, colors.border);
+  
+  drawText('RECIBIDO CONFORME', leftSignX + signatureWidth/2, signatureY - 15, { 
+    bold: true, size: 11, color: colors.primary, align: 'center' 
+  });
+  
+  drawLine(leftSignX + 20, signatureY - 35, leftSignX + signatureWidth - 20, signatureY - 35, 1, colors.border);
+  drawText('Firma del Colaborador', leftSignX + signatureWidth/2, signatureY - 25, { 
+    size: 8, color: colors.textLight, align: 'center' 
+  });
+  
+  drawText(batch.collaborator.name, leftSignX + signatureWidth/2, signatureY - 50, { 
+    size: 9, color: colors.text, align: 'center', maxWidth: signatureWidth - 20 
+  });
 
-  drawRect(x2, minY - sigH, sigW, sigH, colors.white, { borderColor: colors.border, borderWidth: 1 });
-  drawText('OPERADOR/ENTREGA', x2 + sigW/2, minY - 20, { bold: true, align: 'center' });
-  drawLine(x2 + 20, minY - 45, x2 + sigW - 20, minY - 45);
-  drawText(batch.user.name || batch.user.email, x2 + sigW/2, minY - 65, { size: 9, align: 'center', maxWidth: sigW - 20 });
+  // Firma del operador
+  drawRect(rightSignX, signatureY - signatureHeight, signatureWidth, signatureHeight, colors.white, colors.border);
+  
+  drawText('ENTREGADO POR', rightSignX + signatureWidth/2, signatureY - 15, { 
+    bold: true, size: 11, color: colors.primary, align: 'center' 
+  });
+  
+  drawLine(rightSignX + 20, signatureY - 35, rightSignX + signatureWidth - 20, signatureY - 35, 1, colors.border);
+  drawText('Firma del Operador', rightSignX + signatureWidth/2, signatureY - 25, { 
+    size: 8, color: colors.textLight, align: 'center' 
+  });
+  
+  drawText(batch.user.name || batch.user.email, rightSignX + signatureWidth/2, signatureY - 50, { 
+    size: 9, color: colors.text, align: 'center', maxWidth: signatureWidth - 20 
+  });
 
-  // Footer
-  drawText(
-    `Documento generado automáticamente el ${formatDate(new Date())} | Sistema de Gestión EPP v2.0`,
-    width / 2,
-    25,
-    { size: 8, align: 'center' }
-  );
+  // ===== FOOTER =====
+  const footerY = 30;
+  drawLine(40, footerY + 15, width - 40, footerY + 15, 1, colors.border);
+  
+  drawText('DIMAHISAC - Sistema de Gestión de EPP', 40, footerY, { 
+    bold: true, size: 9, color: colors.primary 
+  });
+  
+  drawText(`Documento generado: ${formatDate(new Date())}`, width - 40, footerY, { 
+    size: 8, color: colors.textLight, align: 'right' 
+  });
 
   return pdf.save();
 }
