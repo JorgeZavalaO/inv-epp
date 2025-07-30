@@ -230,4 +230,15 @@ model Collaborator {
   deliveryBatches  DeliveryBatch[]
 
   @@index([name])
+
+  
 }
+
+/// Configuración general del sistema (solo un registro – id = 1)
+model SystemConfig {
+  id          Int      @id @default(1)
+  companyName String?  @db.VarChar(128)
+  logoUrl     String?  @db.VarChar(255)   // Ruta relativa dentro de /public
+  updatedAt   DateTime @updatedAt
+}
+

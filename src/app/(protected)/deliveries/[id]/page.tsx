@@ -79,12 +79,12 @@ export default async function DeliveryBatchDetail({
               <Hash className="w-3 h-3 mr-1" />
               {b.deliveries.length} ítems
             </Badge>
-            <Button className="bg-red-600 hover:bg-red-700 text-white">
-              <Link href={`/api/delivery-batches/${b.id}/pdf`} target="_blank">
+            <Link href={`/api/delivery-batches/${b.id}/pdf`} target="_blank">
+              <Button className="bg-red-600 hover:bg-red-700 text-white">
                 <FileText className="w-4 h-4 mr-2" />
-              </Link>
               Exportar PDF
             </Button>
+            </Link>
             <ExportExcelButton batchId={b.id} />
           </div>
         </div>

@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { readFile } from "fs/promises";
 import path from "path";
 import { DeliveryBatch } from "@prisma/client";
+import { getSystemConfig } from "@/lib/settings";
 
 export type DeliveryBatchFull = DeliveryBatch & {
   collaborator: { name: string; position?: string | null; location?: string | null };
@@ -128,13 +129,18 @@ const headerHeight = 80;
 drawRect(0, currentY - headerHeight, width, headerHeight, colors.primary);
 
 // Logo
+const cfg = await getSystemConfig();
+const defaultLogoPath = path.resolve(process.cwd(), "public", "assets", "logo-dimahisac.png");
+
 const logoWidth = 120;
 const logoHeight = 35;
 const logoX = 40;
 const logoY = currentY - headerHeight/2 - logoHeight/2;
 
 try {
-  const logoPath = path.resolve(process.cwd(), 'public', 'assets', 'logo-dimahisac.png');
+  const logoPath = cfg.logoUrl
+  ? path.resolve(process.cwd(), "public", cfg.logoUrl.replace(/^\//, ""))
+  : defaultLogoPath;
   const logoBytes = await readFile(logoPath);
   const logoImage = await pdf.embedPng(logoBytes);
   
