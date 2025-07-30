@@ -130,29 +130,66 @@ drawRect(0, currentY - headerHeight, width, headerHeight, colors.primary);
 
 // Logo
 const cfg = await getSystemConfig();
-const defaultLogoPath = path.resolve(process.cwd(), "public", "assets", "logo-dimahisac.png");
+
+let logoBytes: Uint8Array | null = null;
+
+if (cfg.logoUrl) {
+  try {
+    if (cfg.logoUrl.startsWith("http")) {
+      // URL remota (Vercel Blob, S3, etc.)
+      const res = await fetch(cfg.logoUrl);
+      if (res.ok) {
+        logoBytes = new Uint8Array(await res.arrayBuffer());
+      }
+    } else {
+      // Ruta local dentro de /public
+      const localPath = path.resolve(
+        process.cwd(),
+        "public",
+        cfg.logoUrl.replace(/^\//, "")
+      );
+      logoBytes = await readFile(localPath);
+    }
+  } catch {
+    // si falla, usaremos el fallback
+  }
+}
+
+// fallback al logo por defecto si todo falla
+if (!logoBytes) {
+  logoBytes = await readFile(
+    path.resolve(process.cwd(), "public", "assets", "logo-dimahisac.png")
+  );
+}
+
+let logoEmbedded;
+try {
+  logoEmbedded = await pdf.embedPng(logoBytes);
+} catch {
+  logoEmbedded = null; // bytes corruptos → se mostrará texto
+}
 
 const logoWidth = 120;
 const logoHeight = 35;
 const logoX = 40;
 const logoY = currentY - headerHeight/2 - logoHeight/2;
 
-try {
-  const logoPath = cfg.logoUrl
-  ? path.resolve(process.cwd(), "public", cfg.logoUrl.replace(/^\//, ""))
-  : defaultLogoPath;
-  const logoBytes = await readFile(logoPath);
-  const logoImage = await pdf.embedPng(logoBytes);
-  
+if (logoEmbedded) {
   // Fondo blanco para el logo
   drawRect(logoX - 10, logoY - 5, logoWidth + 20, logoHeight + 10, colors.white);
-  page.drawImage(logoImage, { x: logoX, y: logoY, width: logoWidth, height: logoHeight });
-} catch {
+  page.drawImage(logoEmbedded, {
+    x: logoX,
+    y: logoY,
+    width: logoWidth,
+    height: logoHeight,
+  });
+} else {
+  // Fallback textual
   drawRect(logoX - 10, logoY - 5, logoWidth + 20, logoHeight + 10, colors.white);
-  drawText('DIMAHISAC', logoX + 10, logoY + 18, { 
-    bold: true, 
-    size: 16, 
-    color: colors.primary 
+  drawText("DIMAHISAC", logoX + 10, logoY + 18, {
+    bold: true,
+    size: 16,
+    color: colors.primary,
   });
 }
 
