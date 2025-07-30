@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { readFile } from "fs/promises";
-import path from "path";
+import { getLogoFilePath } from "@/lib/config";
 import { DeliveryBatch } from "@prisma/client";
 
 export type DeliveryBatchFull = DeliveryBatch & {
@@ -134,7 +134,7 @@ const logoX = 40;
 const logoY = currentY - headerHeight/2 - logoHeight/2;
 
 try {
-  const logoPath = path.resolve(process.cwd(), 'public', 'assets', 'logo-dimahisac.png');
+  const logoPath = await getLogoFilePath();
   const logoBytes = await readFile(logoPath);
   const logoImage = await pdf.embedPng(logoBytes);
   

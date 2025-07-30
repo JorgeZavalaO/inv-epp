@@ -231,3 +231,9 @@ model Collaborator {
 
   @@index([name])
 }
+
+/// Configuraciones globales
+model Setting {
+  key   String @id @db.VarChar(64)
+  value String?
+}
