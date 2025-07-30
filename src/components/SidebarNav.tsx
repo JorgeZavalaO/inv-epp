@@ -10,7 +10,7 @@ import {
   // ClipboardList,
   // FileBarChart2,
   // ShieldCheck,
-  // Settings,
+  Settings,
   RotateCcw,
   SendToBack,
   Users,
@@ -55,12 +55,12 @@ const sections = [
   //     { href: '/audit', label: 'Auditoría', icon: <ShieldCheck size={18} />, description: 'Control y trazabilidad' },
   //   ]
   // },
-  // { 
-  //   title: 'Sistema', 
-  //   items: [
-  //     { href: '/settings', label: 'Configuración', icon: <Settings size={18} />, description: 'Parámetros generales' }
-  //   ] 
-  // },
+  {
+    title: 'Sistema',
+    items: [
+      { href: '/settings', label: 'Configuración', icon: <Settings size={18} />, description: 'Parámetros generales' }
+    ]
+  },
 ];
 
 export default function SidebarNav() {
