@@ -7,6 +7,8 @@ import DeliveryBatchTable from "./DeliveryBatchTable";
 import ModalCreateDeliveryBatch from "./ModalCreateDeliveryBatch";
 import ModalEditDeliveryBatch from "./ModalEditDeliveryBatch";
 import ModalDeleteDeliveryBatch from "./ModalDeleteDeliveryBatch";
+import { FileSpreadsheet } from "lucide-react";
+import { useDeliveriesXlsx } from "@/lib/client-excel/useDeliveriesXlsx";
 import type { DeliveryBatchValues } from "@/schemas/delivery-batch-schema";
 
 export interface BatchRow {
@@ -40,6 +42,7 @@ export default function DeliveryBatchesClient({ list }: Props) {
   const [editingItem, setEditingItem] = useState<ListItem | null>(null);
   const [deleting, setDeleting] = useState<ListItem | null>(null);
   const router = useRouter();
+  const exportAll = useDeliveriesXlsx();
 
   const data: BatchRow[] = useMemo(
     () =>
@@ -71,7 +74,13 @@ export default function DeliveryBatchesClient({ list }: Props) {
     <section className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Entregas</h1>
-        <Button onClick={() => setShowCreate(true)}>+ Nueva entrega</Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={exportAll} aria-label="Exportar todas las entregas a Excel">
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Exportar Excel
+          </Button>
+          <Button onClick={() => setShowCreate(true)}>+ Nueva entrega</Button>
+        </div>
       </div>
 
       <DeliveryBatchTable
