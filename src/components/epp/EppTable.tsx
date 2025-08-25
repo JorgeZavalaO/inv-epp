@@ -232,7 +232,14 @@ export type EppRow = {
                   </div>
                   <div className="h-px bg-border my-2" />
                   <div className="flex items-center gap-2">
-                    <Checkbox id="split-stock" checked={splitStock} onCheckedChange={() => setSplitStock(s => !s)} />
+                    <Checkbox
+                      id="split-stock"
+                      checked={splitStock}
+                      onCheckedChange={(next) => {
+                        setSplitStock(Boolean(next));
+                        toast.message(`Dividir stock ${next ? 'activado' : 'desactivado'}`);
+                      }}
+                    />
                     <label htmlFor="split-stock" className="text-sm">Dividir stock por almacenes</label>
                   </div>
                   {splitStock && (
@@ -281,12 +288,14 @@ export type EppRow = {
                         localStorage.removeItem('epps.stockWarehouseAId');
                         localStorage.removeItem('epps.stockWarehouseBId');
                       } catch {}
+                      toast.success('Configuración restablecida');
                     }}>Reset</Button>
                     <Button size="sm" onClick={() => { /* el estado ya está guardado automáticamente */
                       try {
                         if (warehouseAId != null) localStorage.setItem('epps.stockWarehouseAId', String(warehouseAId));
                         if (warehouseBId != null) localStorage.setItem('epps.stockWarehouseBId', String(warehouseBId));
                       } catch {}
+                      toast.success('Configuración guardada');
                     }}>Guardar</Button>
                   </div>
                 </div>
@@ -295,14 +304,14 @@ export type EppRow = {
           </div>
         </div>
 
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={() => setImporting(true)}>
-            Importar
-          </Button>
-          <Button className="ml-2" onClick={() => setShowCreate(true)}>
-            + Nuevo EPP
-          </Button>
-        </div>
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => { setImporting(true); toast('Importador abierto'); }}>
+              Importar
+            </Button>
+            <Button className="ml-2" onClick={() => { setShowCreate(true); toast('Formulario de creación abierto'); }}>
+              + Nuevo EPP
+            </Button>
+          </div>
       </div>
 
       <DataTable columns={columns} data={data} />
