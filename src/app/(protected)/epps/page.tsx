@@ -70,7 +70,10 @@ export default async function EppsPage({ searchParams }: Props) {
   return (
     <section className="py-6 px-4 md:px-8 space-y-6">
       <h1 className="text-3xl font-bold">Catálogo de EPPs</h1>
-      <EppTable data={data} />
+      <EppTable
+        data={data}
+        warehouses={warehousesList}
+      />
     </section>
   );
 }
