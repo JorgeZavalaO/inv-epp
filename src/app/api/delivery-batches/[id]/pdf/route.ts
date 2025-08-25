@@ -25,10 +25,19 @@ export async function GET(
 
   const pdfBytes = await buildDeliveryBatchPdf(batch as NonNullable<typeof batch>);
 
-  return new NextResponse(pdfBytes, {
+  const sanitize = (s: string) =>
+    s
+      .replace(/\s+/g, " ")
+      .replace(/[\\/:*?"<>|]+/g, "")
+      .trim();
+
+  const collaboratorName = batch.collaborator?.name ? sanitize(batch.collaborator.name) : "colaborador";
+  const filename = `${sanitize(batch.code)} - ${collaboratorName}.pdf`;
+
+  return new NextResponse(Buffer.from(pdfBytes), {
     headers: {
       "Content-Type":        "application/pdf",
-      "Content-Disposition": `inline; filename="${batch.code}.pdf"`,
+      "Content-Disposition": `inline; filename="${filename}"`,
       "Cache-Control":       "no-store",
     },
   });
