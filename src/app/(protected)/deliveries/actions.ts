@@ -2,17 +2,26 @@
 
 import prisma from "@/lib/prisma";
 import { deliveryBatchSchema } from "@/schemas/delivery-batch-schema";
-import { ensureClerkUser }      from "@/lib/user-sync";
-import { revalidatePath }       from "next/cache";
-import { z }                    from "zod";
-import type { Prisma }          from "@prisma/client";
+import { ensureClerkUser } from "@/lib/user-sync";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 
 export async function createDeliveryBatch(fd: FormData) {
-  const payload  = JSON.parse(fd.get("payload") as string);
-  const data     = deliveryBatchSchema.parse(payload);
+  const payload = JSON.parse(fd.get("payload") as string);
+  let data;
+  try {
+    data = deliveryBatchSchema.parse(payload);
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      throw new Error("Error de validación: " + e.errors.map((x) => x.message).join(", "));
+    }
+    throw e;
+  }
+
   const operator = await ensureClerkUser();
 
-  const batchId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // Generar código
     const last = await tx.deliveryBatch.findFirst({
       where: { code: { startsWith: "DEL-" } },
@@ -23,7 +32,7 @@ export async function createDeliveryBatch(fd: FormData) {
     const code = `DEL-${String(num).padStart(4, "0")}`;
 
     // Crear batch
-    const { id } = await tx.deliveryBatch.create({
+  const { id } = await tx.deliveryBatch.create({
       data: {
         code,
         collaboratorId: data.collaboratorId,
@@ -70,27 +79,42 @@ export async function createDeliveryBatch(fd: FormData) {
       });
     }
 
-    return id;
+    return { id, code };
   });
 
   ["deliveries", "dashboard", "epps"].forEach((p) => revalidatePath(`/${p}`));
-  return batchId;
+  return result;
 }
 
 
 export async function updateDeliveryBatch(fd: FormData) {
-  const raw        = JSON.parse(fd.get("payload") as string);
-  const editSchema = z.object({
-    batchId:        z.number().int().positive(),
-    collaboratorId: z.number().int().positive(),
-    note:           z.string().max(255).optional(),
-  });
-  const data = editSchema.parse(raw);
-  await prisma.deliveryBatch.update({
-    where: { id: data.batchId },
-    data:  { collaboratorId: data.collaboratorId, note: data.note },
+  const raw = JSON.parse(fd.get("payload") as string);
+  let data;
+  try {
+    const editSchema = z.object({
+      batchId: z.number().int().positive().optional(),
+      id: z.number().int().positive().optional(),
+      collaboratorId: z.number().int().positive(),
+      note: z.string().max(255).optional(),
+    });
+    data = editSchema.parse(raw);
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      throw new Error("Error de validación: " + e.errors.map((x) => x.message).join(", "));
+    }
+    throw e;
+  }
+
+  const batchId = data.batchId ?? data.id;
+  if (!batchId) throw new Error("Identificador de lote (batchId) faltante");
+
+  const updated = await prisma.deliveryBatch.update({
+    where: { id: batchId },
+    data: { collaboratorId: data.collaboratorId, note: data.note },
+    select: { id: true, code: true },
   });
   revalidatePath("/deliveries");
+  return updated;
 }
 
 export async function deleteBatch(batchId: number) {

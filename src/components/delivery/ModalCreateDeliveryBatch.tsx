@@ -38,13 +38,25 @@ export default function ModalCreateDeliveryBatch({ onClose, onCreated }: { onClo
       try {
         const fd = new FormData();
         fd.append("payload", JSON.stringify(values));
-        await createDeliveryBatch(fd);
-        toast.success("Entrega registrada");
+        const res = await createDeliveryBatch(fd);
+        // res expected { id, code }
+        toast.success(`Entrega registrada: ${res.code}`);
         onCreated();
         router.refresh();
       } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : "Ocurrió un error";
-        toast.error(errorMessage);
+        let errorMessage = "Ocurrió un error";
+        if (err instanceof Error) {
+          errorMessage = err.message;
+        } else if (typeof err === "object" && err !== null && "message" in err) {
+          // @ts-expect-error allow reading message property on unknown object
+          errorMessage = err.message;
+        }
+        // Mostrar detalles si vienen como ZodError
+        if (errorMessage.includes("Error de validación")) {
+          toast.error(errorMessage, { duration: 6000 });
+        } else {
+          toast.error(errorMessage);
+        }
       }
     });
   };

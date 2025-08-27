@@ -56,13 +56,20 @@ export default function ModalEditDeliveryBatch({
       try {
         const fd = new FormData();
         fd.append("payload", JSON.stringify({ ...values, id: batch.id }));
-        await updateDeliveryBatch(fd);
-        toast.success("Entrega actualizada");
+        const res = await updateDeliveryBatch(fd);
+        // res expected { id, code }
+        toast.success(`Entrega actualizada: ${res.code}`);
         onSaved();
         router.refresh();
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Ocurrió un error";
-        toast.error(message);
+        let errorMessage = "Ocurrió un error";
+        if (err instanceof Error) {
+          errorMessage = err.message;
+        } else if (typeof err === "object" && err !== null && "message" in err) {
+          // @ts-expect-error allow reading message property on unknown object
+          errorMessage = err.message;
+        }
+        toast.error(errorMessage);
       }
     });
   };
