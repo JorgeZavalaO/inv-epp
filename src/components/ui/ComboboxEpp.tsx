@@ -82,12 +82,15 @@ export default function ComboboxEpp({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className="w-full justify-between text-left overflow-hidden"
         >
-          <span className={value ? "text-foreground" : "text-muted-foreground"}>
+          <span
+            className={(value ? "text-foreground " : "text-muted-foreground ") + "block truncate"}
+            title={selectedLabel}
+          >
             {selectedLabel}
           </span>
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-50 ml-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </Button>
@@ -118,7 +121,9 @@ export default function ComboboxEpp({
                     setOpen(false);
                   }}
                 >
-                  {opt.label}
+                  <div className="truncate" title={opt.label}>
+                    {opt.label}
+                  </div>
                 </CommandItem>
               ))}
           </CommandList>
