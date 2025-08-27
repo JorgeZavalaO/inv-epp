@@ -120,3 +120,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Utility: ocultar scrollbar pero mantener la capacidad de scroll */
+.hide-scrollbar {
+  /* Chrome, Safari y Edge */
+  -webkit-overflow-scrolling: touch;
+  -webkit-scrollbar-width: none; /* no effect but kept for consistency */
+  scrollbar-width: none; /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Safari y Chrome */
+}
