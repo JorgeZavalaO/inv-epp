@@ -91,12 +91,19 @@ export async function updateDeliveryBatch(fd: FormData) {
   const raw = JSON.parse(fd.get("payload") as string);
   let data;
   try {
+    const itemSchema = z.object({
+      eppId: z.number().int().positive(),
+      quantity: z.number().int().positive(),
+    });
+
     const editSchema = z.object({
       batchId: z.number().int().positive().optional(),
       id: z.number().int().positive().optional(),
       collaboratorId: z.number().int().positive(),
       note: z.string().max(255).optional(),
+      items: z.array(itemSchema).optional(),
     });
+
     data = editSchema.parse(raw);
   } catch (e) {
     if (e instanceof z.ZodError) {
@@ -107,14 +114,89 @@ export async function updateDeliveryBatch(fd: FormData) {
 
   const batchId = data.batchId ?? data.id;
   if (!batchId) throw new Error("Identificador de lote (batchId) faltante");
+  // Hacer todo en transacción: leer previo, reconciliar items y actualizar batch
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const before = await tx.deliveryBatch.findUnique({
+      where: { id: batchId },
+      select: { id: true, code: true, collaboratorId: true, note: true, warehouseId: true, collaborator: { select: { name: true } } },
+    });
+    if (!before) throw new Error("Lote no encontrado");
 
-  const updated = await prisma.deliveryBatch.update({
-    where: { id: batchId },
-    data: { collaboratorId: data.collaboratorId, note: data.note },
-    select: { id: true, code: true },
+    // actualizar collaborator/note
+    const updatedBatch = await tx.deliveryBatch.update({
+      where: { id: batchId },
+      data: { collaboratorId: data.collaboratorId, note: data.note },
+      select: { id: true, code: true, collaboratorId: true, note: true, warehouseId: true, collaborator: { select: { name: true } } },
+    });
+
+    // Si no vienen items, solo actualizar metadata
+    if (!data.items) {
+      return { before, after: updatedBatch, summary: [] };
+    }
+
+    const warehouseId = updatedBatch.warehouseId;
+
+    // Leer items existentes
+    const existing = await tx.delivery.findMany({ where: { batchId }, select: { id: true, eppId: true, quantity: true } });
+    const existingMap = new Map<number, { id: number; quantity: number }>();
+    for (const ex of existing) existingMap.set(ex.eppId, { id: ex.id, quantity: ex.quantity });
+
+    const summary: string[] = [];
+
+    // Procesar incoming items
+    for (const it of data.items) {
+      const ex = existingMap.get(it.eppId);
+      if (!ex) {
+        // Nuevo ítem: validar stock
+        const stockRow = await tx.ePPStock.findUnique({ where: { eppId_warehouseId: { eppId: it.eppId, warehouseId } }, select: { quantity: true } });
+        if (!stockRow || stockRow.quantity < it.quantity) {
+          const e = await tx.ePP.findUnique({ where: { id: it.eppId }, select: { name: true } });
+          throw new Error(`Stock insuficiente para «${e?.name ?? it.eppId}»`);
+        }
+        await tx.delivery.create({ data: { batchId, eppId: it.eppId, quantity: it.quantity } });
+        await tx.ePPStock.update({ where: { eppId_warehouseId: { eppId: it.eppId, warehouseId } }, data: { quantity: { decrement: it.quantity } } });
+        await tx.stockMovement.create({ data: { type: "EXIT", eppId: it.eppId, warehouseId, quantity: it.quantity, note: `Entrega ${updatedBatch.code}`, userId: (await ensureClerkUser()).id } });
+        summary.push(`Añadido EPP ${it.eppId} x${it.quantity}`);
+      } else if (ex.quantity !== it.quantity) {
+        if (it.quantity > ex.quantity) {
+          const delta = it.quantity - ex.quantity;
+          const stockRow = await tx.ePPStock.findUnique({ where: { eppId_warehouseId: { eppId: it.eppId, warehouseId } }, select: { quantity: true } });
+          if (!stockRow || stockRow.quantity < delta) {
+            const e = await tx.ePP.findUnique({ where: { id: it.eppId }, select: { name: true } });
+            throw new Error(`Stock insuficiente para aumentar «${e?.name ?? it.eppId}» en ${delta}`);
+          }
+          await tx.delivery.update({ where: { id: ex.id }, data: { quantity: it.quantity } });
+          await tx.ePPStock.update({ where: { eppId_warehouseId: { eppId: it.eppId, warehouseId } }, data: { quantity: { decrement: delta } } });
+          await tx.stockMovement.create({ data: { type: "EXIT", eppId: it.eppId, warehouseId, quantity: delta, note: `Ajuste entrega ${updatedBatch.code}`, userId: (await ensureClerkUser()).id } });
+          summary.push(`Incrementado EPP ${it.eppId} +${delta}`);
+        } else {
+          const delta = ex.quantity - it.quantity;
+          await tx.delivery.update({ where: { id: ex.id }, data: { quantity: it.quantity } });
+          await tx.ePPStock.update({ where: { eppId_warehouseId: { eppId: it.eppId, warehouseId } }, data: { quantity: { increment: delta } } });
+          await tx.stockMovement.create({ data: { type: "ENTRY", eppId: it.eppId, warehouseId, quantity: delta, note: `Ajuste entrega ${updatedBatch.code}`, userId: (await ensureClerkUser()).id } });
+          summary.push(`Reducido EPP ${it.eppId} -${delta}`);
+        }
+        existingMap.delete(it.eppId);
+      } else {
+        // no cambios, borrar de mapa para marcar como procesado
+        existingMap.delete(it.eppId);
+      }
+    }
+
+    // Lo que queda en existingMap son items eliminados
+    for (const [eppId, ex] of existingMap.entries()) {
+      const qty = ex.quantity;
+      await tx.delivery.deleteMany({ where: { batchId, eppId } });
+      await tx.ePPStock.update({ where: { eppId_warehouseId: { eppId, warehouseId } }, data: { quantity: { increment: qty } } });
+      await tx.stockMovement.create({ data: { type: "ENTRY", eppId, warehouseId, quantity: qty, note: `Eliminado del lote ${updatedBatch.code}`, userId: (await ensureClerkUser()).id } });
+      summary.push(`Eliminado EPP ${eppId} x${qty}`);
+    }
+
+    return { before, after: updatedBatch, summary };
   });
+
   revalidatePath("/deliveries");
-  return updated;
+  return result;
 }
 
 export async function deleteBatch(batchId: number) {

@@ -57,8 +57,20 @@ export default function ModalEditDeliveryBatch({
         const fd = new FormData();
         fd.append("payload", JSON.stringify({ ...values, id: batch.id }));
         const res = await updateDeliveryBatch(fd);
-        // res expected { id, code }
-        toast.success(`Entrega actualizada: ${res.code}`);
+        // res expected { before, after }
+        const before = res.before;
+        const after = res.after;
+        const changes: string[] = [];
+        if (before.collaboratorId !== after.collaboratorId) {
+          changes.push(`Colaborador: ${before.collaborator?.name ?? before.collaboratorId} → ${after.collaborator?.name ?? after.collaboratorId}`);
+        }
+        if ((before.note ?? "") !== (after.note ?? "")) {
+          changes.push(`Nota actualizada`);
+        }
+  const summary: string[] = res.summary ?? [];
+  const msgBase = changes.length > 0 ? `Entrega ${after.code} actualizada: ${changes.join("; ")}` : `Entrega ${after.code} sin cambios`;
+  const msg = summary.length > 0 ? `${msgBase} — Items: ${summary.join("; ")}` : msgBase;
+  toast.success(msg);
         onSaved();
         router.refresh();
       } catch (err: unknown) {
@@ -76,7 +88,7 @@ export default function ModalEditDeliveryBatch({
 
   return (
     <Dialog open>
-      <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-6xl min-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Editar entrega {batch.code}</DialogTitle>
         </DialogHeader>
