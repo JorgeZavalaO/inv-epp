@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 //import { Loader2 } from "lucide-react";
 import { useTransition, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -70,22 +69,19 @@ export default function ModalEditDeliveryBatch({
 
   return (
     <Dialog open>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
+      <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Editar entrega {batch.code}</DialogTitle>
         </DialogHeader>
-
-        <DeliveryBatchForm
-          defaultValues={batch}
-          collaborators={loadingCols ? [] : collaborators}
-          warehouses={loadingWhs ? [] : warehouses}
-          onSubmit={handleSave}
-        />
-
-        <div className="flex justify-end pt-4">
-          <Button variant="outline" onClick={onClose} disabled={isPending}>
-            Cancelar
-          </Button>
+  <div className="flex-1 overflow-auto hide-scrollbar">
+          <DeliveryBatchForm
+            defaultValues={batch}
+            collaborators={loadingCols ? [] : collaborators}
+            warehouses={loadingWhs ? [] : warehouses}
+            onSubmit={handleSave}
+            onCancel={onClose}
+            isPending={isPending}
+          />
         </div>
       </DialogContent>
     </Dialog>
