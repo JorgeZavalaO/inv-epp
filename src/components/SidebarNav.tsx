@@ -48,6 +48,12 @@ const sections = [
       { href: '/collaborators', label: 'Colaboradores', icon: <Users size={18} />, description: 'Personal registrado' },
     ]
   },
+  { 
+    title: 'Reportes', 
+    items: [
+      { href: '/reports', label: 'Informes', icon: <LayoutDashboard size={18} />, description: 'Reportes y métricas' },
+    ]
+  },
   // { 
   //   title: 'Reportes', 
   //   items: [
