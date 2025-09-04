@@ -12,6 +12,7 @@ export interface BatchRow {
   date:         string;
   collaborator: string;
   operator:     string;
+  warehouse:    string;
   items:        number;
 }
 
@@ -39,6 +40,7 @@ export default function DeliveryBatchTable({ data, onEdit, onDelete }: Props) {
       },
     },
     { accessorKey: "collaborator", header: "Colaborador" },
+    { accessorKey: "warehouse", header: "Almacén" },
     { accessorKey: "operator",     header: "Operador" },
     {
       accessorKey: "items",

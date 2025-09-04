@@ -1,30 +1,29 @@
-import prisma from "@/lib/prisma";
+import { Suspense } from "react";
 import DeliveryBatchesClient from "@/components/delivery/DeliveryBatchesClient";
+import DeliveryTableSkeleton from "@/components/delivery/DeliveryTableSkeleton";
 
 export const revalidate = 0;
 
-export default async function DeliveriesPage() {
-  const rawList = await prisma.deliveryBatch.findMany({
-    select: {
-      id: true,
-      code: true,
-      createdAt: true,
-      collaboratorId: true,
-      warehouseId: true,
-      note: true,
-      collaborator: { select: { name: true } },
-      user: { select: { name: true, email: true } },
-      _count: { select: { deliveries: true } },
-      deliveries: { select: { eppId: true, quantity: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+interface SearchParams {
+  page?: string;
+  limit?: string;
+  search?: string;
+  collaboratorId?: string;
+  warehouseId?: string;
+  location?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
 
-  // Serializamos createdAt a string para evitar problemas de Date en el cliente
-  const list = rawList.map((b) => ({
-    ...b,
-    createdAt: b.createdAt.toISOString(),
-  }));
+interface Props {
+  searchParams: Promise<SearchParams>;
+}
 
-  return <DeliveryBatchesClient list={list} />;
+export default async function DeliveriesPage({ searchParams }: Props) {
+  const resolved = await searchParams;
+  return (
+    <Suspense fallback={<DeliveryTableSkeleton />}>
+      <DeliveryBatchesClient searchParams={resolved} />
+    </Suspense>
+  );
 }
