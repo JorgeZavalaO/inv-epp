@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useTransition } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Download } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -37,17 +37,59 @@ export default function ReportsFilters({ year, warehouses, categories, selected 
     startTransition(() => router.push(url.pathname + "?" + url.searchParams.toString()));
   };
 
-  const onExport = async () => {
-    const query = params.toString();
-    const res = await fetch(`/api/reports/export?${query}`);
+  const triggerDownload = async (res: Response, name: string) => {
     if (!res.ok) return;
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `reportes-${params.get("year") ?? year}.xlsx`;
+    a.download = name;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const onExportXlsx = async () => {
+    const query = params.toString();
+    const res = await fetch(`/api/reports/export?${query}`);
+    if (!res.ok) return;
+    await triggerDownload(res, `reportes-${params.get("year") ?? year}.xlsx`);
+  };
+
+  const onExportPdf = async () => {
+    // Capturamos los elementos con atributo data-report-chart
+    const canvases = document.querySelectorAll<HTMLElement>("[data-report-chart]");
+    const images: Array<{ id: string; dataUrl: string }> = [];
+    for (const el of canvases) {
+      let dataUrl: string | undefined;
+      if (el instanceof HTMLCanvasElement) {
+        dataUrl = el.toDataURL("image/png");
+      } else {
+        // Buscar canvas descendiente (recharts renderiza svg, podemos usar svg->canvas)
+        const svg = el.querySelector('svg');
+        if (svg) {
+          const cloned = svg.cloneNode(true) as SVGSVGElement;
+          const serializer = new XMLSerializer();
+          const svgStr = serializer.serializeToString(cloned);
+          const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const img = await new Promise<HTMLImageElement>((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.src = url; });
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width; canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) ctx.drawImage(img, 0, 0);
+          dataUrl = canvas.toDataURL('image/png');
+          URL.revokeObjectURL(url);
+        }
+      }
+      if (dataUrl) images.push({ id: el.getAttribute('data-report-chart') || 'chart', dataUrl });
+    }
+    const query = params.toString();
+    const res = await fetch(`/api/reports/export?${query}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images }),
+    });
+    await triggerDownload(res, `reportes-${params.get("year") ?? year}.pdf`);
   };
 
   const onClear = () => {
@@ -139,9 +181,14 @@ export default function ReportsFilters({ year, warehouses, categories, selected 
             </div>
           </div>
 
-          <Button onClick={onExport} disabled={isPending} className="ml-auto" size="sm">
-            <Download size={16} /> Exportar Excel
-          </Button>
+          <div className="flex gap-2 ml-auto">
+            <Button onClick={onExportXlsx} disabled={isPending} size="sm">
+              <Download size={16} /> Excel
+            </Button>
+            <Button onClick={onExportPdf} variant="secondary" disabled={isPending} size="sm">
+              <FileText size={16} /> PDF
+            </Button>
+          </div>
 
           <Button variant="ghost" onClick={onClear} size="sm">
             Limpiar

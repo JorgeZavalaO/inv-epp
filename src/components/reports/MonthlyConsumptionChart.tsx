@@ -15,7 +15,7 @@ export default function MonthlyConsumptionChart({ data }: { data: MonthlyPoint[]
   const chart = data.map(d => ({ name: labelFromYYYYMM(d.month), qty: d.qty }));
 
   return (
-    <Card>
+  <Card data-report-chart="consumo-mensual">
       <CardHeader>
         <CardTitle>Consumo de EPPs por Mes</CardTitle>
       </CardHeader>

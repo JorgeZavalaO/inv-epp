@@ -15,7 +15,7 @@ export default function TopEppsChart({ data }: { data: TopItem[] }) {
   }));
 
   return (
-    <Card>
+  <Card data-report-chart="top-epps">
       <CardHeader>
         <CardTitle>Top 5 EPPs más solicitados</CardTitle>
       </CardHeader>

@@ -10,7 +10,7 @@ export default function TopLocationsChart({ data }: { data: LocationItem[] }) {
   const chart = data.map((d, i) => ({ name: d.location ?? "Sin ubicación", value: d.qty, fill: COLORS[i % COLORS.length] }));
 
   return (
-    <Card>
+  <Card data-report-chart="top-ubicaciones">
       <CardHeader>
         <CardTitle>Departamentos/Sedes con mayor consumo</CardTitle>
       </CardHeader>

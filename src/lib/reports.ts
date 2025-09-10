@@ -32,6 +32,9 @@ export interface ReportsData {
   topEpps: TopItem[];
   topLocations: LocationItem[];
   latest: LatestDeliveryRow[];
+  categories?: Array<{ category: string; qty: number; pct: number }>;
+  locationsFull?: LocationItem[]; // sin límite
+  indicators?: ReportsIndicators;
 }
 
 export interface ReportsFilters {
@@ -44,6 +47,20 @@ export interface ReportsFilters {
 export interface FilterData {
   warehouses: Array<{ id: number; name: string }>;
   categories: string[];
+}
+
+export interface ReportsIndicators {
+  totalDeliveredQty: number;
+  deliveriesCount: number;
+  avgItemsPerDelivery: number;
+  requestsCount: number;
+  completedRequests: number;
+  requestsCompletionRate: number; // 0..1
+  returnQty: number;
+  returnRate: number; // 0..1 sobre entregado
+  uniqueCollaborators: number;
+  uniqueEpps: number;
+  averageDailyDeliveredQty: number;
 }
 
 function monthKey(date: Date) {
@@ -78,7 +95,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
   return Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}`;
   })();
   // Ejecutamos agregaciones en paralelo para mejor rendimiento
-  const [monthlyRaw, topEpps, topLocations, latest] = await Promise.all([
+  const [monthlyRaw, topEpps, topLocations, latest, categoriesRaw, locationsFull, indicatorsDeliveryBase, returnAgg, requestsAgg] = await Promise.all([
     prisma.$queryRaw<Array<{ month: string; qty: number }>>(Prisma.sql`
       SELECT TO_CHAR(date_trunc('month', d."createdAt"), 'YYYY-MM') AS month,
              SUM(d.quantity)::int AS qty
@@ -128,14 +145,92 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       ORDER BY d."createdAt" DESC
       LIMIT 12
     `),
+    // Distribución por categoría completa
+    prisma.$queryRaw<Array<{ category: string; qty: number }>>(Prisma.sql`
+      SELECT e.category, SUM(d.quantity)::int AS qty
+      FROM "Delivery" d
+      INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
+      INNER JOIN "EPP" e ON e.id = d."eppId"
+      ${where}
+      GROUP BY e.category
+      ORDER BY qty DESC
+    `),
+    // Todas las ubicaciones (sin límite)
+    prisma.$queryRaw<LocationItem[]>(Prisma.sql`
+      SELECT COALESCE(c.location, 'Sin ubicación') AS location,
+             SUM(d.quantity)::int AS qty
+      FROM "Delivery" d
+      INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
+      LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"
+      INNER JOIN "EPP" e ON e.id = d."eppId"
+      ${where}
+      GROUP BY location
+      ORDER BY qty DESC
+    `),
+    // Indicadores base de entregas
+    prisma.$queryRaw<Array<{ delivered_qty: number; deliveries_count: number; unique_epps: number; unique_collaborators: number }>>(Prisma.sql`
+      SELECT COALESCE(SUM(d.quantity),0)::int AS delivered_qty,
+             COUNT(d.*)::int AS deliveries_count,
+             COUNT(DISTINCT d."eppId")::int AS unique_epps,
+             COUNT(DISTINCT b."collaboratorId")::int AS unique_collaborators
+      FROM "Delivery" d
+      INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
+      INNER JOIN "EPP" e ON e.id = d."eppId"
+      ${where}
+    `),
+    // Cantidad devuelta
+    prisma.$queryRaw<Array<{ return_qty: number }>>(Prisma.sql`
+      SELECT COALESCE(SUM(r.quantity),0)::int AS return_qty
+      FROM "ReturnItem" r
+      INNER JOIN "ReturnBatch" rb ON rb.id = r."batchId"
+      INNER JOIN "EPP" e ON e.id = r."eppId"
+      WHERE rb."createdAt" BETWEEN ${fromDate} AND ${toDate}
+        ${category ? Prisma.sql`AND e."category" = ${category}` : Prisma.empty}
+    `),
+    // Solicitudes
+    prisma.$queryRaw<Array<{ total_requests: number; completed_requests: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS total_requests,
+             SUM(CASE WHEN req.status = 'COMPLETED' THEN 1 ELSE 0 END)::int AS completed_requests
+      FROM "Request" req
+      INNER JOIN "EPP" e ON e.id = req."eppId"
+      WHERE req."createdAt" BETWEEN ${fromDate} AND ${toDate}
+        ${category ? Prisma.sql`AND e."category" = ${category}` : Prisma.empty}
+    `),
   ]);
+
+  const deliveredQty = indicatorsDeliveryBase[0]?.delivered_qty ?? 0;
+  const deliveriesCount = indicatorsDeliveryBase[0]?.deliveries_count ?? 0;
+  const uniqueEpps = indicatorsDeliveryBase[0]?.unique_epps ?? 0;
+  const uniqueCollaborators = indicatorsDeliveryBase[0]?.unique_collaborators ?? 0;
+  const returnQty = returnAgg[0]?.return_qty ?? 0;
+  const requestsCount = requestsAgg[0]?.total_requests ?? 0;
+  const completedRequests = requestsAgg[0]?.completed_requests ?? 0;
+  const days = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / 86400000) + 1);
+  const indicators: ReportsIndicators = {
+    totalDeliveredQty: deliveredQty,
+    deliveriesCount,
+    avgItemsPerDelivery: deliveriesCount ? deliveredQty / deliveriesCount : 0,
+    requestsCount,
+    completedRequests,
+    requestsCompletionRate: requestsCount ? completedRequests / requestsCount : 0,
+    returnQty,
+    returnRate: deliveredQty ? returnQty / deliveredQty : 0,
+    uniqueCollaborators,
+    uniqueEpps,
+    averageDailyDeliveredQty: deliveredQty / days,
+  };
+
+  const categoriesTotal = categoriesRaw.reduce((a, c) => a + c.qty, 0) || 1;
 
   return {
     year,
-  monthly: ensureMonthsInRange(monthlyRaw, fromDate, toDate),
+    monthly: ensureMonthsInRange(monthlyRaw, fromDate, toDate),
     topEpps,
     topLocations,
     latest,
+    categories: categoriesRaw.map(row => ({ category: row.category, qty: row.qty, pct: row.qty / categoriesTotal })),
+    locationsFull,
+    indicators,
   };
 }
 

@@ -4,6 +4,8 @@ import MonthlyConsumptionChart from "@/components/reports/MonthlyConsumptionChar
 import TopEppsChart from "@/components/reports/TopEppsChart";
 import TopLocationsChart from "@/components/reports/TopLocationsChart";
 import LatestDeliveriesTable from "@/components/reports/LatestDeliveriesTable";
+import CategoriesDistributionChart from "@/components/reports/CategoriesDistributionChart";
+import IndicatorsPanel from "@/components/reports/IndicatorsPanel";
 import ReportsFilters from "./reports-filters";
 
 export default async function ReportsPage({ searchParams }: { searchParams?: Promise<{ year?: string; warehouseId?: string; category?: string; from?: string; to?: string }> }) {
@@ -34,9 +36,11 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Pro
 
       <Suspense fallback={<div className="grid gap-6 lg:grid-cols-3"><div className="h-80 bg-muted/50 rounded-lg animate-pulse lg:col-span-3"/></div>}>
         <section className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-2 flex flex-col gap-6">
             <MonthlyConsumptionChart data={data.monthly} />
+            {data.categories && <CategoriesDistributionChart data={data.categories} />}
           </div>
+          <IndicatorsPanel indicators={data.indicators} />
         </section>
 
         <section className="grid gap-6 lg:grid-cols-3">
