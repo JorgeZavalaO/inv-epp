@@ -15,7 +15,13 @@ export async function GET() {
     select: { id: true, name: true, location: true },
     orderBy: { name: "asc" },
   });
-  return NextResponse.json(list);
+  
+  return NextResponse.json(list, {
+    headers: {
+      // Cache warehouses for 5 minutes - they don't change often
+      "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=300",
+    },
+  });
 }
 
 /*────────── POST /api/warehouses ──────────*/

@@ -54,6 +54,8 @@ model User {
   returnBatches  ReturnBatch[]
   requests       Request[]
   approvals      Approval[]
+
+  @@index([name])
 }
 
 /// Artículos de protección personal
@@ -124,6 +126,8 @@ model StockMovement {
   user        User              @relation(fields: [userId], references: [id])
 
   @@index([eppId, warehouseId, createdAt])
+  @@index([type, createdAt])
+  @@index([userId, createdAt])
 }
 
 /// Lote de entregas
@@ -143,6 +147,7 @@ model DeliveryBatch {
 
   @@index([createdAt])
   @@index([collaboratorId])
+  @@index([warehouseId])
 }
 
 /// Cada línea de entrega
@@ -156,6 +161,7 @@ model Delivery {
   createdAt  DateTime      @default(now())
 
   @@index([batchId, eppId])
+  @@index([createdAt])
 }
 
 /// Lote de devoluciones
@@ -186,6 +192,7 @@ model ReturnItem {
   createdAt    DateTime          @default(now())
 
   @@index([batchId, eppId])
+  @@index([createdAt])
 }
 
 /// Solicitudes de EPP
@@ -230,6 +237,7 @@ model Collaborator {
   deliveryBatches  DeliveryBatch[]
 
   @@index([name])
+  @@index([location])
 
   
 }
@@ -241,4 +249,3 @@ model SystemConfig {
   logoUrl     String?  @db.VarChar(255)   // Ruta relativa dentro de /public
   updatedAt   DateTime @updatedAt
 }
-

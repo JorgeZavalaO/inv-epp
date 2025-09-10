@@ -5,25 +5,46 @@ import { ensureClerkUser } from "@/lib/user-sync";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const list = await prisma.deliveryBatch.findMany({
-      include: {
-        collaborator: { select: { name: true, position: true, location: true } },
-        user:         { select: { name: true, email: true } },
-        warehouse:    { select: { name: true } },
-        deliveries:   {
-          include: { epp: { select: { code: true, name: true } } },
-          orderBy: { id: "asc" },
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
+    const skip = (page - 1) * limit;
+
+    const [batches, totalCount] = await Promise.all([
+      prisma.deliveryBatch.findMany({
+        select: {
+          id: true,
+          code: true,
+          createdAt: true,
+          note: true,
+          collaborator: { select: { name: true, position: true, location: true } },
+          user: { select: { name: true, email: true } },
+          warehouse: { select: { name: true } },
+          _count: { select: { deliveries: true } },
         },
-        _count:       { select: { deliveries: true } },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.deliveryBatch.count(),
+    ]);
+
+    return NextResponse.json({
+      batches,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+        hasNext: page < Math.ceil(totalCount / limit),
+        hasPrev: page > 1,
       },
-      orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json(list);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error inesperado";
-    return NextResponse.json({ error: msg }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("Error fetching delivery batches:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 

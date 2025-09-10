@@ -1,9 +1,13 @@
 import { PrismaClient } from '@prisma/client'
 
-const prisma = new PrismaClient()
+// Reuse PrismaClient between HMR reloads in development to prevent
+// exhausting the database connection pool.
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 
-const globalForPrisma = global as unknown as { prisma: typeof prisma }
+const prisma = globalForPrisma.prisma ?? new PrismaClient()
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma
+}
 
 export default prisma

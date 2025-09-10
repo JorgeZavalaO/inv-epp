@@ -81,7 +81,6 @@ export async function GET(request: Request) {
           user: { select: { name: true, email: true } },
           warehouse: { select: { name: true } },
           _count: { select: { deliveries: true } },
-          deliveries: { select: { eppId: true, quantity: true } },
         },
         orderBy: { createdAt: "desc" },
         skip,

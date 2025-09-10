@@ -38,12 +38,20 @@ export async function GET() {
       }),
     ]);
 
-    return NextResponse.json({
-      totalDeliveries,
-      totalItems: totalItems._sum.quantity || 0,
-      uniqueCollaborators: uniqueCollaborators.length,
-      thisMonthDeliveries,
-    });
+    return NextResponse.json(
+      {
+        totalDeliveries,
+        totalItems: totalItems._sum.quantity || 0,
+        uniqueCollaborators: uniqueCollaborators.length,
+        thisMonthDeliveries,
+      },
+      {
+        headers: {
+          // Short-lived cache; stats change often but can tolerate brief staleness
+          "Cache-Control": "public, max-age=30, s-maxage=30, stale-while-revalidate=30",
+        },
+      }
+    );
   } catch (error: unknown) {
     console.error("Error fetching delivery stats:", error);
     if (error instanceof Error) {

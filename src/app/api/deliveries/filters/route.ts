@@ -26,11 +26,19 @@ export async function GET() {
       .map((l) => ({ id: l.location ?? "", name: l.location ?? "" }))
       .filter((l) => l.name !== "");
 
-    return NextResponse.json({
-      collaborators,
-      warehouses,
-      locations: uniqueLocations,
-    });
+    return NextResponse.json(
+      {
+        collaborators,
+        warehouses,
+        locations: uniqueLocations,
+      },
+      {
+        headers: {
+          // 60s client + proxy cache; allow quick refresh but avoid hammering DB
+          "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (error: unknown) {
     console.error("Error fetching filter options:", error);
     if (error instanceof Error) {

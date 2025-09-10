@@ -4,16 +4,46 @@ import { returnBatchSchema } from "@/schemas/return-schema";
 import { ensureClerkUser } from "@/lib/user-sync";
 import { z } from "zod";
 
-export async function GET() {
-  const list = await prisma.returnBatch.findMany({
-    include: { 
-      warehouse: { select: { name: true } },
-      user:      { select: { name: true, email: true } },
-      items:     { include: { epp: { select: { code: true, name: true } } } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-  return NextResponse.json(list);
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
+    const skip = (page - 1) * limit;
+
+    const [batches, totalCount] = await Promise.all([
+      prisma.returnBatch.findMany({
+        select: {
+          id: true,
+          code: true,
+          createdAt: true,
+          note: true,
+          warehouse: { select: { name: true } },
+          user: { select: { name: true, email: true } },
+          _count: { select: { items: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.returnBatch.count(),
+    ]);
+
+    return NextResponse.json({
+      batches,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+        hasNext: page < Math.ceil(totalCount / limit),
+        hasPrev: page > 1,
+      },
+    });
+  } catch (error: unknown) {
+    console.error("Error fetching return batches:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {
@@ -42,32 +72,52 @@ export async function POST(req: Request) {
         },
       });
 
-      // 3) crear líneas
-      for (const it of data.items.filter((i) => i.quantity > 0)) {
-        await tx.returnItem.create({
-          data: {
-            batchId:   rb.id,
-            eppId:     it.eppId,
-            quantity:  it.quantity,
-            condition: data.condition,
-          },
-        });
-        // ajustar stock
-        if (data.condition === "REUSABLE") {
-          await tx.ePPStock.upsert({
-            where: {
-              eppId_warehouseId: {
-                eppId:       it.eppId,
-                warehouseId: it.warehouseId,
-              },
-            },
-            update: { quantity: { increment: it.quantity } },
-            create: {
-              eppId:       it.eppId,
-              warehouseId: it.warehouseId,
-              quantity:    it.quantity,
-            },
-          });
+      // 3) crear líneas (optimizado con createMany + bulk upserts)
+      const validItems = data.items.filter((i) => i.quantity > 0);
+      if (validItems.length === 0) {
+        throw new Error("No hay items válidos para devolver");
+      }
+
+      // Crear todos los items de una vez
+      await tx.returnItem.createMany({
+        data: validItems.map((it) => ({
+          batchId: rb.id,
+          eppId: it.eppId,
+          quantity: it.quantity,
+          condition: data.condition,
+        })),
+      });
+
+      // ajustar stock solo si es REUSABLE (bulk operations)
+      if (data.condition === "REUSABLE") {
+        // Agrupar por warehouse para optimizar upserts
+        const warehouseGroups = validItems.reduce((acc, it) => {
+          if (!acc[it.warehouseId]) acc[it.warehouseId] = [];
+          acc[it.warehouseId].push(it);
+          return acc;
+        }, {} as Record<number, typeof validItems>);
+
+        // Ejecutar upserts por warehouse
+        for (const [warehouseId, items] of Object.entries(warehouseGroups)) {
+          const whId = parseInt(warehouseId);
+          await Promise.all(
+            items.map((it) =>
+              tx.ePPStock.upsert({
+                where: {
+                  eppId_warehouseId: {
+                    eppId: it.eppId,
+                    warehouseId: whId,
+                  },
+                },
+                update: { quantity: { increment: it.quantity } },
+                create: {
+                  eppId: it.eppId,
+                  warehouseId: whId,
+                  quantity: it.quantity,
+                },
+              })
+            )
+          );
         }
       }
 

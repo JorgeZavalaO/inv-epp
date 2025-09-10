@@ -26,7 +26,8 @@ export interface BatchRow {
   items: number;
 }
 
-interface DeliveryBatch {
+// Lightweight batch row from list endpoint
+interface DeliveryBatchListItem {
   id: number;
   code: string;
   createdAt: string;
@@ -37,6 +38,10 @@ interface DeliveryBatch {
   user: { name: string | null; email: string };
   warehouse: { name: string };
   _count: { deliveries: number };
+}
+
+// Detailed batch from /api/delivery-batches/[id]
+interface DeliveryBatchDetail extends DeliveryBatchListItem {
   deliveries: { eppId: number; quantity: number }[];
 }
 
@@ -68,7 +73,7 @@ interface PaginationInfo {
 }
 
 interface ApiResponse {
-  batches: DeliveryBatch[];
+  batches: DeliveryBatchListItem[];
   pagination: PaginationInfo;
 }
 
@@ -88,15 +93,15 @@ interface Props {
 }
 
 export default function DeliveryBatchesClient({ searchParams }: Props) {
-  const [data, setData] = useState<DeliveryBatch[]>([]);
+  const [data, setData] = useState<DeliveryBatchListItem[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ collaborators: [], warehouses: [] });
   const [locations, setLocations] = useState<FilterOption[]>([]);
   const [stats, setStats] = useState<DeliveryStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [editingItem, setEditingItem] = useState<DeliveryBatch | null>(null);
-  const [deleting, setDeleting] = useState<DeliveryBatch | null>(null);
+  const [editingItem, setEditingItem] = useState<DeliveryBatchDetail | null>(null);
+  const [deleting, setDeleting] = useState<DeliveryBatchListItem | null>(null);
   
   const router = useRouter();
   const urlSearchParams = useSearchParams();
@@ -342,9 +347,15 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
           ) : (
             <DeliveryBatchTable
               data={tableData}
-              onEdit={(row) => {
-                const match = data.find((b) => b.id === row.id);
-                if (match) setEditingItem(match);
+              onEdit={async (row) => {
+                try {
+                  const res = await fetch(`/api/delivery-batches/${row.id}`);
+                  if (!res.ok) throw new Error('Error al cargar el lote');
+                  const full: DeliveryBatchDetail = await res.json();
+                  setEditingItem(full);
+                } catch (e) {
+                  console.error(e);
+                }
               }}
               onDelete={(row) => {
                 const match = data.find((b) => b.id === row.id);
