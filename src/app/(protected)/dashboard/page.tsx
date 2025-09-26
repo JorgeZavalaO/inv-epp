@@ -1,7 +1,6 @@
-import { Suspense } from "react";
-import { fetchDashboardData } from "@/lib/dashboard";
+import dynamic from "next/dynamic";
+import { fetchDashboardDataCached } from "@/lib/dashboard-cached";
 import KpiCard from "@/components/dashboard/KpiCard";
-import DashboardCharts from "@/components/dashboard/DashboardCharts";
 import { 
   Package, 
   Boxes, 
@@ -10,8 +9,26 @@ import {
   AlertTriangle 
 } from "lucide-react";
 
+// ✅ OPTIMIZACIÓN: Lazy load de componentes pesados
+const DashboardCharts = dynamic(
+  () => import("@/components/dashboard/DashboardCharts"),
+  {
+    loading: () => (
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 h-96 bg-muted/50 rounded-lg animate-pulse" />
+        <div className="h-96 bg-muted/50 rounded-lg animate-pulse" />
+        <div className="lg:col-span-2 h-96 bg-muted/50 rounded-lg animate-pulse" />
+        <div className="h-96 bg-muted/50 rounded-lg animate-pulse" />
+      </div>
+    ),
+  }
+);
+
+// ✅ OPTIMIZACIÓN: Cache de página de 2 minutos
+export const revalidate = 120;
+
 export default async function DashboardPage() {
-  const data = await fetchDashboardData();
+  const data = await fetchDashboardDataCached();
 
   const kpiItems = [
     {
@@ -63,19 +80,8 @@ export default async function DashboardPage() {
         ))}
       </section>
 
-      {/* Charts Section */}
-      <Suspense 
-        fallback={
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 h-96 bg-muted/50 rounded-lg animate-pulse" />
-            <div className="h-96 bg-muted/50 rounded-lg animate-pulse" />
-            <div className="lg:col-span-2 h-96 bg-muted/50 rounded-lg animate-pulse" />
-            <div className="h-96 bg-muted/50 rounded-lg animate-pulse" />
-          </div>
-        }
-      >
-        <DashboardCharts data={data} />
-      </Suspense>
+      {/* Charts Section - Con lazy loading optimizado */}
+      <DashboardCharts data={data} />
     </div>
   );
 }

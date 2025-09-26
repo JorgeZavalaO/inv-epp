@@ -21,25 +21,68 @@ import {
   Hash
 } from "lucide-react";
 
+// ✅ OPTIMIZACIÓN: Cache de 5 minutos para páginas de detalles
+export const revalidate = 300;
+
+// ✅ OPTIMIZACIÓN: Consulta optimizada con select específico
+async function getBatchDetails(id: number) {
+  return prisma.deliveryBatch.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      code: true,
+      createdAt: true,
+      note: true,
+      collaborator: {
+        select: {
+          name: true,
+          position: true,
+          location: true,
+        }
+      },
+      warehouse: {
+        select: {
+          name: true,
+        }
+      },
+      user: {
+        select: {
+          name: true,
+          email: true,
+        }
+      },
+      deliveries: {
+        select: {
+          id: true,
+          quantity: true,
+          epp: {
+            select: {
+              code: true,
+              name: true,
+            }
+          }
+        },
+        orderBy: {
+          id: 'asc'
+        }
+      }
+    }
+  });
+}
+
 export default async function DeliveryBatchDetail({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const batchId = Number(id);
   
-  const b = await prisma.deliveryBatch.findUnique({
-    where: { id: Number(id) },
-    include: {
-      collaborator: { select: { name: true, position: true, location: true } },
-      user: { select: { name: true, email: true } },
-      deliveries: {
-        include: { epp: { select: { code: true, name: true } } },
-        orderBy: { id: "asc" },
-      },
-      warehouse: { select: { name: true } },
-    },
-  });
+  if (Number.isNaN(batchId)) {
+    notFound();
+  }
+  
+  const b = await getBatchDetails(batchId);
   
   if (!b) notFound();
 

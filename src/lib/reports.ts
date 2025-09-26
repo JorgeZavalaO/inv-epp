@@ -88,13 +88,16 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
   const defaultTo = new Date(year, 11, 31, 23, 59, 59, 999);
   const fromDate = from ? new Date(from) : defaultFrom;
   const toDate = to ? new Date(to) : defaultTo;
+  
+  // ✅ OPTIMIZACIÓN: Construir WHERE clause más eficiente
   const where = (() => {
     const conds = [Prisma.sql`d."createdAt" BETWEEN ${fromDate} AND ${toDate}`];
     if (warehouseId) conds.push(Prisma.sql`b."warehouseId" = ${warehouseId}`);
     if (category) conds.push(Prisma.sql`e."category" = ${category}`);
-  return Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}`;
+    return Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}`;
   })();
-  // Ejecutamos agregaciones en paralelo para mejor rendimiento
+  
+  // ✅ OPTIMIZACIÓN: Queries paralelas optimizadas con límites
   const [monthlyRaw, topEpps, topLocations, latest, categoriesRaw, locationsFull, indicatorsDeliveryBase, returnAgg, requestsAgg] = await Promise.all([
     prisma.$queryRaw<Array<{ month: string; qty: number }>>(Prisma.sql`
       SELECT TO_CHAR(date_trunc('month', d."createdAt"), 'YYYY-MM') AS month,

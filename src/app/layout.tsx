@@ -26,7 +26,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <ClerkProvider>
       <html lang="es" className="h-full">
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased h-full bg-slate-50 text-slate-900`}>
+        <body 
+          className={`${geistSans.variable} ${geistMono.variable} antialiased h-full bg-slate-50 text-slate-900`}
+          suppressHydrationWarning={true}
+        >
           {children}
           <Toaster />
           <Analytics /> 

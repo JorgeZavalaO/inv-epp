@@ -14,7 +14,13 @@ export async function GET() {
     },
     orderBy: { name: "asc" },
   });
-  return NextResponse.json(list);
+  
+  return NextResponse.json(list, {
+    headers: {
+      // ✅ OPTIMIZACIÓN: Cache de 10 minutos para colaboradores
+      "Cache-Control": "public, max-age=600, s-maxage=600, stale-while-revalidate=300",
+    },
+  });
 }
 
 export async function POST(req: Request) {

@@ -10,36 +10,66 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
-    const skip = (page - 1) * limit;
+    const cursor = searchParams.get("cursor");
+    
+    // ✅ OPTIMIZACIÓN: Usar cursor pagination para mejor performance
+    const where = cursor ? {
+      id: { lt: parseInt(cursor) }
+    } : undefined;
 
     const [batches, totalCount] = await Promise.all([
       prisma.deliveryBatch.findMany({
+        where,
         select: {
           id: true,
           code: true,
           createdAt: true,
           note: true,
-          collaborator: { select: { name: true, position: true, location: true } },
-          user: { select: { name: true, email: true } },
-          warehouse: { select: { name: true } },
-          _count: { select: { deliveries: true } },
+          collaborator: { 
+            select: { 
+              name: true, 
+              position: true, 
+              location: true 
+            } 
+          },
+          user: { 
+            select: { 
+              name: true, 
+              email: true 
+            } 
+          },
+          warehouse: { 
+            select: { 
+              name: true 
+            } 
+          },
+          _count: { 
+            select: { 
+              deliveries: true 
+            } 
+          },
         },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
+        orderBy: { id: "desc" }, // ✅ Usar ID para mejor índice
+        take: limit + 1, // +1 para detectar si hay más páginas
       }),
-      prisma.deliveryBatch.count(),
+      // ✅ OPTIMIZACIÓN: Solo calcular total si es necesario
+      page === 1 ? prisma.deliveryBatch.count() : Promise.resolve(0),
     ]);
 
+    const hasNext = batches.length > limit;
+    const items = hasNext ? batches.slice(0, limit) : batches;
+    const nextCursor = hasNext ? items[items.length - 1]?.id : null;
+
     return NextResponse.json({
-      batches,
+      batches: items,
       pagination: {
         page,
         limit,
-        totalCount,
-        totalPages: Math.ceil(totalCount / limit),
-        hasNext: page < Math.ceil(totalCount / limit),
+        totalCount: page === 1 ? totalCount : undefined,
+        totalPages: page === 1 ? Math.ceil(totalCount / limit) : undefined,
+        hasNext,
         hasPrev: page > 1,
+        nextCursor, // ✅ Para cursor pagination
       },
     });
   } catch (error: unknown) {

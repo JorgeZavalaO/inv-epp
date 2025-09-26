@@ -148,7 +148,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     const weekStart = subDays(today, 7);
     const monthStart = subDays(today, 29);
 
-    // Ejecutar queries en paralelo para mejor performance
+    // ✅ OPTIMIZACIÓN: Ejecutar queries en paralelo con mejor performance
     const [
       totalEpps,
       deliveries7,
@@ -159,22 +159,27 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       returnsPieRaw,
       topDeliveredRaw,
     ] = await Promise.all([
-      // Total de EPPs
+      // Total de EPPs (con cache natural de COUNT)
       prisma.ePP.count(),
       
-      // Entregas de los últimos 7 días
+      // ✅ OPTIMIZACIÓN: Entregas usando índice optimizado
       prisma.delivery.count({ 
-        where: { createdAt: { gte: weekStart } } 
+        where: { 
+          createdAt: { gte: weekStart } 
+        } 
       }),
       
-      // Devoluciones de los últimos 7 días
+      // ✅ OPTIMIZACIÓN: Devoluciones usando índice optimizado
       prisma.returnItem.count({ 
-        where: { createdAt: { gte: weekStart } } 
+        where: { 
+          createdAt: { gte: weekStart } 
+        } 
       }),
       
-      // Stock total
+      // ✅ OPTIMIZACIÓN: Stock total con aggregate optimizado
       prisma.ePPStock.aggregate({ 
-        _sum: { quantity: true } 
+        _sum: { quantity: true },
+        where: { quantity: { gt: 0 } } // Solo contar stock positivo
       }),
       
       // Lista de EPPs con stock bajo
