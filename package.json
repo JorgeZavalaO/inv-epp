@@ -21,7 +21,7 @@
     "@auth/prisma-adapter": "^2.9.1",
     "@clerk/clerk-sdk-node": "^5.1.6",
     "@clerk/nextjs": "^6.19.4",
-    "@hookform/resolvers": "^5.0.1",
+    "@hookform/resolvers": "^3.9.0",
     "@prisma/client": "^6.8.2",
     "@radix-ui/react-alert-dialog": "^1.1.13",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -62,7 +62,7 @@
     "tailwind-merge": "^3.3.0",
     "use-debounce": "^10.0.4",
     "vaul": "^1.1.2",
-    "zod": "^3.24.4"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
