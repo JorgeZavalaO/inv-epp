@@ -14,15 +14,6 @@ Error: A <Select.Item /> must have a value prop that is not an empty string.
 
 ## 📚 Documentación Unificada
 
-### Archivos Eliminados (Obsoletos)
-- ❌ `QUICK_ACCESS.md`
-- ❌ `IMPLEMENTATION_COMPLETE.md`
-- ❌ `AUDIT_UI_GUIDE.md`
-- ❌ `AUDIT_SYSTEM.md`
-
-### Archivo Unificado Creado
-- ✅ `AUDIT_DOCUMENTATION.md` (Completo, ~600 líneas)
-
 **Contiene:**
 1. 🚀 Acceso Rápido
 2. ✨ Características del Sistema
