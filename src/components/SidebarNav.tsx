@@ -9,7 +9,7 @@ import {
   Handshake,
   // ClipboardList,
   // FileBarChart2,
-  // ShieldCheck,
+  ShieldCheck,
   Settings,
   RotateCcw,
   SendToBack,
@@ -52,6 +52,7 @@ const sections = [
     title: 'Reportes', 
     items: [
       { href: '/reports', label: 'Informes', icon: <LayoutDashboard size={18} />, description: 'Reportes y métricas' },
+      { href: '/audit-logs', label: 'Auditoría', icon: <ShieldCheck size={18} />, description: 'Historial de cambios' },
     ]
   },
   // { 

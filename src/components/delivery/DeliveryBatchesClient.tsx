@@ -357,10 +357,11 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
                   console.error(e);
                 }
               }}
-              onDelete={(row) => {
-                const match = data.find((b) => b.id === row.id);
-                if (match) setDeleting(match);
-              }}
+              // TEMPORALMENTE DESHABILITADO: Se está eliminando registros por accidente
+              // onDelete={(row) => {
+              //   const match = data.find((b) => b.id === row.id);
+              //   if (match) setDeleting(match);
+              // }}
             />
           )}
 

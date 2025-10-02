@@ -11,6 +11,12 @@
       "maxDuration": 30
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-audit-logs",
+      "schedule": "0 2 * * *"
+    }
+  ],
   "regions": ["cle1"],
   "build": {
     "env": {

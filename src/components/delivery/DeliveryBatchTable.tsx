@@ -19,10 +19,10 @@ export interface BatchRow {
 interface Props {
   data: BatchRow[];
   onEdit(row: BatchRow): void;
-  onDelete(row: BatchRow): void;
+  // onDelete(row: BatchRow): void; // TEMPORALMENTE DESHABILITADO
 }
 
-export default function DeliveryBatchTable({ data, onEdit, onDelete }: Props) {
+export default function DeliveryBatchTable({ data, onEdit }: Props) {
   const columns: ColumnDef<BatchRow>[] = [
     { accessorKey: "code", header: "Código" },
     {
@@ -60,7 +60,8 @@ export default function DeliveryBatchTable({ data, onEdit, onDelete }: Props) {
             <Button size="sm">Ver</Button>
           </Link>
           <Button size="sm" variant="secondary" aria-label={`Editar entrega ${row.original.code}`} onClick={() => onEdit(row.original)}>Editar</Button>
-          <Button size="sm" variant="destructive" aria-label={`Eliminar entrega ${row.original.code}`} onClick={() => onDelete(row.original)}>Eliminar</Button>
+          {/* TEMPORALMENTE DESHABILITADO: Se está eliminando registros por accidente */}
+          {/* <Button size="sm" variant="destructive" aria-label={`Eliminar entrega ${row.original.code}`} onClick={() => onDelete(row.original)}>Eliminar</Button> */}
         </div>
       ),
     },
