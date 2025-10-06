@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { useUser } from "@clerk/nextjs";
+import { useSession } from "next-auth/react";
 
 import { createReturnBatch } from "@/app/(protected)/returns/actions";
 import ReturnForm, { DetailRow } from "./ReturnForm";
@@ -43,7 +43,7 @@ export default function ModalCreateReturn({
   onClose(): void;
   onCreated(): void;
 }) {
-  const { user } = useUser();
+  const { data: session } = useSession();
   const [batches, setBatches] = React.useState<BatchRow[]>([]);
   const [isPending, start] = useTransition();
 
@@ -81,9 +81,9 @@ export default function ModalCreateReturn({
             <DialogClose />
           </div>
 
-          {user && (
+          {session?.user && (
             <p className="text-sm text-muted-foreground">
-              Usuario: {user.fullName ?? user.primaryEmailAddress?.emailAddress}
+              Usuario: {session.user.name ?? session.user.email}
             </p>
           )}
         </DialogHeader>

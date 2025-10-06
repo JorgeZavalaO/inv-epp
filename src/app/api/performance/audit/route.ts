@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { analyzePerformance, benchmarkAuditOperations, detectMemoryLeaks } from '@/lib/performance/audit-analyzer';
 import { getAuditSystemHealth } from '@/lib/performance/diagnostic';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
     // Verificar autenticación
-    const { userId } = await auth();
-    if (!userId) {
+    const session = await auth();
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 

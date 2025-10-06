@@ -1,21 +1,41 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
+import { NextResponse } from 'next/server';
 
-const isPublicRoute = createRouteMatcher([
-  '/sign-in(.*)',
-  '/sign-up(.*)',
+// Rutas públicas que no requieren autenticación
+const publicRoutes = [
+  '/auth/signin',
+  '/auth/signup',
+  '/auth/error',
   '/',
-  '/api/health' // ✅ Health check público para monitoreo de Vercel
-])
+  '/api/health',
+  '/api/auth',
+];
 
-export default clerkMiddleware(async (auth, req) => {
-  // Permitir health checks sin autenticación
-  if (req.nextUrl.pathname === '/api/health') {
-    return;
+export default auth((req) => {
+  const { nextUrl } = req;
+  const isLoggedIn = !!req.auth;
+  
+  // Permitir rutas públicas
+  const isPublicRoute = publicRoutes.some(route => 
+    nextUrl.pathname.startsWith(route)
+  );
+  
+  if (isPublicRoute) {
+    // Si ya está logueado y trata de ir a signin, redirigir a dashboard
+    if (isLoggedIn && nextUrl.pathname.startsWith('/auth/signin')) {
+      return NextResponse.redirect(new URL('/dashboard', nextUrl));
+    }
+    return NextResponse.next();
   }
   
-  if (!isPublicRoute(req)) {
-    await auth.protect();
+  // Redirigir a login si no está autenticado
+  if (!isLoggedIn) {
+    const loginUrl = new URL('/auth/signin', nextUrl);
+    loginUrl.searchParams.set('callbackUrl', nextUrl.pathname);
+    return NextResponse.redirect(loginUrl);
   }
+  
+  return NextResponse.next();
 });
 
 export const config = {

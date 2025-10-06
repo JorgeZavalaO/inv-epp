@@ -17,14 +17,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
     // Verificar autenticación
-    const { userId } = await auth();
-    if (!userId) {
+    const session = await auth();
+    if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 401 }
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const where: {
       entityType?: string;
       entityId?: number;
-      userId?: number;
+      userId?: string; // Cambiado a string para Auth.js
       action?: 'CREATE' | 'UPDATE' | 'DELETE';
       createdAt?: {
         gte?: Date;
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     if (entityType) where.entityType = entityType;
     if (entityId) where.entityId = parseInt(entityId);
-    if (userIdFilter) where.userId = parseInt(userIdFilter);
+    if (userIdFilter) where.userId = userIdFilter; // Ya es string, no parsear
     if (action) where.action = action as 'CREATE' | 'UPDATE' | 'DELETE';
     
     if (dateFrom || dateTo) {

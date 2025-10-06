@@ -1,0 +1,104 @@
+import type { NextAuthConfig } from 'next-auth';
+import Credentials from 'next-auth/providers/credentials';
+import { compare } from 'bcryptjs';
+import prisma from '@/lib/prisma';
+import { z } from 'zod';
+
+const loginSchema = z.object({
+  email: z.string().email({ message: 'Email inválido' }),
+  password: z.string().min(6, { message: 'La contraseña debe tener al menos 6 caracteres' }),
+});
+
+export default {
+  providers: [
+    Credentials({
+      name: 'Credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Contraseña', type: 'password' }
+      },
+      async authorize(credentials) {
+        try {
+          // Validar credenciales
+          const { email, password } = loginSchema.parse(credentials);
+
+          // Buscar usuario
+          const user = await prisma.user.findUnique({
+            where: { email },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              password: true,
+              role: true,
+              isActive: true,
+              image: true,
+            },
+          });
+
+          if (!user) {
+            console.log('Usuario no encontrado:', email);
+            return null;
+          }
+
+          if (!user.isActive) {
+            console.log('Usuario inactivo:', email);
+            return null;
+          }
+
+          // Verificar contraseña
+          const isValid = await compare(password, user.password);
+
+          if (!isValid) {
+            console.log('Contraseña inválida para:', email);
+            return null;
+          }
+
+          // Actualizar último login
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+          });
+
+          // Retornar usuario (sin password)
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            image: user.image,
+          };
+        } catch (error) {
+          console.error('Error en authorize:', error);
+          return null;
+        }
+      },
+    }),
+  ],
+  pages: {
+    signIn: '/auth/signin',
+    error: '/auth/error',
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        session.user.role = token.role as any;
+      }
+      return session;
+    },
+  },
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 días
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+} satisfies NextAuthConfig;

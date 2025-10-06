@@ -25,7 +25,7 @@ type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE';
 type AnyRecord = Record<string, any>;
 
 export interface AuditLogInput {
-  userId: number;
+  userId: string; // Actualizado para Auth.js
   action: AuditAction;
   entityType: string;
   entityId: number;
@@ -173,7 +173,7 @@ function filterSensitiveData(data: AnyRecord): AnyRecord {
  * Helper para auditar una operación CREATE
  */
 export async function auditCreate(
-  userId: number,
+  userId: string,
   entityType: string,
   entityId: number,
   values: AnyRecord,
@@ -193,7 +193,7 @@ export async function auditCreate(
  * Helper para auditar una operación UPDATE
  */
 export async function auditUpdate(
-  userId: number,
+  userId: string,
   entityType: string,
   entityId: number,
   oldValues: AnyRecord,
@@ -215,7 +215,7 @@ export async function auditUpdate(
  * Helper para auditar una operación DELETE
  */
 export async function auditDelete(
-  userId: number,
+  userId: string,
   entityType: string,
   entityId: number,
   values: AnyRecord,
@@ -271,7 +271,7 @@ export async function getAuditLogs(
  * Obtiene logs de auditoría por usuario
  */
 export async function getUserAuditLogs(
-  userId: number,
+  userId: string,
   options?: {
     limit?: number;
     offset?: number;

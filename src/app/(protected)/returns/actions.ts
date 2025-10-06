@@ -3,7 +3,7 @@
 import prisma                    from "@/lib/prisma";
 import { returnBatchSchema }     from "@/schemas/return-schema";
 import { revalidatePath }        from "next/cache";
-import { ensureClerkUser }       from "@/lib/user-sync";
+import { ensureAuthUser }        from "@/lib/auth-utils";
 //import { z }                     from "zod";
 
 /*─────────────────────────────────────────────────────
@@ -13,7 +13,7 @@ export async function createReturnBatch(fd: FormData) {
   const raw  = JSON.parse(fd.get("payload") as string);
   const data = returnBatchSchema.parse(raw);
 
-  const operator = await ensureClerkUser();
+  const operator = await ensureAuthUser();
 
   await prisma.$transaction(async (tx) => {
     /* ─ 1) Generar código correlativo RB-0001 … ─ */

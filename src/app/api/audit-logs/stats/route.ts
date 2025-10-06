@@ -7,14 +7,14 @@
  */
 
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 
 export async function GET() {
   try {
     // Verificar autenticación
-    const { userId } = await auth();
-    if (!userId) {
+    const session = await auth();
+    if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 401 }

@@ -1,3 +1,7 @@
+<!--
+README CONSOLIDADO
+-->
+
 # 📦 Sistema de Gestión de Inventario EPP
 
 <div align="center">
@@ -34,6 +38,10 @@ Sistema integral para la administración de Equipos de Protección Personal (EPP
 - [API y Endpoints](#-api-y-endpoints)
 - [Mantenimiento y Monitoreo](#-mantenimiento-y-monitoreo)
 - [Roadmap de Funcionalidades](#-roadmap-de-funcionalidades)
+- [Gestión de Usuarios (Módulo Interno)](#-gestión-de-usuarios-módulo-interno)
+- [Autenticación (Auth.js) & Roles](#-autenticación-authjs--roles)
+- [Sistema de Auditoría](#-sistema-de-auditoría)
+- [Performance del Sistema de Auditoría](#-performance-del-sistema-de-auditoría)
 - [Contribución](#-contribución)
 - [Licencia](#-licencia)
 
@@ -507,85 +515,35 @@ while (attempt < MAX_RETRIES) {
 - ✅ **Tolerancia a fallos** automática
 - ✅ **Performance sin impacto** (solo si hay conflicto)
 
-### 3. Sistema de Auditoría y Trazabilidad
+### 3. Sistema de Auditoría y Trazabilidad (Resumen)
 
-**Implementado:** Sistema completo de auditoría para rastrear todas las operaciones críticas del sistema.
+Sistema robusto de auditoría incorporado (ver sección dedicada más abajo para detalles completos):
 
-**Características:**
-- ✅ **Logging Asíncrono**: No impacta la performance de operaciones principales
-- ✅ **Retención Automática**: Limpieza por TTL según criticidad de la entidad
-- ✅ **Solo Cambios**: Almacena diferencias (diff), no objetos completos
-- ✅ **Consultas Optimizadas**: Índices especializados para búsquedas rápidas
-- ✅ **Limpieza Automatizada**: Vercel Cron Job diario a las 2:00 AM
+- Logging asíncrono (overhead ~3ms)
+- Retención automática por tipo de entidad (TTL)
+- Almacenamiento de diffs en lugar de snapshots completos
+- Índices dedicados para queries rápidas
+- Limpieza programada diaria vía Vercel Cron (`/api/cron/cleanup-audit-logs`)
+- Interfaz administrativa: `/audit-logs` con filtros y estadísticas
 
-**Entidades Auditadas:**
+Entidades y retención:
+```
+DeliveryBatch, Delivery, ReturnBatch, ReturnItem: 2 años
+StockMovement, EPPStock: 1 año
+EPP, Collaborator, Warehouse: 6 meses
+```
 
-| Entidad | Retención | Operaciones |
-|---------|-----------|-------------|
-| DeliveryBatch | 2 años | CREATE, UPDATE, DELETE |
-| Delivery | 2 años | CREATE, UPDATE, DELETE |
-| ReturnBatch | 2 años | CREATE, UPDATE, DELETE |
-| ReturnItem | 2 años | CREATE, UPDATE, DELETE |
-| StockMovement | 1 año | CREATE |
-| EPPStock | 1 año | UPDATE |
-| EPP | 6 meses | CREATE, UPDATE, DELETE |
-| Collaborator | 6 meses | CREATE, UPDATE, DELETE |
-| Warehouse | 6 meses | CREATE, UPDATE, DELETE |
+Variables de entorno adicionales (producción):
+```
+CRON_SECRET=<token seguro generado con openssl rand -base64 32>
+```
 
-**Impacto en Performance:**
-- Overhead por auditoría: **~3ms** (+6.7%)
-- Logging asíncrono con `setImmediate`
-- Almacenamiento estimado: **10-100 MB/mes** según uso
-
-**Endpoints de Auditoría:**
-
-```http
-# Obtener logs con filtros
-GET /api/audit-logs?entityType=DeliveryBatch&entityId=123&page=1&limit=20
-
-# Obtener estadísticas
+Endpoints clave:
+```
+GET /api/audit-logs
 GET /api/audit-logs/stats
+GET /api/cron/cleanup-audit-logs (interno / Cron)
 ```
-
-**Configuración en Vercel:**
-
-Agregar variable de entorno:
-```env
-CRON_SECRET=tu-secreto-seguro-generado
-```
-
-Generar secreto:
-```bash
-openssl rand -base64 32
-```
-
-**Archivos del Sistema:**
-- `prisma/schema.prisma` - Modelo AuditLog
-- `src/lib/audit/config.ts` - Configuración de retención
-- `src/lib/audit/logger.ts` - Sistema de logging
-- `src/app/api/audit-logs/route.ts` - API de consulta
-- `src/app/api/audit-logs/stats/route.ts` - API de estadísticas
-- `src/app/api/cron/cleanup-audit-logs/route.ts` - Endpoint de limpieza
-- `scripts/cleanup-audit-logs.ts` - Script manual de limpieza
-- `vercel.json` - Configuración de cron job
-- `src/app/(protected)/audit-logs/page.tsx` - **Página de visualización**
-- `src/components/audit/AuditLogsClient.tsx` - **Componente UI**
-
-**Acceso a la Interfaz Visual:**
-1. Navega a `/audit-logs` en la aplicación
-2. O desde el menú: **Reportes → Auditoría** 🛡️
-3. Filtra logs por entidad, acción, usuario, fecha
-4. Visualiza estadísticas en tiempo real
-5. Explora cambios con formato JSON legible
-
-**Documentación completa:** Ver [AUDIT_DOCUMENTATION.md](./AUDIT_DOCUMENTATION.md) para:
-- Guía de acceso rápido
-- Características del sistema
-- API Reference completa
-- Ejemplos de integración
-- Configuración técnica
-- Troubleshooting
-- Guía de uso de la interfaz
 
 ---
 
@@ -788,6 +746,152 @@ const prisma = new PrismaClient({
 
 ---
 
+## 👥 Gestión de Usuarios (Módulo Interno)
+
+El sistema diferencia entre:
+- Usuarios de aplicación (autenticación / roles / permisos)
+- Colaboradores (personas que reciben EPP)
+
+### Roles Jerárquicos
+`ADMIN > SUPERVISOR > WAREHOUSE_MANAGER > OPERATOR > VIEWER`
+
+### Permisos Granulares (28)
+Agrupados por módulos: dashboard, epp, warehouse, stock, delivery, return, collaborator, user.
+Ejemplos: `delivery_create`, `stock_transfer`, `assign_roles`.
+
+### Principales Acciones (Server Actions)
+- `getUsers`, `getUserById`
+- `createUser`, `updateUser`, `changeUserPassword`
+- `deleteUser` (soft delete → convierte a VIEWER + revoca permisos)
+- `assignPermissions`, `getAllPermissions`, `getUserStats`
+
+### Seguridad
+- No puede eliminarse el último ADMIN.
+- No se permite autodesasignación destructiva de rol.
+- Eliminación suave (integridad histórica / auditoría).
+
+### UI
+`/users` incluye: tabla, búsqueda reactiva, modales de creación/edición, gestión de permisos por lotes, cambio de contraseña y control de acciones según permisos.
+
+### Mejoras Futuras Sugeridas
+- Exportación a Excel, plantillas de permisos, historial de cambios en roles, notificaciones de seguridad.
+
+---
+
+## 🔐 Autenticación (Auth.js) & Roles
+
+Migración completa desde Clerk a Auth.js con provider de credenciales.
+
+### Variables de Entorno Requeridas
+```
+NEXTAUTH_SECRET=<openssl rand -base64 32>
+NEXTAUTH_URL=http://localhost:3000   # Producción: URL pública
+DATABASE_URL=postgresql://...
+```
+
+### Flujo Básico
+1. Ejecutar script de contraseña para usuario existente:
+   `pnpm tsx scripts/set-user-password.ts`
+2. Iniciar sesión en `/auth/signin`.
+3. Registro opcional en `/auth/signup` (usuario inicial ADMIN).
+
+### Roles & Permisos
+Implementados mediante enum `UserRole` + tablas `Permission` y `UserPermission`.
+
+### Estado de Migración
+- Clerk eliminado (dependencias removidas / variables limpiadas)
+- Sistema de auditoría adaptado a IDs string
+- Middleware adaptado (`src/middleware.ts`)
+
+---
+
+## 🛡 Sistema de Auditoría
+
+### Objetivo
+Trazabilidad total de operaciones críticas (CREATE, UPDATE, DELETE) con bajo impacto de performance y retención configurable.
+
+### Modelo (Resumen)
+`AuditLog(id, userId, action, entityType, entityId, changes, metadata, createdAt, expiresAt)`
+
+### Cambios Registrados
+- CREATE: snapshot esencial
+- UPDATE: solo diffs `{ field: { from, to } }`
+- DELETE: snapshot ligero previo
+
+### Optimización
+- Logging asíncrono + batching (versión optimizada disponible con cola y rate limiting)
+- Índices: `(entityType, entityId)`, `(userId)`, `(createdAt)`, `(expiresAt)`
+
+### UI Interactiva
+- Ruta: `/audit-logs`
+- Panel de métricas, filtros avanzados, tabla paginada, JSON legible, paginación.
+
+### Retención & Limpieza
+- Cron diario (2:00 AM) ejecuta limpieza: expira según política declarada en `src/lib/audit/config.ts`.
+
+### Filtros API
+`entityType, entityId, userId, action, dateFrom, dateTo, page, limit`
+
+### Ejemplo de Dif (UPDATE)
+```json
+{
+  "collaboratorId": { "from": 5, "to": 8 },
+  "note": { "from": "Entrega mensual", "to": "Entrega mensual actualizada" }
+}
+```
+
+### Seguridad
+- Filtrado de campos sensibles (password, token, apiKey, secret, etc.)
+- Acceso autenticado obligatorio
+
+### Métricas
+- Overhead medio: ~3ms por operación auditada
+- Almacenamiento mensual estimado: 10–100MB según volumen
+
+### Scripts / Archivos Relevantes
+```
+prisma/schema.prisma           # Modelo AuditLog
+src/lib/audit/config.ts        # Retención
+src/lib/audit/logger.ts        # Logger base
+scripts/cleanup-audit-logs.ts  # Limpieza manual
+vercel.json                    # Cron job
+```
+
+---
+
+## ⚙️ Performance del Sistema de Auditoría
+
+Se añadió un logger optimizado (batching + rate limiting) y monitoreo en tiempo real.
+
+### Parámetros (Resumen)
+```
+BATCH_SIZE=10
+BATCH_TIMEOUT=5000 ms
+MAX_QUEUE_SIZE=100
+RATE_LIMIT=50 logs/min/usuario
+MAX_CHANGES_SIZE=50KB (compresión)
+```
+
+### Componentes de Monitoreo
+```
+src/lib/performance/audit-analyzer.ts
+src/lib/performance/diagnostic.ts
+src/app/api/performance/audit/route.ts
+src/app/api/performance/quick-check/route.ts
+src/components/performance/PerformanceMonitorClient.tsx
+```
+
+### Resultados Estimados
+- Throughput +300%
+- Uso de memoria en picos -60%
+- Latencia media -75%
+- CPU -40% durante lotes
+
+### Pruebas de Carga
+Presets (light, moderate, heavy, stress) mediante utilidades internas.
+
+---
+
 ## 🤝 Contribución
 
 ### Cómo Contribuir
@@ -842,3 +946,30 @@ Para preguntas, sugerencias o problemas:
 Hecho con ❤️ usando Next.js y TypeScript
 
 </div>
+
+---
+
+## 🗂️ Changelog
+
+### 2025-10-06
+- Consolidación de toda la documentación dispersa en un único README.
+- Eliminados (o vaciados para futura remoción) archivos markdown obsoletos: migraciones Auth.js, auditoría, performance, usuarios, guías de pasos y resúmenes históricos.
+- Añadidas secciones nuevas: Gestión de Usuarios, Autenticación & Roles, Sistema de Auditoría, Performance del Sistema de Auditoría.
+- Estandarización de terminología (entidades auditadas, roles, permisos, batching y retención).
+- Preparado terreno para eliminación física definitiva de placeholders (actualmente vacíos) en un próximo commit de limpieza.
+
+### 2025-10 (Anterior)
+- Implementación del sistema de auditoría con retención y cron de limpieza.
+- Migración completa de Clerk a Auth.js con roles y permisos granulares.
+- Módulo de gestión de usuarios avanzado (CRUD, permisos, roles, protección de último admin).
+- Optimización de rendimiento (índices, caché, batching en auditoría, reducción de bundle).
+
+### 2025-09
+- Índices de performance adicionales en base de datos.
+- Mejoras de dashboards y reducción de tiempos de consulta.
+
+### 2025-08 y previos
+- Funcionalidades base: inventario, entregas, devoluciones, reportes, multi-almacén.
+- Exportaciones (Excel/PDF) y generación de códigos secuenciales con retry seguro.
+
+> Próximas entradas se agregarán cronológicamente con formato semántico (YYYY-MM-DD) enfocadas en cambios funcionales, migraciones y tareas de mantenimiento mayor.

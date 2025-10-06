@@ -3,11 +3,11 @@
 import prisma from "@/lib/prisma";
 import { stockMovementSchema } from "@/schemas/stock-movement-schema";
 import { revalidatePath } from "next/cache";
-import { ensureClerkUser } from "@/lib/user-sync";
+import { ensureAuthUser } from "@/lib/auth-utils";
 
 export async function createMovement(fd: FormData) {
   const data = stockMovementSchema.parse(Object.fromEntries(fd));
-  const dbUser = await ensureClerkUser();
+  const dbUser = await ensureAuthUser();
 
   await prisma.$transaction([
     prisma.stockMovement.create({

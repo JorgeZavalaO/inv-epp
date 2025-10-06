@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { deliveryBatchSchema } from "@/schemas/delivery-batch-schema";
-import { ensureClerkUser } from "@/lib/user-sync";
+import { ensureAuthUser } from "@/lib/auth-utils";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
@@ -20,7 +20,7 @@ export async function createDeliveryBatch(fd: FormData) {
     throw e;
   }
 
-  const operator = await ensureClerkUser();
+  const operator = await ensureAuthUser();
 
   // SOLUCIÓN ANTI-DUPLICACIÓN: Implementar retry logic con índice único
   // Si dos usuarios crean entregas simultáneamente y obtienen el mismo código,
@@ -165,7 +165,7 @@ export async function updateDeliveryBatch(fd: FormData) {
     throw e;
   }
 
-  const operator = await ensureClerkUser();
+  const operator = await ensureAuthUser();
   const batchId = data.batchId ?? data.id;
   if (!batchId) throw new Error("Identificador de lote (batchId) faltante");
   
@@ -264,7 +264,7 @@ export async function updateDeliveryBatch(fd: FormData) {
 }
 
 export async function deleteBatch(batchId: number) {
-  const operator = await ensureClerkUser();
+  const operator = await ensureAuthUser();
 
   // Capturar datos ANTES de eliminar para auditoría
   const batchToDelete = await prisma.deliveryBatch.findUnique({

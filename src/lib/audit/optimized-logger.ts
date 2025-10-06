@@ -18,7 +18,7 @@ type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE';
 type AnyRecord = Record<string, any>;
 
 export interface AuditLogInput {
-  userId: number;
+  userId: string; // Actualizado para Auth.js
   action: AuditAction;
   entityType: string;
   entityId: number;
@@ -34,7 +34,7 @@ export interface AuditLogInput {
 }
 
 interface BatchedLog {
-  userId: number;
+  userId: string; // Actualizado para Auth.js
   action: AuditAction;
   entityType: string;
   entityId: number;
@@ -60,7 +60,7 @@ class OptimizedAuditLogger {
     ENABLE_COMPRESSION: true,
   };
 
-  private userRateLimit = new Map<number, { count: number; resetTime: number }>();
+  private userRateLimit = new Map<string, { count: number; resetTime: number }>();
 
   static getInstance(): OptimizedAuditLogger {
     if (!OptimizedAuditLogger.instance) {
@@ -215,7 +215,7 @@ class OptimizedAuditLogger {
   /**
    * Rate limiting por usuario
    */
-  private checkRateLimit(userId: number): boolean {
+  private checkRateLimit(userId: string): boolean {
     const now = Date.now();
     const userLimit = this.userRateLimit.get(userId);
 
@@ -377,7 +377,7 @@ export async function createOptimizedAuditLog(input: AuditLogInput): Promise<voi
  * Helpers optimizados
  */
 export async function optimizedAuditCreate(
-  userId: number,
+  userId: string,
   entityType: string,
   entityId: number,
   values: AnyRecord,
@@ -394,7 +394,7 @@ export async function optimizedAuditCreate(
 }
 
 export async function optimizedAuditUpdate(
-  userId: number,
+  userId: string,
   entityType: string,
   entityId: number,
   oldValues: AnyRecord,
@@ -413,7 +413,7 @@ export async function optimizedAuditUpdate(
 }
 
 export async function optimizedAuditDelete(
-  userId: number,
+  userId: string,
   entityType: string,
   entityId: number,
   values: AnyRecord,

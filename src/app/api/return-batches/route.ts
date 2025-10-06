@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { returnBatchSchema } from "@/schemas/return-schema";
-import { ensureClerkUser } from "@/lib/user-sync";
+import { ensureAuthUser } from "@/lib/auth-utils";
 import { z } from "zod";
 
 export async function GET(request: Request) {
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   try {
     const payload = await req.json();
     const data    = returnBatchSchema.parse(payload);
-    const user    = await ensureClerkUser();
+    const user    = await ensureAuthUser();
 
     const batch = await prisma.$transaction(async (tx) => {
       // 1) generar código autonumérico

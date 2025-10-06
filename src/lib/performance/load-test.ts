@@ -116,7 +116,7 @@ async function simulateUserActivity(
       if (operationType < 0.5) {
         // Crear nueva entrega (50%)
         await optimizedAuditCreate(
-          parseInt(userId.replace('user_', '')) || 1,
+          userId, // Ya es string, no parsear
           'DeliveryBatch',
           1000 + parseInt(userId.replace('user_', '')) * 1000 + i,
           {
@@ -136,7 +136,7 @@ async function simulateUserActivity(
         // Actualizar entrega existente (50%)
         const deliveryId = 1000 + parseInt(userId.replace('user_', '')) * 1000 + Math.floor(i / 2);
         await optimizedAuditUpdate(
-          parseInt(userId.replace('user_', '')) || 1,
+          userId, // Ya es string, no parsear
           'DeliveryBatch',
           deliveryId,
           {

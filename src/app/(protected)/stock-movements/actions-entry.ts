@@ -2,7 +2,7 @@
 
 import prisma             from "@/lib/prisma";
 import { entryBatchSchema } from "@/schemas/entry-batch-schema";
-import { ensureClerkUser } from "@/lib/user-sync";
+import { ensureAuthUser } from "@/lib/auth-utils";
 import { revalidatePath }  from "next/cache";
 
 export async function createEntryBatch(fd: FormData) {
@@ -23,7 +23,7 @@ export async function createEntryBatch(fd: FormData) {
 
   /* 2) validar */
   const data = entryBatchSchema.parse(objRaw);
-  const dbUser = await ensureClerkUser();
+  const dbUser = await ensureAuthUser();
 
   /* 3) transacción: N movements + upsert inventario */
   await prisma.$transaction(async (tx) => {

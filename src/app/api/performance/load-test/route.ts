@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
     // Verificar autenticación
-    const { userId } = await auth();
-    if (!userId) {
+    const session = await auth();
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     // Importar dinámicamente el módulo de pruebas
     const { runPresetLoadTest } = await import('@/lib/performance/load-test');
 
-    console.log(`🎯 Ejecutando prueba de carga preset: ${preset} por usuario ${userId}`);
+    console.log(`🎯 Ejecutando prueba de carga preset: ${preset} por usuario ${session.user.id}`);
 
     // Ejecutar prueba de carga
     const result = await runPresetLoadTest(preset as 'light' | 'moderate' | 'heavy' | 'stress');

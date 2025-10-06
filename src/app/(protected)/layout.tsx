@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
-import { auth } from "@clerk/nextjs/server";
-import { ensureClerkUser } from "@/lib/user-sync";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import SidebarNav from "@/components/SidebarNav";
 import { getLowStockCount } from "@/lib/alerts";
 import { AlertTriangle } from "lucide-react";
@@ -10,11 +10,12 @@ export default async function ProtectedLayout({
 }: {
   children: ReactNode;
 }) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
+  const session = await auth();
+  if (!session?.user) {
+    redirect("/auth/signin");
+  }
 
-  // Sincroniza el usuario y obtiene la alerta de stock bajo
-  await ensureClerkUser();
+  // Obtiene la alerta de stock bajo
   const low = await getLowStockCount();
 
   return (

@@ -211,7 +211,7 @@ export async function benchmarkAuditOperations() {
     const { duration: dbTime } = await measureTime(async () => {
       return prisma.auditLog.create({
         data: {
-          userId: 1,
+          userId: "system-test",
           action: 'CREATE',
           entityType: 'Test',
           entityId: 999999,

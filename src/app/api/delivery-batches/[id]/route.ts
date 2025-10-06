@@ -1,6 +1,6 @@
 import prisma                     from "@/lib/prisma";
 import { NextResponse }           from "next/server";
-import { ensureClerkUser }        from "@/lib/user-sync";
+import { ensureAuthUser }         from "@/lib/auth-utils";
 import { z }                      from "zod";
 import type { Prisma }            from "@prisma/client";
 
@@ -82,7 +82,7 @@ export async function DELETE(
   }
 
   try {
-    const operator = await ensureClerkUser();
+    const operator = await ensureAuthUser();
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const rows = await tx.delivery.findMany({

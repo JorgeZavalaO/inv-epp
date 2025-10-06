@@ -7,8 +7,8 @@
  * IMPORTANTE: Copiar estos ejemplos a los archivos reales de actions.ts
  */
 
-import { auditCreate, auditUpdate, auditDelete } from '@/lib/audit/logger';
-import { ensureClerkUser } from '@/lib/user-sync';
+import { auditCreate, auditUpdate, auditDelete } from '@/lib/audit'; // Usa las optimizadas
+import { ensureAuthUser } from '@/lib/auth-utils';
 
 /**
  * EJEMPLO 1: Auditar creación de entrega
@@ -19,7 +19,7 @@ import { ensureClerkUser } from '@/lib/user-sync';
 export async function createDeliveryBatchWithAudit() {
   // ... código existente de createDeliveryBatch ...
   
-  const operator = await ensureClerkUser();
+  const operator = await ensureAuthUser();
   const result = { id: 123, code: 'DEL-0001' }; // Tu resultado real
   
   // ✅ AGREGAR ESTO al final, después del commit exitoso:
@@ -52,7 +52,7 @@ export async function createDeliveryBatchWithAudit() {
 export async function updateDeliveryBatchWithAudit() {
   // ... código existente ...
   
-  const operator = await ensureClerkUser();
+  const operator = await ensureAuthUser();
   
   // Capturar valores ANTES de actualizar
   const before = {
@@ -89,7 +89,7 @@ export async function updateDeliveryBatchWithAudit() {
 export async function deleteBatchWithAudit() {
   // ... código existente ...
   
-  const operator = await ensureClerkUser();
+  const operator = await ensureAuthUser();
   const batchId = 123;
   
   // Capturar valores ANTES de eliminar
@@ -119,7 +119,7 @@ export async function deleteBatchWithAudit() {
  * Similar para crear, actualizar o eliminar EPPs:
  */
 export async function createEPPWithAudit() {
-  const operator = await ensureClerkUser();
+  const operator = await ensureAuthUser();
   
   const epp = {
     id: 1,
@@ -146,7 +146,7 @@ export async function createEPPWithAudit() {
  * Los movimientos de stock son críticos y deben auditarse:
  */
 export async function createStockMovementWithAudit() {
-  const operator = await ensureClerkUser();
+  const operator = await ensureAuthUser();
   
   const movement = {
     id: 1,

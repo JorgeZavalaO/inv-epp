@@ -7,22 +7,15 @@ import {
   Box,
   Warehouse,
   Handshake,
-  // ClipboardList,
-  // FileBarChart2,
-  ShieldCheck,
   Settings,
   RotateCcw,
   SendToBack,
   Users,
   ChevronRight,
-  Building2
+  Building2,
+  ShieldCheck
 } from 'lucide-react';
-import {
-  SignedIn,
-  SignedOut,
-  UserButton,
-  SignInButton,
-} from '@clerk/nextjs';
+import { UserMenu } from '@/components/auth/UserMenu';
 
 const sections = [
   { 
@@ -66,6 +59,7 @@ const sections = [
     title: 'Sistema', 
     items: [
       { href: '/settings', label: 'Configuración', icon: <Settings size={18} />, description: 'Parámetros generales' },
+      { href: '/users', label: 'Usuarios', icon: <ShieldCheck size={18} />, description: 'Gestión de usuarios' },
       { href: '/performance', label: 'Performance', icon: <ShieldCheck size={18} />, description: 'Monitoreo del sistema' }
     ] 
   },
@@ -139,35 +133,7 @@ export default function SidebarNav() {
 
       {/* User section */}
       <div className="border-t border-slate-200 p-4">
-        <SignedOut>
-          <SignInButton>
-            <button className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700">
-              Iniciar Sesión
-            </button>
-          </SignInButton>
-        </SignedOut>
-        
-        <SignedIn>
-          <div className="flex items-center space-x-3">
-            <UserButton 
-              afterSignOutUrl="/"
-              appearance={{
-                elements: {
-                  avatarBox: "h-8 w-8",
-                  userButtonPopoverCard: "shadow-lg border border-slate-200",
-                }
-              }}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-slate-900">
-                Usuario Activo
-              </div>
-              <div className="text-xs text-slate-500">
-                Seguridad Industrial
-              </div>
-            </div>
-          </div>
-        </SignedIn>
+        <UserMenu />
       </div>
     </div>
   );
