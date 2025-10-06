@@ -14,8 +14,7 @@ const REQUIRED_INDEXES = [
   'idx_return_item_batch_epp',
   'idx_epp_stock_warehouse_epp',
   'idx_epp_category_name',
-  'idx_request_status_date',
-  'idx_user_clerk_id'
+  'idx_request_status_date'
 ];
 
 async function verifyIndexes() {

@@ -19,8 +19,6 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.1",
-    "@clerk/clerk-sdk-node": "^5.1.6",
-    "@clerk/nextjs": "^6.19.4",
     "@hookform/resolvers": "^3.9.0",
     "@prisma/client": "^6.8.2",
     "@radix-ui/react-alert-dialog": "^1.1.13",
