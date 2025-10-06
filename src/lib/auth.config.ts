@@ -5,9 +5,14 @@ import prisma from '@/lib/prisma';
 import { z } from 'zod';
 
 const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+const authUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
 
 if (!authSecret) {
   throw new Error('Auth.js secret no configurado. Define AUTH_SECRET o NEXTAUTH_SECRET en las variables de entorno.');
+}
+
+if (!authUrl) {
+  console.warn('Advertencia: AUTH_URL o NEXTAUTH_URL no configurados. Define la URL pública para Auth.js en tus variables de entorno.');
 }
 
 const loginSchema = z.object({
@@ -106,5 +111,20 @@ export default {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 días
   },
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production' 
+        ? '__Secure-authjs.session-token' 
+        : 'authjs.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 30 * 24 * 60 * 60, // 30 días
+      },
+    },
+  },
+  trustHost: true,
   secret: authSecret,
 } satisfies NextAuthConfig;

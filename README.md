@@ -790,6 +790,8 @@ NEXTAUTH_URL=http://localhost:3000             # URL local de desarrollo
 DATABASE_URL=postgresql://...
 ```
 
+> En Vercel define `AUTH_SECRET` (o `NEXTAUTH_SECRET`) **y** `AUTH_URL` con el dominio público. Para entornos locales conserva `NEXTAUTH_URL=http://localhost:3000`.
+
 ### Flujo Básico
 1. Ejecutar script de contraseña para usuario existente:
    `pnpm tsx scripts/set-user-password.ts`

@@ -36,7 +36,13 @@ export async function middleware(req: NextRequest) {
   if (isPublic(pathname)) {
     // Si ya está logueado y accede a /auth/signin → redirigir
     if (pathname.startsWith('/auth/signin')) {
-      const token = await getToken({ req, secret: AUTH_SECRET });
+      const token = await getToken({ 
+        req, 
+        secret: AUTH_SECRET,
+        cookieName: process.env.NODE_ENV === 'production' 
+          ? '__Secure-authjs.session-token' 
+          : 'authjs.session-token'
+      });
       if (token) {
         const url = nextUrl.clone();
         url.pathname = '/dashboard';
@@ -47,7 +53,13 @@ export async function middleware(req: NextRequest) {
   }
 
   // Validar sesión mínima mediante JWT. Esto NO importa Prisma ni providers pesados.
-  const token = await getToken({ req, secret: AUTH_SECRET });
+  const token = await getToken({ 
+    req, 
+    secret: AUTH_SECRET,
+    cookieName: process.env.NODE_ENV === 'production' 
+      ? '__Secure-authjs.session-token' 
+      : 'authjs.session-token'
+  });
 
   if (!token) {
     const loginUrl = nextUrl.clone();

@@ -1,6 +1,7 @@
 import dynamic from "next/dynamic";
 import { fetchDashboardDataCached } from "@/lib/dashboard-cached";
 import KpiCard from "@/components/dashboard/KpiCard";
+import SessionDebugger from "@/components/auth/SessionDebugger";
 import { 
   Package, 
   Boxes, 
@@ -61,11 +62,15 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Resumen general del sistema de gestión de EPP
-        </p>
+      <div className="flex justify-between items-start">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Resumen general del sistema de gestión de EPP
+          </p>
+        </div>
+        {/* Debug temporal - remover en producción */}
+        <SessionDebugger />
       </div>
 
       {/* KPIs */}

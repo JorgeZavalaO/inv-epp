@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Building2 } from 'lucide-react';
 
 function SignInForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
 
@@ -31,13 +30,17 @@ function SignInForm() {
         email,
         password,
         redirect: false,
+        callbackUrl,
       });
 
       if (result?.error) {
         setError('Credenciales inválidas. Por favor, verifica tu email y contraseña.');
       } else if (result?.ok) {
-        router.push(callbackUrl);
-        router.refresh();
+        // Esperar un momento para que la cookie se establezca
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Usar window.location para forzar una navegación completa
+        window.location.href = callbackUrl;
       }
     } catch (err) {
       setError('Ocurrió un error al iniciar sesión. Por favor, intenta de nuevo.');
