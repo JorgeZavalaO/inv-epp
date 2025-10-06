@@ -784,8 +784,9 @@ Migración completa desde Clerk a Auth.js con provider de credenciales.
 
 ### Variables de Entorno Requeridas
 ```
-NEXTAUTH_SECRET=<openssl rand -base64 32>
-NEXTAUTH_URL=http://localhost:3000   # Producción: URL pública
+AUTH_SECRET=<openssl rand -base64 32>          # (Compat) puedes usar NEXTAUTH_SECRET
+AUTH_URL=https://tu-dominio.vercel.app         # URL pública en Vercel
+NEXTAUTH_URL=http://localhost:3000             # URL local de desarrollo
 DATABASE_URL=postgresql://...
 ```
 

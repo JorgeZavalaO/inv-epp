@@ -5,6 +5,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
+const AUTH_SECRET = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+
+if (!AUTH_SECRET) {
+  throw new Error('Auth.js secret no configurado. Define AUTH_SECRET o NEXTAUTH_SECRET en las variables de entorno.');
+}
+
 // Rutas públicas exactas
 const PUBLIC_SET = new Set([
   '/',
@@ -30,7 +36,7 @@ export async function middleware(req: NextRequest) {
   if (isPublic(pathname)) {
     // Si ya está logueado y accede a /auth/signin → redirigir
     if (pathname.startsWith('/auth/signin')) {
-      const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+      const token = await getToken({ req, secret: AUTH_SECRET });
       if (token) {
         const url = nextUrl.clone();
         url.pathname = '/dashboard';
@@ -41,7 +47,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Validar sesión mínima mediante JWT. Esto NO importa Prisma ni providers pesados.
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const token = await getToken({ req, secret: AUTH_SECRET });
 
   if (!token) {
     const loginUrl = nextUrl.clone();

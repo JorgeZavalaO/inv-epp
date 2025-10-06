@@ -4,6 +4,12 @@ import { compare } from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
 
+const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+
+if (!authSecret) {
+  throw new Error('Auth.js secret no configurado. Define AUTH_SECRET o NEXTAUTH_SECRET en las variables de entorno.');
+}
+
 const loginSchema = z.object({
   email: z.string().email({ message: 'Email inválido' }),
   password: z.string().min(6, { message: 'La contraseña debe tener al menos 6 caracteres' }),
@@ -100,5 +106,5 @@ export default {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 días
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: authSecret,
 } satisfies NextAuthConfig;
