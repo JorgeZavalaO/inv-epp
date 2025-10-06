@@ -1,42 +1,57 @@
-import { auth } from '@/lib/auth';
-import { NextResponse } from 'next/server';
+// Middleware optimizado para Edge (<=1MB) evitando importar Prisma, zod, bcrypt, etc.
+// En lugar de usar "auth" (que arrastra la configuración completa de NextAuth),
+// validamos el token JWT con getToken y mantenemos la lógica mínima de protección.
 
-// Rutas públicas que no requieren autenticación
-const publicRoutes = [
+import { NextResponse, type NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
+
+// Rutas públicas exactas
+const PUBLIC_SET = new Set([
+  '/',
   '/auth/signin',
   '/auth/signup',
   '/auth/error',
-  '/',
   '/api/health',
-  '/api/auth',
-];
+]);
 
-export default auth((req) => {
+// Prefijos públicos (comienzos de path) – evita incluir la config completa de NextAuth
+const PUBLIC_PREFIXES = ['/api/auth']; // callbacks / endpoints de next-auth
+
+function isPublic(pathname: string): boolean {
+  if (PUBLIC_SET.has(pathname)) return true;
+  return PUBLIC_PREFIXES.some(p => pathname.startsWith(p));
+}
+
+export async function middleware(req: NextRequest) {
   const { nextUrl } = req;
-  const isLoggedIn = !!req.auth;
-  
-  // Permitir rutas públicas
-  const isPublicRoute = publicRoutes.some(route => 
-    nextUrl.pathname.startsWith(route)
-  );
-  
-  if (isPublicRoute) {
-    // Si ya está logueado y trata de ir a signin, redirigir a dashboard
-    if (isLoggedIn && nextUrl.pathname.startsWith('/auth/signin')) {
-      return NextResponse.redirect(new URL('/dashboard', nextUrl));
+  const { pathname } = nextUrl;
+
+  // Permitir recursos de vercel / static vía matcher (config) pero aquí un early guard simple
+  if (isPublic(pathname)) {
+    // Si ya está logueado y accede a /auth/signin → redirigir
+    if (pathname.startsWith('/auth/signin')) {
+      const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+      if (token) {
+        const url = nextUrl.clone();
+        url.pathname = '/dashboard';
+        return NextResponse.redirect(url);
+      }
     }
     return NextResponse.next();
   }
-  
-  // Redirigir a login si no está autenticado
-  if (!isLoggedIn) {
-    const loginUrl = new URL('/auth/signin', nextUrl);
-    loginUrl.searchParams.set('callbackUrl', nextUrl.pathname);
+
+  // Validar sesión mínima mediante JWT. Esto NO importa Prisma ni providers pesados.
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+
+  if (!token) {
+    const loginUrl = nextUrl.clone();
+    loginUrl.pathname = '/auth/signin';
+    loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
   }
-  
+
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: [

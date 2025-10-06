@@ -82,7 +82,7 @@ export default {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
+        token.id = user.id as string; // Type assertion to ensure it's treated as a string
         token.role = user.role;
       }
       return token;
