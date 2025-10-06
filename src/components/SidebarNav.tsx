@@ -65,7 +65,8 @@ const sections = [
   { 
     title: 'Sistema', 
     items: [
-      { href: '/settings', label: 'Configuración', icon: <Settings size={18} />, description: 'Parámetros generales' }
+      { href: '/settings', label: 'Configuración', icon: <Settings size={18} />, description: 'Parámetros generales' },
+      { href: '/performance', label: 'Performance', icon: <ShieldCheck size={18} />, description: 'Monitoreo del sistema' }
     ] 
   },
 ];

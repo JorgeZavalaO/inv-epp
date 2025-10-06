@@ -6,7 +6,7 @@ import { ensureClerkUser } from "@/lib/user-sync";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
-import { auditCreate, auditUpdate, auditDelete } from "@/lib/audit/logger";
+import { auditCreate, auditUpdate, auditDelete } from "@/lib/audit";
 
 export async function createDeliveryBatch(fd: FormData) {
   const payload = JSON.parse(fd.get("payload") as string);
