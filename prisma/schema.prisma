@@ -11,6 +11,9 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Usar conexión directa (sin pooler) para migraciones/CLI.
+  // En Vercel, define DIRECT_DATABASE_URL con el host directo de Neon (sin "-pooler").
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 /// Enumeraciones

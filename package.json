@@ -13,7 +13,7 @@
     "prisma:studio": "prisma studio",
     "prisma:status": "prisma migrate status",
     "vercel-build": "npm run build:vercel",
-    "build:vercel": "prisma generate && prisma migrate deploy && next build",
+    "build:vercel": "bash ./scripts/vercel-build.sh",
     "deploy:check": "prisma migrate status",
     "deploy:safe": "prisma migrate deploy && prisma generate && npm run build"
   },
