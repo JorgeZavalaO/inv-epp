@@ -73,6 +73,11 @@ export interface EnhancedKpiItem {
   description?: string;
 }
 
+export interface LocationDelivery {
+  location: string;
+  count: number;
+}
+
 export interface DashboardData {
   kpis: KpiData;
   movements: MovementPoint[];
@@ -87,6 +92,7 @@ export interface DashboardData {
   criticalAlerts: CriticalAlert[];
   // KPIs dinámicos para el dashboard
   kpisList: EnhancedKpiItem[];
+  deliveriesByLocation: LocationDelivery[];
 }
 
 // Función auxiliar para obtener EPPs con stock bajo
@@ -132,6 +138,30 @@ async function getTopDelivered(since: Date): Promise<TopDeliveredData[]> {
     return topDelivered;
   } catch (error) {
     console.error("Error fetching top delivered:", error);
+    return [];
+  }
+}
+
+// Función para obtener entregas por ubicación
+async function getDeliveriesByLocation(since: Date): Promise<LocationDelivery[]> {
+  try {
+    const deliveriesByLocation = await prisma.$queryRaw<LocationDelivery[]>`
+      SELECT 
+        c.location,
+        COUNT(DISTINCT db.id)::int as count
+      FROM "DeliveryBatch" db
+      INNER JOIN "Collaborator" c ON db."collaboratorId" = c.id
+      WHERE db."createdAt" >= ${since}
+        AND c.location IS NOT NULL
+        AND c.location != ''
+      GROUP BY c.location
+      ORDER BY COUNT(DISTINCT db.id) DESC
+      LIMIT 10
+    `;
+
+    return deliveriesByLocation;
+  } catch (error) {
+    console.error("Error fetching deliveries by location:", error);
     return [];
   }
 }
@@ -504,10 +534,11 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     });
 
     // Obtener datos adicionales para el dashboard mejorado
-    const [recentActivity, chartData, criticalAlerts] = await Promise.all([
+    const [recentActivity, chartData, criticalAlerts, deliveriesByLocation] = await Promise.all([
       getRecentActivity(),
       getChartData(monthStart),
-      getCriticalAlerts()
+      getCriticalAlerts(),
+      getDeliveriesByLocation(monthStart)
     ]);
 
     // KPIs dinámicos para EnhancedKpiCard
@@ -558,7 +589,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       monthlyActivity: chartData.monthlyActivity,
       topEpps: chartData.topEpps,
       criticalAlerts,
-      kpisList
+      kpisList,
+      deliveriesByLocation
     };
 
   } catch (error) {
@@ -586,7 +618,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       monthlyActivity: [],
       topEpps: [],
       criticalAlerts: [],
-      kpisList: []
+      kpisList: [],
+      deliveriesByLocation: []
     };
   }
 }

@@ -1,9 +1,10 @@
-import { fetchDashboardData } from "@/lib/dashboard";
+import { fetchDashboardData, type EnhancedKpiItem } from "@/lib/dashboard";
 import EnhancedKpiCard from "@/components/dashboard/EnhancedKpiCard";
 import RecentActivity from "@/components/dashboard/RecentActivity";
 import NotificationBell from "@/components/dashboard/NotificationBell";
 import MovementsChart from "@/components/dashboard/MovementsChart";
 import TopDeliveredList from "@/components/dashboard/TopDeliveredList";
+import DeliveriesByLocation from "@/components/dashboard/DeliveriesByLocation";
 
 // OPTIMIZACIÓN: Cache de página de 2 minutos
 export const revalidate = 120;
@@ -42,7 +43,7 @@ export default async function DashboardPage() {
         {kpiItems.length === 0 ? (
           <div className="col-span-full text-center text-muted-foreground py-8">Sin datos de KPIs</div>
         ) : (
-          kpiItems.slice(0, 4).map((item: any, index: number) => (
+          kpiItems.slice(0, 4).map((item: EnhancedKpiItem, index: number) => (
             <EnhancedKpiCard
               key={index}
               title={item.title}
@@ -69,10 +70,16 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* EPPs más entregados */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-3">
+      {/* Layout Inferior: EPPs más entregados + Entregas por ubicación */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* EPPs más entregados */}
+        <div>
           <TopDeliveredList data={data.topDelivered || []} />
+        </div>
+
+        {/* Entregas por ubicación */}
+        <div>
+          <DeliveriesByLocation data={data.deliveriesByLocation || []} />
         </div>
       </div>
     </div>
