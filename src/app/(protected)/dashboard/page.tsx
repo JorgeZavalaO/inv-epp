@@ -1,92 +1,80 @@
-import dynamic from "next/dynamic";
-import { fetchDashboardDataCached } from "@/lib/dashboard-cached";
-import KpiCard from "@/components/dashboard/KpiCard";
-import SessionDebugger from "@/components/auth/SessionDebugger";
-import { 
-  Package, 
-  Boxes, 
-  Truck, 
-  RotateCcw, 
-  AlertTriangle 
-} from "lucide-react";
+import { fetchDashboardData } from "@/lib/dashboard";
+import EnhancedKpiCard from "@/components/dashboard/EnhancedKpiCard";
+import RecentActivity from "@/components/dashboard/RecentActivity";
+import NotificationBell from "@/components/dashboard/NotificationBell";
+import MovementsChart from "@/components/dashboard/MovementsChart";
+import TopDeliveredList from "@/components/dashboard/TopDeliveredList";
 
-// ✅ OPTIMIZACIÓN: Lazy load de componentes pesados
-const DashboardCharts = dynamic(
-  () => import("@/components/dashboard/DashboardCharts"),
-  {
-    loading: () => (
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 h-96 bg-muted/50 rounded-lg animate-pulse" />
-        <div className="h-96 bg-muted/50 rounded-lg animate-pulse" />
-        <div className="lg:col-span-2 h-96 bg-muted/50 rounded-lg animate-pulse" />
-        <div className="h-96 bg-muted/50 rounded-lg animate-pulse" />
-      </div>
-    ),
-  }
-);
-
-// ✅ OPTIMIZACIÓN: Cache de página de 2 minutos
+// OPTIMIZACIÓN: Cache de página de 2 minutos
 export const revalidate = 120;
 
 export default async function DashboardPage() {
-  const data = await fetchDashboardDataCached();
+  const data = await fetchDashboardData();
 
-  const kpiItems = [
-    {
-      title: "EPPs",
-      value: data.kpis.totalEpps,
-      icon: <Package className="w-4 h-4 text-blue-600" />,
-    },
-    {
-      title: "Stock total",
-      value: data.kpis.totalStock.toLocaleString(),
-      icon: <Boxes className="w-4 h-4 text-green-600" />,
-    },
-    {
-      title: "Stock bajo",
-      value: data.kpis.lowStockEpps,
-      icon: <AlertTriangle className="w-4 h-4 text-orange-600" />,
-    },
-    {
-      title: "Entregas (7 d)",
-      value: data.kpis.deliveries7,
-      icon: <Truck className="w-4 h-4 text-purple-600" />,
-    },
-    {
-      title: "Devoluciones (7 d)", 
-      value: data.kpis.returns7,
-      icon: <RotateCcw className="w-4 h-4 text-red-600" />,
-    },
-  ];
+  // Los KPIs dinámicos vienen del backend
+  const kpiItems = data.kpisList || [];
+
+  // Convertir criticalAlerts a notificaciones
+  const notifications = (data.criticalAlerts || []).map(alert => ({
+    id: alert.id,
+    title: alert.title,
+    description: alert.description,
+    time: alert.time || new Date(),
+    read: false,
+    type: alert.severity === 'high' ? 'error' as const : 
+          alert.severity === 'medium' ? 'warning' as const : 'info' as const
+  }));
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      {/* Header */}
-      <div className="flex justify-between items-start">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Resumen general del sistema de gestión de EPP
-          </p>
+      {/* Header con notificaciones */}
+      <div className="flex justify-between items-center">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight">
+            Dashboard
+          </h1>
         </div>
-        {/* Debug temporal - remover en producción */}
-        <SessionDebugger />
+        <NotificationBell notifications={notifications} />
       </div>
 
-      {/* KPIs */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {kpiItems.map((item, index) => (
-          <KpiCard
-            key={index}
-            title={item.title}
-            value={item.value}
-            icon={item.icon}
-          />
-        ))}
+      {/* KPIs Principales */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpiItems.length === 0 ? (
+          <div className="col-span-full text-center text-muted-foreground py-8">Sin datos de KPIs</div>
+        ) : (
+          kpiItems.slice(0, 4).map((item: any, index: number) => (
+            <EnhancedKpiCard
+              key={index}
+              title={item.title}
+              value={item.value}
+              icon={item.icon}
+              trend={item.trend}
+              status={item.status}
+              description={item.description}
+            />
+          ))
+        )}
       </section>
 
-      {/* Charts Section - Con lazy loading optimizado */}
-      <DashboardCharts data={data} />
+      {/* Layout Principal: Gráfico de Movimientos + Actividad Reciente */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Movimientos de Inventario (2 columnas) */}
+        <div className="lg:col-span-2">
+          <MovementsChart data={data.movements || []} />
+        </div>
+
+        {/* Actividad Reciente (1 columna) */}
+        <div className="lg:col-span-1">
+          <RecentActivity activities={data.recentActivity || []} />
+        </div>
+      </div>
+
+      {/* EPPs más entregados */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-3">
+          <TopDeliveredList data={data.topDelivered || []} />
+        </div>
+      </div>
     </div>
   );
 }

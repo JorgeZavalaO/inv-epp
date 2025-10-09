@@ -1,6 +1,3 @@
-// ✅ DASHBOARD CON CACHÉ OPTIMIZADO
-// lib/dashboard-cached.ts
-
 import { getCached, CACHE_KEYS, CACHE_TTL } from './cache/memory-cache';
 import { fetchDashboardData, type DashboardData } from './dashboard';
 

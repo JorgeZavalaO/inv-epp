@@ -66,7 +66,8 @@ export default function MovementsChart({ data }: Props) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Movimientos últimos 30 días</CardTitle>
+          <CardTitle>Movimientos de Inventario</CardTitle>
+          <p className="text-sm text-muted-foreground">Entradas y salidas de EPPs en los últimos 30 días</p>
         </CardHeader>
         <CardContent className="h-80 flex items-center justify-center">
           <p className="text-muted-foreground">No hay datos disponibles</p>
@@ -78,7 +79,8 @@ export default function MovementsChart({ data }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Movimientos últimos 30 días</CardTitle>
+        <CardTitle>Movimientos de Inventario</CardTitle>
+        <p className="text-sm text-muted-foreground">Entradas y salidas de EPPs en los últimos 30 días</p>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={320}>
