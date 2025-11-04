@@ -25,12 +25,17 @@ if [ "${VERCEL_ENVIRONMENT}" = "preview" ]; then
 elif [ "${SKIP_PRISMA_MIGRATE:-}" = "1" ]; then
   echo "⏭️  Saltando prisma migrate deploy por configuración (SKIP_PRISMA_MIGRATE=1)"
 else
-  # En producción, requerimos DIRECT_DATABASE_URL para que migrate use conexión directa (sin pooler)
+  # En producción, preferimos DIRECT_DATABASE_URL (conexión directa sin pooler)
   if [ "${VERCEL_ENVIRONMENT}" = "production" ]; then
     if [ -z "${DIRECT_DATABASE_URL:-}" ]; then
-      echo "❌ ERROR: En producción, DIRECT_DATABASE_URL es requerido para ejecutar migraciones sin pooler (Neon)."
-      echo "👉 Configura DIRECT_DATABASE_URL con el host directo de Neon (sin -pooler)."
-      exit 1
+      # Si DATABASE_URL ya es directa (no contiene "-pooler"), permitimos continuar
+      if echo "$DATABASE_URL" | grep -q "-pooler"; then
+        echo "❌ ERROR: En producción, DIRECT_DATABASE_URL es requerido para ejecutar migraciones sin pooler (Neon)."
+        echo "👉 Configura DIRECT_DATABASE_URL con el host directo de Neon (sin -pooler)."
+        exit 1
+      else
+        echo "✅ DATABASE_URL parece ser directa (sin -pooler). Continuando sin DIRECT_DATABASE_URL..."
+      fi
     fi
   fi
 

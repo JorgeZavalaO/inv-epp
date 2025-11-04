@@ -37,6 +37,14 @@ export async function buildDeliveryBatchPdf(
   };
 
   // Helpers simplificados
+  const sanitizeText = (text: string): string => {
+    return text
+      .replace(/\r\n/g, ' ')
+      .replace(/\n/g, ' ')
+      .replace(/\r/g, ' ')
+      .trim();
+  };
+
   const drawText = (
     text: string,
     x: number,
@@ -50,7 +58,7 @@ export async function buildDeliveryBatchPdf(
     } = {}
   ) => {
     const { bold = false, size = 10, color = colors.text, align = 'left', maxWidth } = options;
-    let displayText = text;
+    let displayText = sanitizeText(text);
     
     if (maxWidth) {
       const fontRef = bold ? fontBold : font;
