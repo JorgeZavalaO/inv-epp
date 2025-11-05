@@ -105,6 +105,7 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
     "LOTE DE ENTREGA",
     "DESCRIPCION DE PRODUCTO",
     "CANTIDADES",
+    "OBSERVACIONES",
   ];
 
   worksheet.addRow(header);
@@ -127,6 +128,7 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
     const productDescription = delivery.epp.description?.trim()
       ? `${delivery.epp.name} - ${delivery.epp.description}`
       : delivery.epp.name;
+  const note = delivery.batch.note ? String(delivery.batch.note).trim() : "";
 
     worksheet.addRow([
       "",
@@ -136,6 +138,7 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
       delivery.batch.code,
       productDescription,
       delivery.quantity,
+      note,
     ]);
   });
 

@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FileSpreadsheet } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -18,6 +19,7 @@ import { toast } from "sonner";
 import ModalCreateWarehouse from "@/components/warehouses/ModalCreateWarehouse";
 import ModalEditWarehouse   from "@/components/warehouses/ModalEditWarehouse";
 import { deleteWarehouseAction } from "@/app/(protected)/warehouses/actions";
+import { useWarehouseStocksXlsx } from "@/lib/client-excel/useWarehouseStocksXlsx";
 
 /* ─── Tipo con stock total ───────────────────────────────── */
 export interface WarehouseWithStock {
@@ -36,6 +38,7 @@ export default function WarehousesClient({ list }: WarehousesClientProps) {
   const [editingWarehouse, setEditingWarehouse] =
     useState<WarehouseWithStock | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
+  const exportStocks = useWarehouseStocksXlsx();
 
   const handleDelete = (id: number) => {
     const fd = new FormData();
@@ -61,9 +64,15 @@ export default function WarehousesClient({ list }: WarehousesClientProps) {
       {/* Header + Botón Nuevo */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Almacenes</h1>
-        <Button onClick={() => setShowCreateModal(true)}>
-          + Nuevo almacén
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={exportStocks} aria-label="Exportar stocks por almacén a Excel">
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Exportar Excel
+          </Button>
+          <Button onClick={() => setShowCreateModal(true)}>
+            + Nuevo almacén
+          </Button>
+        </div>
       </div>
 
       {/* Tabla */}
