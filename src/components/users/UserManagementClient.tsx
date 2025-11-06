@@ -217,8 +217,19 @@ export default function UserManagementClient() {
           image: selectedUser.image,
         };
 
-        await updateUser(input);
-        toast.success('Usuario actualizado exitosamente');
+        const result = await updateUser(input);
+        
+        // Mostrar mensaje apropiado si cambió el rol
+        if ('roleChanged' in result && result.roleChanged) {
+          toast.success(
+            `Usuario actualizado. El rol cambió de ${result.previousRole} a ${result.role}. ` +
+            `Los cambios se aplicarán cuando el usuario recargue su sesión.`,
+            { duration: 7000 }
+          );
+        } else {
+          toast.success('Usuario actualizado exitosamente');
+        }
+        
         setIsEditModalOpen(false);
         setSelectedUser(null);
         loadUsers();

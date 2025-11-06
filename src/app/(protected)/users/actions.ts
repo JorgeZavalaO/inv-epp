@@ -145,6 +145,9 @@ export async function updateUser(input: UpdateUserInput) {
     }
   }
 
+  // Detectar si cambió el rol
+  const roleChanged = data.role !== existingUser.role;
+
   // Actualizar usuario
   const user = await prisma.user.update({
     where: { id: data.id },
@@ -153,6 +156,7 @@ export async function updateUser(input: UpdateUserInput) {
       name: data.name,
       role: data.role,
       image: data.image,
+      updatedAt: new Date(),
     },
     select: {
       id: true,
@@ -162,8 +166,33 @@ export async function updateUser(input: UpdateUserInput) {
     },
   });
 
+  // Registrar en auditoría si cambió el rol
+  if (roleChanged) {
+    await prisma.auditLog.create({
+      data: {
+        action: 'UPDATE',
+        entityType: 'USER',
+        entityId: 0,
+        userId: existingUser.id,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        metadata: {
+          userId: user.id,
+          description: `Rol cambiado de ${existingUser.role} a ${data.role}`,
+          previousRole: existingUser.role,
+          newRole: data.role,
+        },
+      },
+    });
+  }
+
   revalidatePath("/users");
-  return user;
+  
+  // Retornar información adicional sobre si cambió el rol
+  return {
+    ...user,
+    roleChanged,
+    previousRole: roleChanged ? existingUser.role : undefined,
+  };
 }
 
 /**

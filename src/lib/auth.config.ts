@@ -91,11 +91,42 @@ export default {
     error: '/auth/error',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id as string; // Type assertion to ensure it's treated as a string
         token.role = user.role;
       }
+      
+      // Actualizar el rol desde la BD si ha pasado más de 5 minutos
+      // O si es un update trigger (cuando se actualiza la sesión manualmente)
+      if (trigger === 'update' || !token.lastRoleCheck || Date.now() - (token.lastRoleCheck as number) > 5 * 60 * 1000) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { role: true, isActive: true },
+          });
+          
+          if (dbUser) {
+            // Actualizar el rol si cambió
+            if (dbUser.role !== token.role) {
+              console.log(`Rol actualizado para usuario ${token.id}: ${token.role} -> ${dbUser.role}`);
+              token.role = dbUser.role;
+            }
+            
+            // Si el usuario fue desactivado, invalidar la sesión
+            if (!dbUser.isActive) {
+              console.log(`Usuario ${token.id} fue desactivado`);
+              return null as any; // Esto invalidará la sesión
+            }
+          }
+          
+          token.lastRoleCheck = Date.now();
+        } catch (error) {
+          console.error('Error al verificar rol del usuario:', error);
+          // En caso de error, mantener el token actual
+        }
+      }
+      
       return token;
     },
     async session({ session, token }) {
