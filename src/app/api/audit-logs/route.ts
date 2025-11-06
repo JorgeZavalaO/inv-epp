@@ -95,14 +95,14 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
-    // Parsear changes de string a JSON
-    const logsWithParsedChanges = logs.map((log) => ({
+    // Convertir BigInt a string para serialización JSON
+    const logsWithStringId = logs.map(log => ({
       ...log,
-      changes: log.changes ? JSON.parse(log.changes) : null,
+      id: log.id.toString(),
     }));
 
     return NextResponse.json({
-      logs: logsWithParsedChanges,
+      logs: logsWithStringId,
       pagination: {
         page,
         limit,

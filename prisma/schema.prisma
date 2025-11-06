@@ -8,52 +8,6 @@ datasource db {
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
-/// Enumeraciones
-enum StockMovementType {
-  ENTRY
-  EXIT
-  TRANSFER_IN
-  TRANSFER_OUT
-  ADJUSTMENT
-}
-
-enum MovementStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-enum RequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  COMPLETED
-}
-
-enum DeliveryCondition {
-  REUSABLE
-  DISCARDED
-}
-
-enum ApprovalResult {
-  APPROVED
-  REJECTED
-}
-
-enum AuditAction {
-  CREATE
-  UPDATE
-  DELETE
-}
-
-enum UserRole {
-  ADMIN
-  SUPERVISOR
-  WAREHOUSE_MANAGER
-  OPERATOR
-  VIEWER
-}
-
 /// Usuarios con Auth.js
 model User {
   email                  String           @unique
@@ -74,8 +28,8 @@ model User {
   requests               Request[]        @relation("UserRequests")
   returnBatches          ReturnBatch[]    @relation("UserReturnBatches")
   sessions               Session[]
-  stockMovements         StockMovement[]  @relation("UserStockMovements")
   approvedStockMovements StockMovement[]  @relation("ApprovedStockMovements")
+  stockMovements         StockMovement[]  @relation("UserStockMovements")
   permissions            UserPermission[]
 
   @@index([email])
@@ -198,25 +152,22 @@ model EPPStock {
 
 /// Movimientos de stock
 model StockMovement {
-  id          Int               @id @default(autoincrement())
-  type        StockMovementType
-  quantity    Int
-  note        String?
-  createdAt   DateTime          @default(now())
-  eppId       Int
-  warehouseId Int
-  userId      String
-
-  // Approval system fields
-  status        MovementStatus @default(APPROVED)
-  approvedById  String?
+  id            Int               @id @default(autoincrement())
+  type          StockMovementType
+  quantity      Int
+  note          String?
+  createdAt     DateTime          @default(now())
+  eppId         Int
+  warehouseId   Int
+  userId        String
   approvedAt    DateTime?
+  approvedById  String?
   rejectionNote String?
-
-  epp        EPP       @relation(fields: [eppId], references: [id])
-  user       User      @relation("UserStockMovements", fields: [userId], references: [id])
-  warehouse  Warehouse @relation(fields: [warehouseId], references: [id])
-  approvedBy User?     @relation("ApprovedStockMovements", fields: [approvedById], references: [id])
+  status        MovementStatus    @default(APPROVED)
+  approvedBy    User?             @relation("ApprovedStockMovements", fields: [approvedById], references: [id])
+  epp           EPP               @relation(fields: [eppId], references: [id])
+  user          User              @relation("UserStockMovements", fields: [userId], references: [id])
+  warehouse     Warehouse         @relation(fields: [warehouseId], references: [id])
 
   @@index([eppId, warehouseId, createdAt])
   @@index([type, createdAt])
@@ -345,7 +296,7 @@ model AuditLog {
   action     AuditAction
   entityType String      @db.VarChar(50)
   entityId   Int
-  changes    String?
+  changes    Json?
   metadata   Json?
   createdAt  DateTime    @default(now())
   expiresAt  DateTime
@@ -357,4 +308,50 @@ model AuditLog {
   @@index([expiresAt])
   @@index([createdAt(sort: Desc)])
   @@map("AuditLog")
+}
+
+/// Enumeraciones
+enum StockMovementType {
+  ENTRY
+  EXIT
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+}
+
+enum MovementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum DeliveryCondition {
+  REUSABLE
+  DISCARDED
+}
+
+enum ApprovalResult {
+  APPROVED
+  REJECTED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum UserRole {
+  ADMIN
+  SUPERVISOR
+  WAREHOUSE_MANAGER
+  OPERATOR
+  VIEWER
 }
