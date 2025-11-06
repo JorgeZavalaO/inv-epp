@@ -1,6 +1,6 @@
 import prisma                     from "@/lib/prisma";
 import { NextResponse }           from "next/server";
-import { ensureAuthUser }         from "@/lib/auth-utils";
+import { ensureAuthUser, requirePermission }         from "@/lib/auth-utils";
 import { z }                      from "zod";
 import type { Prisma }            from "@prisma/client";
 
@@ -42,6 +42,12 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
+    await requirePermission("deliveries_manage");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "No autorizado";
+    return NextResponse.json({ error: msg }, { status: 403 });
+  }
   const { id } = await params;
   const batchId = Number(id);
   if (Number.isNaN(batchId)) {
@@ -75,6 +81,12 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
+    await requirePermission("deliveries_manage");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "No autorizado";
+    return NextResponse.json({ error: msg }, { status: 403 });
+  }
   const { id } = await params;
   const batchId = Number(id);
   if (Number.isNaN(batchId)) {

@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { requirePermission } from "@/lib/auth-utils";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
@@ -27,6 +28,7 @@ export async function GET() {
 /*────────── POST /api/warehouses ──────────*/
 export async function POST(req: Request) {
   try {
+    await requirePermission("warehouses_manage");
     const body = await req.json();
     const data = warehouseSchema.parse(body);
 

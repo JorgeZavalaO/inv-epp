@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateDeliveriesExcel } from "@/lib/export/deliveries-excel";
+import { requirePermission } from "@/lib/auth-utils";
 
 function parseNumber(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -21,6 +22,12 @@ function formatForFilename(date: Date) {
 }
 
 export async function GET(req: NextRequest) {
+  try {
+    await requirePermission("deliveries_export");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "No autorizado";
+    return new NextResponse(JSON.stringify({ error: msg }), { status: 403 });
+  }
   const { searchParams } = new URL(req.url);
 
   const from = parseDate(searchParams.get("dateFrom") ?? searchParams.get("from"));

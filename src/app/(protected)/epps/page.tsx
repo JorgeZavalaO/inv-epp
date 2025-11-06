@@ -1,6 +1,8 @@
 import prisma from "@/lib/prisma";
 import EppTable, { EppRow } from "@/components/epp/EppTable";
 import { Prisma } from "@prisma/client";
+import { hasPermission } from "@/lib/auth-utils";
+import { redirect } from "next/navigation";
 
 export const revalidate = 0;
 
@@ -9,6 +11,13 @@ type Props = {
 };
 
 export default async function EppsPage({ searchParams }: Props) {
+  // Verificar permisos
+  const canAccess = await hasPermission('epps_manage');
+  
+  if (!canAccess) {
+    redirect('/dashboard');
+  }
+  
   const { q = "" } = await searchParams;
 
   // 1) lista de almacenes y mapa

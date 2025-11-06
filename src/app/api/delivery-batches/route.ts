@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { deliveryBatchSchema } from "@/schemas/delivery-batch-schema";
-import { ensureAuthUser } from "@/lib/auth-utils";
+import { ensureAuthUser, requirePermission } from "@/lib/auth-utils";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 
@@ -80,6 +80,7 @@ export async function GET(request: Request) {
 
 export async function POST(req: Request) {
   try {
+    await requirePermission("deliveries_manage");
     const payload  = await req.json();
     const data     = deliveryBatchSchema.parse(payload);
     const operator = await ensureAuthUser();

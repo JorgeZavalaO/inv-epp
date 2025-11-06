@@ -31,9 +31,10 @@ export interface WarehouseWithStock {
 
 interface WarehousesClientProps {
   list: WarehouseWithStock[];
+  canExport?: boolean;
 }
 
-export default function WarehousesClient({ list }: WarehousesClientProps) {
+export default function WarehousesClient({ list, canExport = true }: WarehousesClientProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingWarehouse, setEditingWarehouse] =
     useState<WarehouseWithStock | null>(null);
@@ -65,10 +66,12 @@ export default function WarehousesClient({ list }: WarehousesClientProps) {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Almacenes</h1>
         <div className="flex items-center gap-2">
+          {canExport && (
           <Button variant="secondary" onClick={exportStocks} aria-label="Exportar stocks por almacén a Excel">
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Exportar Excel
           </Button>
+          )}
           <Button onClick={() => setShowCreateModal(true)}>
             + Nuevo almacén
           </Button>

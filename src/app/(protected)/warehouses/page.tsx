@@ -1,9 +1,18 @@
 import prisma from "@/lib/prisma";
 import WarehousesClient, { WarehouseWithStock } from "@/app/(protected)/warehouses/WarehousesClient";
+import { hasAnyPermission, hasPermission } from "@/lib/auth-utils";
+import { redirect } from "next/navigation";
 
 export const revalidate = 0;
 
 export default async function WarehousesPage() {
+  // Verificar permisos - necesita al menos uno de estos
+  const canAccess = await hasAnyPermission(['warehouses_manage', 'warehouses_export']);
+  
+  if (!canAccess) {
+    redirect('/dashboard');
+  }
+  
   // 1) Traer cada almacén con sus stocks (solo la cantidad)
   const raw = await prisma.warehouse.findMany({
     select: {
@@ -23,5 +32,6 @@ export default async function WarehousesPage() {
     totalStock: w.stocks.reduce((sum, s) => sum + s.quantity, 0),
   }));
 
-  return <WarehousesClient list={list} />;
+  const canExport = await hasPermission('warehouses_export');
+  return <WarehousesClient list={list} canExport={canExport} />;
 }

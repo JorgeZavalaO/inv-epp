@@ -3,13 +3,14 @@
 import prisma                    from "@/lib/prisma";
 import { returnBatchSchema }     from "@/schemas/return-schema";
 import { revalidatePath }        from "next/cache";
-import { ensureAuthUser }        from "@/lib/auth-utils";
+import { ensureAuthUser, requirePermission }        from "@/lib/auth-utils";
 //import { z }                     from "zod";
 
 /*─────────────────────────────────────────────────────
   CREA UN NUEVO LOTE de devolución (ReturnBatch)
 ─────────────────────────────────────────────────────*/
 export async function createReturnBatch(fd: FormData) {
+  await requirePermission("returns_manage");
   const raw  = JSON.parse(fd.get("payload") as string);
   const data = returnBatchSchema.parse(raw);
 
@@ -77,6 +78,7 @@ export async function createReturnBatch(fd: FormData) {
   DESHACE / ELIMINA un lote de devolución completo
 ─────────────────────────────────────────────────────*/
 export async function deleteReturnBatch(batchId: number) {
+  await requirePermission("returns_manage");
   const batch = await prisma.returnBatch.findUnique({
     where:  { id: batchId },
     select: { id: true, code: true, items: true, warehouseId: true, userId: true },

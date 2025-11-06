@@ -1,5 +1,7 @@
 import prisma from "@/lib/prisma";
 import StockMovementsClient from "./StockMovementsClient";
+import { hasPermission } from "@/lib/auth-utils";
+import { redirect } from "next/navigation";
 
 export const revalidate = 0;
 const PAGE_SIZE = 50;
@@ -10,6 +12,13 @@ export default async function StockMovementsPage({
   /* Next genera PageProps cuyo searchParams es Promise<Record<string,string>> */
   searchParams: Promise<{ page?: string }>;
 }) {
+  // Verificar permisos
+  const canAccess = await hasPermission('stock_movements_manage');
+  
+  if (!canAccess) {
+    redirect('/dashboard');
+  }
+  
   // Ahora await searchParams para obtener el objeto real
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam ?? "1"));

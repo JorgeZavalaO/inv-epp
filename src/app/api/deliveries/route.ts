@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { requirePermission } from "@/lib/auth-utils";
 
 type DeliveryBatchWhereInput = {
   OR?: Array<Record<string, unknown>>;
@@ -113,6 +114,7 @@ export async function GET(request: Request) {
 
 export async function POST(req: Request) {
   try {
+    await requirePermission("deliveries_manage");
     const data = await req.json();
     const created = await prisma.deliveryBatch.create({ data });
     return NextResponse.json(created, { status: 201 });

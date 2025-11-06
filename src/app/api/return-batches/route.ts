@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { returnBatchSchema } from "@/schemas/return-schema";
-import { ensureAuthUser } from "@/lib/auth-utils";
+import { ensureAuthUser, requirePermission } from "@/lib/auth-utils";
 import { z } from "zod";
 
 export async function GET(request: Request) {
@@ -48,6 +48,7 @@ export async function GET(request: Request) {
 
 export async function POST(req: Request) {
   try {
+    await requirePermission("returns_manage");
     const payload = await req.json();
     const data    = returnBatchSchema.parse(payload);
     const user    = await ensureAuthUser();

@@ -2,8 +2,17 @@ import SettingsForm from "@/components/settings/SettingsForm";
 import { getSystemConfig } from "@/lib/settings";
 import { Settings, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { hasPermission } from "@/lib/auth-utils";
+import { redirect } from "next/navigation";
 
 export default async function SettingsPage() {
+    // Verificar permisos
+    const canAccess = await hasPermission('settings_update');
+    
+    if (!canAccess) {
+        redirect('/dashboard');
+    }
+    
     const cfg = await getSystemConfig();
     
     return (

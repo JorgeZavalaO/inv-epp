@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/auth-utils';
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -18,6 +19,7 @@ export async function GET(_: Request, { params }: Params) {
 }
 
 export async function PUT(req: Request, { params }: Params) {
+  await requirePermission("requests_manage");
   const { id } = await params;
   const data = await req.json();
   const updated = await prisma.request.update({
@@ -28,6 +30,7 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_: Request, { params }: Params) {
+  await requirePermission("requests_manage");
   const { id } = await params;
   await prisma.request.delete({ where: { id: Number(id) } });
   return NextResponse.json({});

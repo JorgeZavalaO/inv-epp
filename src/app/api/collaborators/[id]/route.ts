@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { collaboratorSchema } from "@/schemas/collaborator-schema";
 import { Prisma } from "@prisma/client";
+import { requirePermission } from "@/lib/auth-utils";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +21,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   
   try {
+    await requirePermission("collaborators_manage");
     const body = await req.json();
     const parsed = collaboratorSchema
       .pick({ name: true, email: true, position: true })
@@ -55,6 +57,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   
+  await requirePermission("collaborators_manage");
   await prisma.collaborator.delete({ where: { id: Number(id) } });
   return NextResponse.json({ ok: true });
 }

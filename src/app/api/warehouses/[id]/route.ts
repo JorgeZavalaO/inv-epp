@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { requirePermission } from "@/lib/auth-utils";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
@@ -27,6 +28,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requirePermission("warehouses_manage");
     const { id } = await params;
     const body = await req.json();
     const data = warehouseSchema.parse(body);
@@ -60,6 +62,12 @@ export async function DELETE(
   _: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
+    await requirePermission("warehouses_manage");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "No autorizado";
+    return NextResponse.json({ error: msg }, { status: 403 });
+  }
   const { id } = await params;
   const warehouseId = Number(id);
 

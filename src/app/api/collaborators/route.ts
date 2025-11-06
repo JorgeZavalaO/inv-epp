@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { collaboratorSchema } from "@/schemas/collaborator-schema";
 import { Prisma } from "@prisma/client";
+import { requirePermission } from "@/lib/auth-utils";
 
 export async function GET() {
   const list = await prisma.collaborator.findMany({
@@ -25,6 +26,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    await requirePermission("collaborators_manage");
     const body = await req.json();
     const data = collaboratorSchema.parse(body);
     const created = await prisma.collaborator.create({ data });

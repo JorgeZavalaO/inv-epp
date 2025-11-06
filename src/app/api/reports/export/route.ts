@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateDeliveriesExcel } from "@/lib/export/deliveries-excel";
+import { requirePermission } from "@/lib/auth-utils";
 
 function parseNumber(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -21,6 +22,8 @@ function formatForFilename(date: Date) {
 }
 
 export async function GET(req: NextRequest) {
+  await requirePermission("reports_export");
+  
   const { searchParams } = new URL(req.url);
 
   const year = Number(searchParams.get("year") ?? new Date().getFullYear());

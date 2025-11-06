@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import SidebarNav from "@/components/SidebarNav";
 import { getLowStockCount } from "@/lib/alerts";
 import { AlertTriangle } from "lucide-react";
+import { getUserPermissions } from "@/lib/auth-utils";
 
 export default async function ProtectedLayout({
   children,
@@ -15,6 +16,9 @@ export default async function ProtectedLayout({
     redirect("/auth/signin");
   }
 
+  // Obtener permisos del usuario
+  const userPermissions = await getUserPermissions();
+
   // Obtiene la alerta de stock bajo
   const low = await getLowStockCount();
 
@@ -22,7 +26,7 @@ export default async function ProtectedLayout({
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}
       <aside className="hidden w-72 shrink-0 lg:block">
-        <SidebarNav />
+        <SidebarNav userPermissions={userPermissions} />
       </aside>
 
       {/* Contenido principal */}

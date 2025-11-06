@@ -15,7 +15,8 @@
     "vercel-build": "npm run build:vercel",
     "build:vercel": "bash ./scripts/vercel-build.sh",
     "deploy:check": "prisma migrate status",
-    "deploy:safe": "prisma migrate deploy && prisma generate && npm run build"
+    "deploy:safe": "prisma migrate deploy && prisma generate && npm run build",
+    "seed:permissions": "tsx scripts/seed-permissions.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.1",
@@ -75,6 +76,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.3.2",
     "prisma": "^6.8.2",
+    "shadcn": "^3.5.0",
     "tailwindcss": "^4",
     "tsx": "^4.19.4",
     "tw-animate-css": "^1.3.0",

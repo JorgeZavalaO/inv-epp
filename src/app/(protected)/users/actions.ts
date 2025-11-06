@@ -308,6 +308,69 @@ export async function assignPermissions(input: AssignPermissionsInput) {
 }
 
 /**
+ * Agregar un permiso individual a un usuario
+ */
+export async function addPermissionToUser(userId: string, permissionId: string) {
+  await requirePermission("assign_roles");
+
+  // Verificar que el usuario existe
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error("Usuario no encontrado");
+  }
+
+  // Verificar que el permiso existe
+  const permission = await prisma.permission.findUnique({
+    where: { id: permissionId },
+  });
+
+  if (!permission) {
+    throw new Error("Permiso no encontrado");
+  }
+
+  // Agregar permiso (skipDuplicates evita error si ya existe)
+  await prisma.userPermission.create({
+    data: {
+      userId,
+      permissionId,
+    },
+  });
+
+  revalidatePath("/users");
+  return { success: true };
+}
+
+/**
+ * Quitar un permiso individual de un usuario
+ */
+export async function removePermissionFromUser(userId: string, permissionId: string) {
+  await requirePermission("assign_roles");
+
+  // Verificar que el usuario existe
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error("Usuario no encontrado");
+  }
+
+  // Quitar permiso
+  await prisma.userPermission.deleteMany({
+    where: {
+      userId,
+      permissionId,
+    },
+  });
+
+  revalidatePath("/users");
+  return { success: true };
+}
+
+/**
  * Obtener estadísticas de usuarios
  */
 export async function getUserStats() {

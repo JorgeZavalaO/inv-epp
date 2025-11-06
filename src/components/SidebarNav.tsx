@@ -1,6 +1,7 @@
 "use client";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -16,6 +17,22 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { UserMenu } from '@/components/auth/UserMenu';
+
+// Mapeo de rutas a permisos requeridos (si la ruta necesita alguno de estos permisos)
+const ROUTE_PERMISSIONS: Record<string, string[]> = {
+  '/dashboard': [], // Accesible para todos los autenticados
+  '/warehouses': ['warehouses_manage', 'warehouses_export'],
+  '/epps': ['epps_manage'],
+  '/stock-movements': ['stock_movements_manage'],
+  '/deliveries': ['deliveries_manage', 'deliveries_export'],
+  '/returns': ['returns_manage'],
+  '/collaborators': ['collaborators_manage'],
+  '/reports': ['reports_export'],
+  '/audit-logs': ['audit_view'],
+  '/settings': ['settings_update'],
+  '/users': ['user_view'],
+  '/performance': [], // Accesible para admins (se verifica en el componente)
+};
 
 const sections = [
   { 
@@ -65,8 +82,31 @@ const sections = [
   },
 ];
 
-export default function SidebarNav() {
+type SidebarNavProps = {
+  userPermissions: string[];
+};
+
+export default function SidebarNav({ userPermissions }: SidebarNavProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  
+  // Verificar si el usuario puede acceder a una ruta
+  const canAccessRoute = (href: string): boolean => {
+    // Dashboard siempre es accesible
+    if (href === '/dashboard') return true;
+    
+    // Los ADMIN tienen acceso a todo
+    if (session?.user?.role === 'ADMIN') return true;
+    
+    // Obtener permisos requeridos para esta ruta
+    const requiredPermissions = ROUTE_PERMISSIONS[href] || [];
+    
+    // Si no hay permisos requeridos, es accesible
+    if (requiredPermissions.length === 0) return true;
+    
+    // Verificar si tiene al menos uno de los permisos requeridos
+    return requiredPermissions.some(perm => userPermissions.includes(perm));
+  };
 
   return (
     <div className="flex h-full flex-col bg-white">
@@ -85,16 +125,23 @@ export default function SidebarNav() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4">
-        {sections.map((section) => (
-          <div key={section.title} className="mb-6">
-            <div className="mb-2 px-4">
-              <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                {section.title}
-              </h3>
-            </div>
-            
-            <div className="space-y-1 px-2">
-              {section.items.map(({ href, label, icon, description }) => {
+        {sections.map((section) => {
+          // Filtrar items según permisos
+          const accessibleItems = section.items.filter(item => canAccessRoute(item.href));
+          
+          // Si no hay items accesibles en esta sección, no mostrarla
+          if (accessibleItems.length === 0) return null;
+          
+          return (
+            <div key={section.title} className="mb-6">
+              <div className="mb-2 px-4">
+                <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                  {section.title}
+                </h3>
+              </div>
+              
+              <div className="space-y-1 px-2">
+                {accessibleItems.map(({ href, label, icon, description }) => {
                 const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
                 
                 return (
@@ -128,7 +175,8 @@ export default function SidebarNav() {
               })}
             </div>
           </div>
-        ))}
+        );
+        })}
       </nav>
 
       {/* User section */}

@@ -75,6 +75,7 @@ import {
 import { UserRole } from '@prisma/client';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import PermissionsManager from './PermissionsManager';
 
 // Tipos
 type User = {
@@ -319,23 +320,6 @@ export default function UserManagementClient() {
       }
     });
   };
-
-  const togglePermission = (permissionId: string) => {
-    setUserPermissions((prev) =>
-      prev.includes(permissionId)
-        ? prev.filter((id) => id !== permissionId)
-        : [...prev, permissionId]
-    );
-  };
-
-  // Agrupar permisos por módulo
-  const permissionsByModule = allPermissions.reduce((acc, permission) => {
-    if (!acc[permission.module]) {
-      acc[permission.module] = [];
-    }
-    acc[permission.module].push(permission);
-    return acc;
-  }, {} as Record<string, Permission[]>);
 
   if (isLoading) {
     return (
@@ -677,50 +661,23 @@ export default function UserManagementClient() {
 
       {/* Modal Gestionar Permisos */}
       <Dialog open={isPermissionsModalOpen} onOpenChange={setIsPermissionsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Gestionar Permisos</DialogTitle>
             <DialogDescription>
-              {selectedUser && `Permisos para ${selectedUser.name} - ${ROLE_INFO[selectedUser.role].label}`}
+              {selectedUser && `Configurar permisos para ${selectedUser.name} (${ROLE_INFO[selectedUser.role].label})`}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            {Object.entries(permissionsByModule).map(([module, permissions]) => (
-              <Card key={module}>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium capitalize">
-                    {module}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 gap-2">
-                    {permissions.map((permission) => (
-                      <label
-                        key={permission.id}
-                        className="flex items-center space-x-2 cursor-pointer p-2 rounded hover:bg-accent"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={userPermissions.includes(permission.id)}
-                          onChange={() => togglePermission(permission.id)}
-                          className="rounded border-gray-300"
-                        />
-                        <div className="flex-1">
-                          <div className="text-sm font-medium">{permission.name}</div>
-                          {permission.description && (
-                            <div className="text-xs text-muted-foreground">
-                              {permission.description}
-                            </div>
-                          )}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          
+          <div className="flex-1 overflow-hidden">
+            <PermissionsManager
+              allPermissions={allPermissions}
+              selectedPermissions={userPermissions}
+              onChange={setUserPermissions}
+            />
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="border-t pt-4 mt-4">
             <Button
               type="button"
               variant="outline"
@@ -734,7 +691,7 @@ export default function UserManagementClient() {
             </Button>
             <Button onClick={handleSavePermissions} disabled={isPending}>
               {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Guardar Permisos
+              Guardar Permisos ({userPermissions.length})
             </Button>
           </DialogFooter>
         </DialogContent>

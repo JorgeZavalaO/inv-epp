@@ -8,6 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth-utils';
 import prisma from '@/lib/prisma';
 
 export async function GET() {
@@ -19,6 +20,13 @@ export async function GET() {
         { error: 'No autorizado' },
         { status: 401 }
       );
+    }
+
+    try {
+      await requirePermission('audit_view');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No autorizado';
+      return NextResponse.json({ error: msg }, { status: 403 });
     }
 
     const now = new Date();

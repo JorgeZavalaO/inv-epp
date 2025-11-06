@@ -54,6 +54,31 @@ export async function hasPermission(permissionName: string): Promise<boolean> {
 }
 
 /**
+ * Verificar si el usuario tiene AL MENOS UNO de los permisos especificados (OR)
+ */
+export async function hasAnyPermission(permissionNames: string[]): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) return false;
+
+  // Los ADMIN tienen todos los permisos
+  if (user.role === 'ADMIN') return true;
+
+  // Verificar si tiene al menos uno de los permisos
+  const userPermission = await prisma.userPermission.findFirst({
+    where: {
+      userId: user.id,
+      permission: {
+        name: {
+          in: permissionNames,
+        },
+      },
+    },
+  });
+
+  return !!userPermission;
+}
+
+/**
  * Verificar si el usuario tiene todos los permisos especificados
  */
 export async function hasAllPermissions(permissionNames: string[]): Promise<boolean> {
@@ -76,31 +101,6 @@ export async function hasAllPermissions(permissionNames: string[]): Promise<bool
   });
 
   return userPermissions.length === permissionNames.length;
-}
-
-/**
- * Verificar si el usuario tiene al menos uno de los permisos especificados
- */
-export async function hasAnyPermission(permissionNames: string[]): Promise<boolean> {
-  const user = await getCurrentUser();
-  if (!user) return false;
-
-  // Los ADMIN tienen todos los permisos
-  if (user.role === 'ADMIN') return true;
-
-  // Verificar si tiene algún permiso
-  const userPermission = await prisma.userPermission.findFirst({
-    where: {
-      userId: user.id,
-      permission: {
-        name: {
-          in: permissionNames,
-        },
-      },
-    },
-  });
-
-  return !!userPermission;
 }
 
 /**

@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/auth-utils';
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -12,6 +13,7 @@ export async function GET(_: Request, { params }: Params) {
 }
 
 export async function PUT(req: Request, { params }: Params) {
+  await requirePermission("stock_movements_manage");
   const { id } = await params;
   const data = await req.json();
   const updated = await prisma.stockMovement.update({ where: { id: Number(id) }, data });
@@ -19,6 +21,7 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_: Request, { params }: Params) {
+  await requirePermission("stock_movements_manage");
   const { id } = await params;
   await prisma.stockMovement.delete({ where: { id: Number(id) } });
   return NextResponse.json({});

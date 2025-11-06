@@ -2,13 +2,14 @@
 
 import prisma from "@/lib/prisma";
 import { deliveryBatchSchema } from "@/schemas/delivery-batch-schema";
-import { ensureAuthUser } from "@/lib/auth-utils";
+import { ensureAuthUser, requirePermission } from "@/lib/auth-utils";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { auditCreate, auditUpdate, auditDelete } from "@/lib/audit";
 
 export async function createDeliveryBatch(fd: FormData) {
+  await requirePermission("deliveries_manage");
   const payload = JSON.parse(fd.get("payload") as string);
   let data;
   try {
@@ -141,6 +142,7 @@ export async function createDeliveryBatch(fd: FormData) {
 
 
 export async function updateDeliveryBatch(fd: FormData) {
+  await requirePermission("deliveries_manage");
   const raw = JSON.parse(fd.get("payload") as string);
   let data;
   try {
@@ -264,6 +266,7 @@ export async function updateDeliveryBatch(fd: FormData) {
 }
 
 export async function deleteBatch(batchId: number) {
+  await requirePermission("deliveries_manage");
   const operator = await ensureAuthUser();
 
   // Capturar datos ANTES de eliminar para auditoría

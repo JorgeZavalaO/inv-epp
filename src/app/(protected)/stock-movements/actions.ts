@@ -3,9 +3,10 @@
 import prisma from "@/lib/prisma";
 import { stockMovementSchema } from "@/schemas/stock-movement-schema";
 import { revalidatePath } from "next/cache";
-import { ensureAuthUser } from "@/lib/auth-utils";
+import { ensureAuthUser, requirePermission } from "@/lib/auth-utils";
 
 export async function createMovement(fd: FormData) {
+  await requirePermission("stock_movements_manage");
   const data = stockMovementSchema.parse(Object.fromEntries(fd));
   const dbUser = await ensureAuthUser();
 
@@ -48,6 +49,7 @@ export async function createMovement(fd: FormData) {
 }
 
 export async function deleteMovement(id: number) {
+  await requirePermission("stock_movements_manage");
   const movement = await prisma.stockMovement.findUniqueOrThrow({ where: { id } });
   if (movement.type !== "ADJUSTMENT" && movement.quantity === 0) {
     throw new Error("La cantidad debe ser mayor que 0 para ENTRADA / SALIDA");

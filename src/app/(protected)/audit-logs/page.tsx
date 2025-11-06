@@ -1,12 +1,21 @@
 import { Metadata } from "next";
 import AuditLogsClient from "@/components/audit/AuditLogsClient";
+import { hasPermission } from "@/lib/auth-utils";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Auditoría | Sistema de Gestión EPP",
   description: "Historial de auditoría y trazabilidad de operaciones",
 };
 
-export default function AuditLogsPage() {
+export default async function AuditLogsPage() {
+  // Verificar permisos
+  const canAccess = await hasPermission('audit_view');
+  
+  if (!canAccess) {
+    redirect('/dashboard');
+  }
+  
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6">

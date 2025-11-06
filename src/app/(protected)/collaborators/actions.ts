@@ -5,8 +5,10 @@ import { z } from "zod";
 import { collaboratorSchema } from "@/schemas/collaborator-schema";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { requirePermission } from "@/lib/auth-utils";
 
 export async function createCollaborator(fd: FormData) {
+  await requirePermission("collaborators_manage");
   const raw = {
     name:     fd.get("name")?.toString() ?? "",
     email:    fd.get("email")?.toString() ?? undefined,
@@ -32,6 +34,7 @@ export async function createCollaborator(fd: FormData) {
 }
 
 export async function updateCollaborator(fd: FormData) {
+  await requirePermission("collaborators_manage");
   const raw = {
     id:       Number(fd.get("id")),
     name:     fd.get("name")?.toString() ?? "",
@@ -62,6 +65,7 @@ export async function updateCollaborator(fd: FormData) {
 }
 
 export async function deleteCollaborator(id: number) {
+  await requirePermission("collaborators_manage");
   // Opcional: validar que no esté en uso en entregas/solicitudes
   await prisma.collaborator.delete({ where: { id } });
   revalidatePath("/collaborators");

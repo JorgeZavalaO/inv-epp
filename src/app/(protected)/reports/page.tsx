@@ -7,8 +7,17 @@ import LatestDeliveriesTable from "@/components/reports/LatestDeliveriesTable";
 import CategoriesDistributionChart from "@/components/reports/CategoriesDistributionChart";
 import IndicatorsPanel from "@/components/reports/IndicatorsPanel";
 import ReportsFilters from "./reports-filters";
+import { hasPermission } from "@/lib/auth-utils";
+import { redirect } from "next/navigation";
 
 export default async function ReportsPage({ searchParams }: { searchParams?: Promise<{ year?: string; warehouseId?: string; category?: string; from?: string; to?: string }> }) {
+  // Verificar permisos
+  const canAccess = await hasPermission('reports_export');
+  
+  if (!canAccess) {
+    redirect('/dashboard');
+  }
+  
   const sp = (await searchParams) ?? {};
   const year = Number(sp.year ?? new Date().getFullYear());
   const warehouseId = sp.warehouseId ? Number(sp.warehouseId) : undefined;

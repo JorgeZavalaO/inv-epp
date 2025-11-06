@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import type { Prisma, StockMovementType } from '@prisma/client';
+import { requirePermission } from '@/lib/auth-utils';
 
 export async function GET(request: Request) {
   try {
@@ -69,6 +70,7 @@ function isValidStockMovementType(type: string): type is StockMovementType {
 }
 
 export async function POST(req: Request) {
+  await requirePermission("stock_movements_manage");
   const data = await req.json();
   const created = await prisma.stockMovement.create({ data });
   return NextResponse.json(created, { status: 201 });

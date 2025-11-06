@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { requirePermission } from "@/lib/auth-utils";
 
 /* ───────────── Schema Zod para validaciones ───────────── */
 const warehouseSchema = z.object({
@@ -16,6 +17,7 @@ export type WarehouseValues = z.infer<typeof warehouseSchema>;
 
 /* ───────────── Crear almacén ─────────────────────────── */
 export async function createWarehouseAction(fd: FormData) {
+  await requirePermission("warehouses_manage");
   const raw = {
     name: fd.get("name")?.toString() ?? "",
     location: fd.get("location")?.toString() || undefined,
@@ -41,6 +43,7 @@ export async function createWarehouseAction(fd: FormData) {
 
 /* ───────────── Actualizar almacén ───────────────────────── */
 export async function updateWarehouseAction(fd: FormData) {
+  await requirePermission("warehouses_manage");
   const raw = {
     id: Number(fd.get("id")),
     name: fd.get("name")?.toString() ?? "",
@@ -73,6 +76,7 @@ export async function updateWarehouseAction(fd: FormData) {
 
 /* ───────────── Eliminar almacén ────────────────────────── */
 export async function deleteWarehouseAction(fd: FormData) {
+  await requirePermission("warehouses_manage");
   const rawId = fd.get("id");
   const id = Number(rawId);
 

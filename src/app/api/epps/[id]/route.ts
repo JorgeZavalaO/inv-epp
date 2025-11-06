@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/auth-utils';
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -29,6 +30,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  await requirePermission("epps_manage");
   const { id } = await params;
   const data = await req.json();
   const updated = await prisma.ePP.update({
@@ -39,6 +41,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  await requirePermission("epps_manage");
   const { id } = await params;
   await prisma.ePP.delete({ where: { id: Number(id) } });
   return NextResponse.json({});
