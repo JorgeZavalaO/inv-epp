@@ -21,11 +21,7 @@ const passwordSchema = z.object({
 
 type PasswordFormData = z.infer<typeof passwordSchema>;
 
-type PasswordFormProps = {
-  userId: string;
-};
-
-export function PasswordForm({ userId }: PasswordFormProps) {
+export function PasswordForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);

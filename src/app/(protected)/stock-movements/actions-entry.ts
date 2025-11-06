@@ -28,7 +28,6 @@ export async function createEntryBatch(fd: FormData) {
 
   // Determinar si requiere aprobación
   const requiresApproval = dbUser.role !== UserRole.ADMIN;
-  const status = requiresApproval ? MovementStatus.PENDING : MovementStatus.APPROVED;
 
   /* 3) Si requiere aprobación, solo crear los movimientos sin actualizar stock */
   if (requiresApproval) {

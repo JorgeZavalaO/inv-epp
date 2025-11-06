@@ -15,7 +15,6 @@ export async function createMovement(fd: FormData) {
   // Los ADMIN pueden crear movimientos aprobados directamente
   // Otros roles deben esperar aprobación
   const requiresApproval = dbUser.role !== UserRole.ADMIN;
-  const status = requiresApproval ? MovementStatus.PENDING : MovementStatus.APPROVED;
 
   // Si requiere aprobación, NO actualizar el stock todavía
   if (requiresApproval) {

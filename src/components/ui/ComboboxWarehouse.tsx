@@ -20,10 +20,12 @@ export default function ComboboxWarehouse({
   value,
   onChange,
   options,
+  disabled = false,
 }: {
   value: number | null;
   onChange: (id: number | null) => void;
   options: WarehouseOption[];
+  disabled?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -57,6 +59,7 @@ export default function ComboboxWarehouse({
           role="combobox"
           aria-expanded={open}
           className="w-full justify-between"
+          disabled={disabled}
         >
           <span className={value ? "text-foreground" : "text-muted-foreground"}>
             {selectedLabel}

@@ -3,6 +3,7 @@ import Credentials from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
+import { UserRole } from '@prisma/client';
 
 const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
 const authUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
@@ -116,7 +117,7 @@ export default {
             // Si el usuario fue desactivado, invalidar la sesión
             if (!dbUser.isActive) {
               console.log(`Usuario ${token.id} fue desactivado`);
-              return null as any; // Esto invalidará la sesión
+              return null; // Esto invalidará la sesión
             }
           }
           
@@ -132,8 +133,7 @@ export default {
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        session.user.role = token.role as any;
+        session.user.role = token.role as UserRole;
       }
       return session;
     },

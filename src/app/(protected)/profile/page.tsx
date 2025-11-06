@@ -207,7 +207,7 @@ export default async function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <PasswordForm userId={user.id} />
+              <PasswordForm />
             </CardContent>
           </Card>
         </div>

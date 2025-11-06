@@ -4,6 +4,8 @@ import prisma from "@/lib/prisma";
 import { eppSchema } from "@/schemas/epp-schema";
 import { revalidatePath } from "next/cache";
 import { getNextEppCode } from "@/lib/next-epp-code";
+import { ensureAuthUser } from "@/lib/auth-utils";
+import { UserRole } from "@prisma/client";
 
 function parseFormDataToEpp(fd: FormData) {
   const entries = Array.from(fd.entries()) as [string, string][];
@@ -83,35 +85,43 @@ export async function updateEpp(fd: FormData) {
   const { id, items, ...rest } = data;
   if (!id) throw new Error("ID requerido");
 
-  // 1) actualizar EPP
+  // Obtener usuario actual
+  const currentUser = await ensureAuthUser();
+
+  // Solo los administradores pueden modificar los stocks iniciales
+  const canEditStocks = currentUser.role === UserRole.ADMIN;
+
+  // 1) actualizar EPP (datos generales siempre se pueden editar)
   await prisma.ePP.update({ where: { id }, data: rest });
 
-  // 2) ajustar stocks
-  await prisma.$transaction(async (tx) => {
-    for (const it of items) {
-      await tx.ePPStock.upsert({
+  // 2) ajustar stocks solo si es administrador
+  if (canEditStocks) {
+    await prisma.$transaction(async (tx) => {
+      for (const it of items) {
+        await tx.ePPStock.upsert({
+          where: {
+            eppId_warehouseId: { eppId: id, warehouseId: it.warehouseId },
+          },
+          create: {
+            eppId:       id,
+            warehouseId: it.warehouseId,
+            quantity:    it.initialQty,
+          },
+          update: {
+            quantity:    it.initialQty,
+          },
+        });
+      }
+      const keep = items.map((it) => it.warehouseId);
+      await tx.ePPStock.updateMany({
         where: {
-          eppId_warehouseId: { eppId: id, warehouseId: it.warehouseId },
+          eppId:         id,
+          warehouseId: { notIn: keep },
         },
-        create: {
-          eppId:       id,
-          warehouseId: it.warehouseId,
-          quantity:    it.initialQty,
-        },
-        update: {
-          quantity:    it.initialQty,
-        },
+        data: { quantity: 0 },
       });
-    }
-    const keep = items.map((it) => it.warehouseId);
-    await tx.ePPStock.updateMany({
-      where: {
-        eppId:         id,
-        warehouseId: { notIn: keep },
-      },
-      data: { quantity: 0 },
     });
-  });
+  }
 
   revalidatePath("/epps");
 }

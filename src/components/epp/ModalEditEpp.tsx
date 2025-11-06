@@ -8,7 +8,8 @@ import { Input }        from "@/components/ui/input";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver }  from "@hookform/resolvers/zod";
 import { toast }        from "sonner";
-import { Plus, Trash, Loader2 } from "lucide-react";
+import { Plus, Trash, Loader2, Lock } from "lucide-react";
+import { useSession }   from "next-auth/react";
 
 import { eppSchema, EppValues } from "@/schemas/epp-schema";
 import { updateEpp }    from "@/app/(protected)/epps/actions";
@@ -30,6 +31,8 @@ export default function ModalEditEpp({
   };
   onClose(): void;
 }) {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
   const [warehouses, setWarehouses] = React.useState<{ id: number; name: string }[]>([]);
 
   React.useEffect(() => {
@@ -132,6 +135,12 @@ export default function ModalEditEpp({
           )}
 
           <Label>Stocks iniciales (por almacén)</Label>
+          {!isAdmin && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-md border">
+              <Lock className="h-4 w-4" />
+              <span>Solo los administradores pueden modificar los stocks iniciales</span>
+            </div>
+          )}
           {fields.map((f, idx) => (
             <div key={f.id} className="grid grid-cols-12 gap-2 items-end">
               <Controller
@@ -143,6 +152,7 @@ export default function ModalEditEpp({
                       value={field.value || null}
                       onChange={field.onChange}
                       options={warehouses.map((w) => ({ id: w.id, label: w.name }))}
+                      disabled={!isAdmin}
                     />
                   </div>
                 )}
@@ -157,6 +167,7 @@ export default function ModalEditEpp({
                       min={0}
                       {...field}
                       placeholder="Cantidad"
+                      disabled={!isAdmin}
                     />
                   </div>
                 )}
@@ -166,6 +177,7 @@ export default function ModalEditEpp({
                   size="icon"
                   variant="ghost"
                   onClick={() => remove(idx)}
+                  disabled={!isAdmin}
                 >
                   <Trash size={16} />
                 </Button>
@@ -175,6 +187,7 @@ export default function ModalEditEpp({
           <Button
             variant="outline"
             onClick={() => append({ warehouseId: undefined!, initialQty: 0 })}
+            disabled={!isAdmin}
           >
             <Plus size={16} className="mr-1" /> Añadir almacén
           </Button>
