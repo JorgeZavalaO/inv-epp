@@ -71,10 +71,12 @@ Sistema integral para la administración de Equipos de Protección Personal (EPP
 - ✅ Niveles de stock mínimo configurables por artículo
 - ✅ Alertas automáticas de stock bajo
 - ✅ Búsqueda y filtrado avanzado
+- ✅ **Edición restringida de stocks iniciales** - Solo administradores pueden modificar stocks después de crear el EPP
 
 ### 📦 Control de Inventario
 - ✅ Stock por almacén con movimientos detallados
 - ✅ Tipos de movimiento: Entrada, Salida, Transferencia, Ajuste
+- ✅ **Sistema de aprobación de movimientos** - Movimientos de no-admins requieren aprobación de administrador
 - ✅ Validación automática de disponibilidad
 - ✅ Historial completo de transacciones
 - ✅ Trazabilidad de operador y fecha/hora
@@ -108,10 +110,13 @@ Sistema integral para la administración de Equipos de Protección Personal (EPP
 - ✅ Análisis de consumo por categoría y ubicación
 
 ### 🔐 Seguridad y Autenticación
-- ✅ Sistema de autenticación completo mediante Clerk
-- ✅ Manejo de sesiones y protección de rutas
-- ✅ Sincronización automática de usuarios
+- ✅ Sistema de autenticación completo mediante Auth.js
+- ✅ Manejo de sesiones con JWT y sincronización automática de roles
+- ✅ **Monitoreo de cambios de roles en tiempo real** - Detecta cambios de rol y notifica al usuario automáticamente
+- ✅ Sincronización automática de roles cada 5 minutos o en cambios
 - ✅ Validación de permisos en cada operación
+- ✅ **Perfil de usuario completo** - Avatar con carga en Vercel Blob Storage
+- ✅ Cambio de contraseña seguro con bcrypt
 
 ### ⚡ Performance Optimizado
 - ✅ Índices de base de datos para consultas rápidas
@@ -515,35 +520,150 @@ while (attempt < MAX_RETRIES) {
 - ✅ **Tolerancia a fallos** automática
 - ✅ **Performance sin impacto** (solo si hay conflicto)
 
-### 3. Sistema de Auditoría y Trazabilidad (Resumen)
+### 3. Edición de Stocks Iniciales Solo para Administradores
 
-Sistema robusto de auditoría incorporado (ver sección dedicada más abajo para detalles completos):
+**Problema:** Todos los usuarios podían editar los stocks iniciales de un EPP después de su creación, lo cual es una acción crítica que debe estar restringida.
 
-- Logging asíncrono (overhead ~3ms)
-- Retención automática por tipo de entidad (TTL)
-- Almacenamiento de diffs en lugar de snapshots completos
-- Índices dedicados para queries rápidas
-- Limpieza programada diaria vía Vercel Cron (`/api/cron/cleanup-audit-logs`)
-- Interfaz administrativa: `/audit-logs` con filtros y estadísticas
+**Solución Implementada:**
+- ✅ **Validación en frontend**: Campos deshabilitados para no-admins en `ModalEditEpp.tsx`
+- ✅ **Validación en backend**: Servidor ignora cambios en stocks si no es ADMIN en `updateEpp` action
+- ✅ **Mensaje informativo**: Los usuarios no-admin ven una explicación clara del bloqueo
+- ✅ **Otros campos editables**: Nombre, categoría, descripción y stock mínimo siguen siendo editables para todos
 
-Entidades y retención:
-```
-DeliveryBatch, Delivery, ReturnBatch, ReturnItem: 2 años
-StockMovement, EPPStock: 1 año
-EPP, Collaborator, Warehouse: 6 meses
+**Archivos Modificados:**
+- `src/components/epp/ModalEditEpp.tsx` - Deshabilitar campos de stock para no-admin
+- `src/components/ui/ComboboxWarehouse.tsx` - Soporte para propiedad `disabled`
+- `src/app/(protected)/epps/actions.ts` - Validación en backend
+
+**Comportamiento:**
+```typescript
+// Solo si es ADMIN
+if (canEditStocks) {
+  await prisma.$transaction(async (tx) => {
+    // Actualizar stocks...
+  });
+}
 ```
 
-Variables de entorno adicionales (producción):
-```
-CRON_SECRET=<token seguro generado con openssl rand -base64 32>
+**Resultado:**
+- ✅ **Seguridad**: Solo admins pueden modificar datos críticos de inventario
+- ✅ **UX clara**: Usuarios no-admin entienden por qué no pueden editar stocks
+- ✅ **Flexibilidad**: Admins mantienen control total, otros campos editables
+
+### 4. Sistema de Auditoría - Serialización de BigInt
+
+**Problema:** Los logs de auditoría mostraban "No se encontraron registros" aunque había 23 logs en la base de datos.
+
+**Causa Raíz:**
+- El campo `id` en AuditLog es de tipo `BigInt` en PostgreSQL
+- JavaScript/JSON no puede serializar valores `BigInt` directamente
+- Esto causaba un error silencioso al intentar enviar los datos al cliente
+
+**Solución Implementada:**
+- ✅ **Cambio de tipo en schema**: `changes` de `String?` a `Json?` para mejor manejo de datos
+- ✅ **Conversión en API**: Convertir `id` de `BigInt` a `string` antes de serializar como JSON
+- ✅ **Migración de base de datos**: Migración SQL ejecutada para actualizar tipo de columna
+
+**Archivos Modificados:**
+- `prisma/schema.prisma` - Campo `changes` como `Json?`
+- `src/app/api/audit-logs/route.ts` - Convertir BigInt a string
+- `prisma/migrations/20251106_change_auditlog_changes_to_json/migration.sql` - Migración ejecutada
+
+**Código Implementado:**
+```typescript
+const logsWithStringId = logs.map(log => ({
+  ...log,
+  id: log.id.toString(),
+}));
 ```
 
-Endpoints clave:
+**Resultado:**
+- ✅ **Logs visibles**: Todos los logs se muestran correctamente en la UI
+- ✅ **Estadísticas precisas**: Conteos y análisis funcionan correctamente
+- ✅ **Sin duplicación**: JSON válido en todas las respuestas
+
+### 5. Sistema de Aprobación de Movimientos de Stock
+
+**Problema:** Todos los usuarios podían crear movimientos de stock que se aplicaban inmediatamente, sin revisión.
+
+**Solución Implementada:**
+- ✅ **Estados de movimiento**: PENDING, APPROVED, REJECTED
+- ✅ **Lógica condicional**: Admins crean con APPROVED, otros con PENDING
+- ✅ **Stock no se actualiza**: Solo se actualiza cuando el movimiento es APPROVED
+- ✅ **Interfaz de aprobación**: Modal para admins ver y aprobar/rechazar movimientos
+- ✅ **Información de rechazo**: Campo opcional para explicar rechazos
+
+**Archivos Modificados:**
+- `src/app/(protected)/stock-movements/actions.ts` - Lógica de aprobación
+- `src/app/(protected)/stock-movements/actions-entry.ts` - Mismo para entradas en batch
+- `src/components/stock/ModalPendingApprovals.tsx` - UI para aprobaciones
+- `prisma/schema.prisma` - Enum `MovementStatus` y campos en `StockMovement`
+
+**Flujo:**
+1. Usuario no-admin crea movimiento → `PENDING`
+2. Stock NO se actualiza automáticamente
+3. Admin ve movimiento pendiente en botón "Aprobaciones Pendientes"
+4. Admin aprueba → `APPROVED` + Stock se actualiza
+5. O Admin rechaza → `REJECTED` + Stock no se afecta
+
+**Resultado:**
+- ✅ **Contro de calidad**: Todos los movimientos revierten antes de afectar stock
+- ✅ **Auditoría**: Cada aprobación/rechazo queda registrado
+- ✅ **Trazabilidad**: Se sabe quién aprobó, cuándo y si fue rechazado
+
+### 6. Sincronización de Roles en Tiempo Real
+
+**Problema:** Cuando se cambiaba el rol de un usuario, los cambios no se reflejaban en la sesión activa hasta que el usuario cerrara/abriera sesión.
+
+**Solución Implementada:**
+- ✅ **JWT callback con verificación**: Consulta DB cada 5 minutos para verificar cambios de rol
+- ✅ **SessionMonitor**: Componente que detecta cambios de rol en tiempo real
+- ✅ **Notificación automática**: Toast informando al usuario sobre cambio de rol
+- ✅ **Recarga de página**: Automática después de cambio de rol
+
+**Archivos Modificados:**
+- `src/lib/auth.config.ts` - JWT callback con lógica de verificación
+- `src/components/auth/SessionMonitor.tsx` - Monitoreo en cliente
+- `src/components/auth/UserMenu.tsx` - Etiquetas de rol en español
+
+**Variables en JWT:**
+```typescript
+token.lastRoleCheck = Date.now(); // Controla cuándo consultar DB
 ```
-GET /api/audit-logs
-GET /api/audit-logs/stats
-GET /api/cron/cleanup-audit-logs (interno / Cron)
-```
+
+**Resultado:**
+- ✅ **Experiencia fluida**: Cambios de rol se reflejan en segundos
+- ✅ **Sin confusión**: Usuario sabe cuándo su rol cambió
+- ✅ **Seguridad**: Permisos actualizados automáticamente
+
+### 7. Perfil de Usuario con Carga de Avatar
+
+**Problema:** No había forma para los usuarios de ver/actualizar su perfil ni cambiar su avatar.
+
+**Solución Implementada:**
+- ✅ **Página de perfil**: `/profile` con información del usuario
+- ✅ **Upload de avatar**: Carga a Vercel Blob Storage
+- ✅ **Cambio de contraseña**: Formulario con validación
+- ✅ **Estadísticas**: Último login, actividad reciente, rol actual
+
+**Archivos Nuevos:**
+- `src/app/(protected)/profile/page.tsx` - Página del perfil
+- `src/components/profile/ProfileForm.tsx` - Edición de datos básicos
+- `src/components/profile/PasswordForm.tsx` - Cambio de contraseña
+- `src/app/api/profile/route.ts` - Endpoint para actualizar perfil
+- `src/app/api/profile/password/route.ts` - Endpoint para cambiar contraseña
+- `src/app/api/upload/route.ts` - Endpoint para upload a Blob Storage
+
+**Características:**
+- Validación con React Hook Form + Zod
+- Upload de imagen con validación de tipo/tamaño
+- Hash de contraseña con bcrypt
+- Auditoría de cambios
+
+**Resultado:**
+- ✅ **Autonomía**: Usuarios controlan su propia información
+- ✅ **Seguridad**: Contraseñas hasheadas, avatares en CDN
+- ✅ **Experiencia**: Interfaz clara y amigable
 
 ---
 
@@ -717,9 +837,13 @@ const prisma = new PrismaClient({
 - [x] Control de inventario multi-almacén
 - [x] Entregas y devoluciones
 - [x] Dashboard con KPIs
-- [x] Autenticación de usuarios
+- [x] Autenticación de usuarios con Auth.js
 - [x] Optimización de performance
 - [x] Sistema anti-duplicación
+- [x] Sistema completo de auditoría
+- [x] Gestión avanzada de usuarios y roles
+- [x] Sistema de aprobación de movimientos
+- [x] Edición restringida de EPP por rol
 
 ### 🚧 Fase 2: Mejoras Avanzadas (En Progreso)
 - [ ] Sistema de notificaciones por email
@@ -732,8 +856,7 @@ const prisma = new PrismaClient({
 - [ ] **PWA**: Aplicación móvil progresiva
 - [ ] **Código QR**: Escaneo de EPPs para entregas rápidas
 - [ ] **Firma Digital**: Captura de firma en entregas
-- [ ] **Sistema de Auditoría**: Log completo de cambios
-- [ ] **Roles y Permisos**: Control granular de acceso
+- [ ] **Roles y Permisos**: Control granular de acceso (en progreso)
 - [ ] **Multi-idioma**: Internacionalización (i18n)
 
 ### 🌟 Fase 4: Inteligencia y Automatización (Futuro)
@@ -953,6 +1076,15 @@ Hecho con ❤️ usando Next.js y TypeScript
 ---
 
 ## 🗂️ Changelog
+
+### 2025-11-06
+- ✅ **Edición restringida de stocks iniciales en EPP** - Solo administradores pueden editar stocks después de crear un EPP
+- ✅ **Sistema de aprobación de movimientos de stock** - Movimientos de no-admins requieren aprobación antes de afectar stock
+- ✅ **Corección de auditoría** - Serialización correcta de BigInt en logs, campo `changes` como JSON
+- ✅ **Sincronización de roles en tiempo real** - Detecta cambios de rol automáticamente cada 5 minutos
+- ✅ **Página de perfil de usuario** - Avatar con Vercel Blob Storage, cambio de contraseña
+- ✅ **Interfaz de aprobaciones pendientes** - Modal para admins gestionar movimientos en espera
+- ✅ **Build validation** - Todos los errores de ESLint y TypeScript resueltos
 
 ### 2025-10-06
 - Consolidación de toda la documentación dispersa en un único README.
