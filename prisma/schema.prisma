@@ -1,18 +1,10 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  // Usar conexión directa (sin pooler) para migraciones/CLI.
-  // En Vercel, define DIRECT_DATABASE_URL con el host directo de Neon (sin "-pooler").
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
@@ -64,31 +56,27 @@ enum UserRole {
 
 /// Usuarios con Auth.js
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified DateTime?
-  name          String?
-  password      String // Hash de la contraseña
-  image         String?
-  role          UserRole  @default(VIEWER)
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  lastLoginAt   DateTime?
-
-  // Auth.js relations
-  accounts Account[]
-  sessions Session[]
-
-  // App relations
-  stockMovements  StockMovement[]  @relation("UserStockMovements")
-  approvedStockMovements StockMovement[] @relation("ApprovedStockMovements")
-  deliveryBatches DeliveryBatch[]  @relation("UserDeliveryBatches")
-  returnBatches   ReturnBatch[]    @relation("UserReturnBatches")
-  requests        Request[]        @relation("UserRequests")
-  approvals       Approval[]       @relation("UserApprovals")
-  auditLogs       AuditLog[]       @relation("UserAuditLogs")
-  permissions     UserPermission[]
+  email                  String           @unique
+  name                   String?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  id                     String           @id @default(cuid())
+  password               String
+  emailVerified          DateTime?
+  image                  String?
+  isActive               Boolean          @default(true)
+  lastLoginAt            DateTime?
+  role                   UserRole         @default(VIEWER)
+  accounts               Account[]
+  approvals              Approval[]       @relation("UserApprovals")
+  auditLogs              AuditLog[]       @relation("UserAuditLogs")
+  deliveryBatches        DeliveryBatch[]  @relation("UserDeliveryBatches")
+  requests               Request[]        @relation("UserRequests")
+  returnBatches          ReturnBatch[]    @relation("UserReturnBatches")
+  sessions               Session[]
+  stockMovements         StockMovement[]  @relation("UserStockMovements")
+  approvedStockMovements StockMovement[]  @relation("ApprovedStockMovements")
+  permissions            UserPermission[]
 
   @@index([email])
   @@index([role])
@@ -108,8 +96,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -121,8 +108,7 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -138,27 +124,25 @@ model VerificationToken {
 
 /// Sistema de permisos granulares
 model Permission {
-  id          String   @id @default(cuid())
-  name        String   @unique // Ej: "create:delivery", "delete:epp"
+  id          String           @id @default(cuid())
+  name        String           @unique
   description String?
-  module      String // Ej: "deliveries", "stock", "users"
-  createdAt   DateTime @default(now())
-
-  users UserPermission[]
+  module      String
+  createdAt   DateTime         @default(now())
+  users       UserPermission[]
 
   @@index([module])
 }
 
 /// Relación Usuario-Permisos
 model UserPermission {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   userId       String
   permissionId String
-  grantedAt    DateTime @default(now())
-  grantedBy    String? // ID del usuario que otorgó el permiso
-
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  grantedAt    DateTime   @default(now())
+  grantedBy    String?
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, permissionId])
   @@index([userId])
@@ -167,22 +151,21 @@ model UserPermission {
 
 /// Artículos de protección personal
 model EPP {
-  id           Int      @id @default(autoincrement())
-  code         String   @unique @db.VarChar(32)
-  name         String   @db.VarChar(128)
-  category     String   @db.VarChar(64)
+  id           Int             @id @default(autoincrement())
+  code         String          @unique @db.VarChar(32)
+  name         String          @db.VarChar(128)
+  category     String          @db.VarChar(64)
   description  String?
   imageUrl     String?
   datasheetUrl String?
-  minStock     Int      @default(1)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
-
-  stocks      EPPStock[]
-  movements   StockMovement[]
-  deliveries  Delivery[]
-  returnItems ReturnItem[]
-  requests    Request[]
+  minStock     Int             @default(1)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @default(now()) @updatedAt
+  deliveries   Delivery[]
+  stocks       EPPStock[]
+  requests     Request[]
+  returnItems  ReturnItem[]
+  movements    StockMovement[]
 
   @@index([name])
   @@index([category])
@@ -190,15 +173,14 @@ model EPP {
 
 /// Almacenes físicos
 model Warehouse {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  location  String?
-  createdAt DateTime @default(now())
-
-  stocks          EPPStock[]
-  movements       StockMovement[]
+  id              Int             @id @default(autoincrement())
+  name            String          @unique
+  location        String?
+  createdAt       DateTime        @default(now())
   deliveryBatches DeliveryBatch[]
+  stocks          EPPStock[]
   returnBatches   ReturnBatch[]
+  movements       StockMovement[]
 
   @@index([name])
 }
@@ -207,37 +189,34 @@ model Warehouse {
 model EPPStock {
   eppId       Int
   warehouseId Int
-  quantity    Int @default(0)
-
-  epp       EPP       @relation(fields: [eppId], references: [id])
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  quantity    Int       @default(0)
+  epp         EPP       @relation(fields: [eppId], references: [id])
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
 
   @@id([eppId, warehouseId])
 }
 
 /// Movimientos de stock
 model StockMovement {
-  id        Int               @id @default(autoincrement())
-  type      StockMovementType
-  quantity  Int
-  note      String?
-  createdAt DateTime          @default(now())
-  
-  // Sistema de aprobación
-  status         MovementStatus @default(PENDING)
-  approvedById   String?
-  approvedBy     User?          @relation("ApprovedStockMovements", fields: [approvedById], references: [id])
-  approvedAt     DateTime?
-  rejectionNote  String?
-
-  eppId Int
-  epp   EPP @relation(fields: [eppId], references: [id])
-
+  id          Int               @id @default(autoincrement())
+  type        StockMovementType
+  quantity    Int
+  note        String?
+  createdAt   DateTime          @default(now())
+  eppId       Int
   warehouseId Int
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  userId      String
 
-  userId String
-  user   User   @relation("UserStockMovements", fields: [userId], references: [id])
+  // Approval system fields
+  status        MovementStatus @default(APPROVED)
+  approvedById  String?
+  approvedAt    DateTime?
+  rejectionNote String?
+
+  epp        EPP       @relation(fields: [eppId], references: [id])
+  user       User      @relation("UserStockMovements", fields: [userId], references: [id])
+  warehouse  Warehouse @relation(fields: [warehouseId], references: [id])
+  approvedBy User?     @relation("ApprovedStockMovements", fields: [approvedById], references: [id])
 
   @@index([eppId, warehouseId, createdAt])
   @@index([type, createdAt])
@@ -248,17 +227,16 @@ model StockMovement {
 /// Lote de entregas
 model DeliveryBatch {
   id             Int          @id @default(autoincrement())
-  code           String       @unique @db.VarChar(32)
-  collaboratorId Int
-  collaborator   Collaborator @relation(fields: [collaboratorId], references: [id])
   note           String?
   warehouseId    Int
-  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id])
-  userId         String
-  user           User         @relation("UserDeliveryBatches", fields: [userId], references: [id])
   createdAt      DateTime     @default(now())
-
-  deliveries Delivery[]
+  code           String       @unique @db.VarChar(32)
+  collaboratorId Int
+  userId         String
+  deliveries     Delivery[]
+  collaborator   Collaborator @relation(fields: [collaboratorId], references: [id])
+  user           User         @relation("UserDeliveryBatches", fields: [userId], references: [id])
+  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id])
 
   @@index([createdAt])
   @@index([collaboratorId])
@@ -269,28 +247,28 @@ model DeliveryBatch {
 model Delivery {
   id        Int           @id @default(autoincrement())
   batchId   Int
-  batch     DeliveryBatch @relation(fields: [batchId], references: [id])
   eppId     Int
-  epp       EPP           @relation(fields: [eppId], references: [id])
   quantity  Int
   createdAt DateTime      @default(now())
+  batch     DeliveryBatch @relation(fields: [batchId], references: [id])
+  epp       EPP           @relation(fields: [eppId], references: [id])
 
   @@index([batchId, eppId])
   @@index([createdAt])
+  @@index([batchId, eppId], map: "idx_delivery_epp_batch")
 }
 
 /// Lote de devoluciones
 model ReturnBatch {
-  id          Int       @id @default(autoincrement())
-  code        String    @unique @db.VarChar(32)
+  id          Int          @id @default(autoincrement())
+  code        String       @unique @db.VarChar(32)
   warehouseId Int
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
-  userId      String
-  user        User      @relation("UserReturnBatches", fields: [userId], references: [id])
   note        String?
-  createdAt   DateTime  @default(now())
-
-  items ReturnItem[]
+  createdAt   DateTime     @default(now())
+  userId      String
+  user        User         @relation("UserReturnBatches", fields: [userId], references: [id])
+  warehouse   Warehouse    @relation(fields: [warehouseId], references: [id])
+  items       ReturnItem[]
 
   @@index([createdAt])
 }
@@ -299,15 +277,16 @@ model ReturnBatch {
 model ReturnItem {
   id        Int               @id @default(autoincrement())
   batchId   Int
-  batch     ReturnBatch       @relation(fields: [batchId], references: [id])
   eppId     Int
-  epp       EPP               @relation(fields: [eppId], references: [id])
   quantity  Int
   condition DeliveryCondition
   createdAt DateTime          @default(now())
+  batch     ReturnBatch       @relation(fields: [batchId], references: [id])
+  epp       EPP               @relation(fields: [eppId], references: [id])
 
   @@index([batchId, eppId])
   @@index([createdAt])
+  @@index([batchId, eppId], map: "idx_return_item_batch_epp")
 }
 
 /// Solicitudes de EPP
@@ -318,12 +297,11 @@ model Request {
   reason    String?
   status    RequestStatus @default(PENDING)
   createdAt DateTime      @default(now())
-
   eppId     Int
-  epp       EPP        @relation(fields: [eppId], references: [id])
   userId    String
-  user      User       @relation("UserRequests", fields: [userId], references: [id])
   approvals Approval[]
+  epp       EPP           @relation(fields: [eppId], references: [id])
+  user      User          @relation("UserRequests", fields: [userId], references: [id])
 }
 
 /// Aprobaciones
@@ -332,23 +310,21 @@ model Approval {
   result    ApprovalResult
   comment   String?
   createdAt DateTime       @default(now())
-
   requestId Int
-  request   Request @relation(fields: [requestId], references: [id])
   userId    String
-  user      User    @relation("UserApprovals", fields: [userId], references: [id])
+  request   Request        @relation(fields: [requestId], references: [id])
+  user      User           @relation("UserApprovals", fields: [userId], references: [id])
 }
 
 /// Colaboradores de entregas
 model Collaborator {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(128)
-  email     String?  @db.VarChar(128)
-  position  String?  @db.VarChar(64)
-  location  String?  @db.VarChar(128)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id              Int             @id @default(autoincrement())
+  name            String          @db.VarChar(128)
+  email           String?         @db.VarChar(128)
+  position        String?         @db.VarChar(64)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  location        String?         @db.VarChar(128)
   deliveryBatches DeliveryBatch[]
 
   @@index([name])
@@ -359,23 +335,22 @@ model Collaborator {
 model SystemConfig {
   id          Int      @id @default(1)
   companyName String?  @db.VarChar(128)
-  logoUrl     String?  @db.VarChar(255) // Ruta relativa dentro de /public
+  logoUrl     String?  @db.VarChar(255)
   updatedAt   DateTime @updatedAt
 }
 
 /// Sistema de Auditoría - Trazabilidad completa de cambios
 model AuditLog {
   id         BigInt      @id @default(autoincrement())
-  userId     String
   action     AuditAction
-  entityType String      @db.VarChar(50) // DeliveryBatch, EPP, Stock, etc.
+  entityType String      @db.VarChar(50)
   entityId   Int
-  changes    String?     @db.Text // JSON con solo los cambios (optimizado)
-  metadata   Json? // IP, userAgent, location, etc.
+  changes    String?
+  metadata   Json?
   createdAt  DateTime    @default(now())
-  expiresAt  DateTime // Auto-calculado según tipo de entidad
-
-  user User @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  userId     String
+  user       User        @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([entityType, entityId, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
