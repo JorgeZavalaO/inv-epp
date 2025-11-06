@@ -25,6 +25,12 @@ enum StockMovementType {
   ADJUSTMENT
 }
 
+enum MovementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum RequestStatus {
   PENDING
   APPROVED
@@ -76,6 +82,7 @@ model User {
 
   // App relations
   stockMovements  StockMovement[]  @relation("UserStockMovements")
+  approvedStockMovements StockMovement[] @relation("ApprovedStockMovements")
   deliveryBatches DeliveryBatch[]  @relation("UserDeliveryBatches")
   returnBatches   ReturnBatch[]    @relation("UserReturnBatches")
   requests        Request[]        @relation("UserRequests")
@@ -215,6 +222,13 @@ model StockMovement {
   quantity  Int
   note      String?
   createdAt DateTime          @default(now())
+  
+  // Sistema de aprobación
+  status         MovementStatus @default(PENDING)
+  approvedById   String?
+  approvedBy     User?          @relation("ApprovedStockMovements", fields: [approvedById], references: [id])
+  approvedAt     DateTime?
+  rejectionNote  String?
 
   eppId Int
   epp   EPP @relation(fields: [eppId], references: [id])
@@ -228,6 +242,7 @@ model StockMovement {
   @@index([eppId, warehouseId, createdAt])
   @@index([type, createdAt])
   @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
 
 /// Lote de entregas

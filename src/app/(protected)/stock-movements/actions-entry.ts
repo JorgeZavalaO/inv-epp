@@ -4,6 +4,7 @@ import prisma             from "@/lib/prisma";
 import { entryBatchSchema } from "@/schemas/entry-batch-schema";
 import { ensureAuthUser } from "@/lib/auth-utils";
 import { revalidatePath }  from "next/cache";
+import { UserRole, MovementStatus } from "@prisma/client";
 
 export async function createEntryBatch(fd: FormData) {
   /* 1) parse FormData -> objeto */
@@ -25,7 +26,38 @@ export async function createEntryBatch(fd: FormData) {
   const data = entryBatchSchema.parse(objRaw);
   const dbUser = await ensureAuthUser();
 
-  /* 3) transacción: N movements + upsert inventario */
+  // Determinar si requiere aprobación
+  const requiresApproval = dbUser.role !== UserRole.ADMIN;
+  const status = requiresApproval ? MovementStatus.PENDING : MovementStatus.APPROVED;
+
+  /* 3) Si requiere aprobación, solo crear los movimientos sin actualizar stock */
+  if (requiresApproval) {
+    await prisma.$transaction(async (tx) => {
+      for (const it of data.items) {
+        await tx.stockMovement.create({
+          data: {
+            eppId:       it.eppId,
+            warehouseId: data.warehouseId,
+            type:        "ENTRY",
+            quantity:    it.quantity,
+            note:        data.note,
+            userId:      dbUser.id,
+            status:      MovementStatus.PENDING,
+          },
+        });
+      }
+    });
+
+    revalidatePath("/stock-movements");
+    
+    return {
+      success: true,
+      requiresApproval: true,
+      message: `Entrada múltiple creada con ${data.items.length} items. Pendiente de aprobación por un administrador.`,
+    };
+  }
+
+  /* 4) Si es ADMIN, crear movimientos y actualizar stock inmediatamente */
   await prisma.$transaction(async (tx) => {
     for (const it of data.items) {
       await tx.stockMovement.create({
@@ -36,6 +68,9 @@ export async function createEntryBatch(fd: FormData) {
           quantity:    it.quantity,
           note:        data.note,
           userId:      dbUser.id,
+          status:      MovementStatus.APPROVED,
+          approvedById: dbUser.id,
+          approvedAt: new Date(),
         },
       });
 
@@ -55,4 +90,10 @@ export async function createEntryBatch(fd: FormData) {
 
   revalidatePath("/stock-movements");
   revalidatePath("/epps");
+  
+  return {
+    success: true,
+    requiresApproval: false,
+    message: `Entrada múltiple de ${data.items.length} items creada y aplicada exitosamente.`,
+  };
 }

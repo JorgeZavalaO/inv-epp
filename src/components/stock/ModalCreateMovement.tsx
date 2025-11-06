@@ -84,8 +84,17 @@ export default function ModalCreateMovement({ onClose, defaultValues }: Props) {
     Object.entries(data).forEach(([k, v]) => fd.append(k, String(v ?? "")));
 
     try {
-      await createMovement(fd);
-      toast.success("Movimiento registrado");
+      const result = await createMovement(fd);
+      
+      // Verificar si el resultado indica que requiere aprobación
+      if (result && 'requiresApproval' in result && result.requiresApproval) {
+        toast.warning(result.message || "Movimiento creado. Pendiente de aprobación.", {
+          duration: 5000,
+        });
+      } else {
+        toast.success(result?.message || "Movimiento registrado exitosamente");
+      }
+      
       onClose();
       router.replace("/stock-movements");
     } catch (err: unknown) {

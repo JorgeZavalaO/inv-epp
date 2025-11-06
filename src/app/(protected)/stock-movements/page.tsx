@@ -2,6 +2,8 @@ import prisma from "@/lib/prisma";
 import StockMovementsClient from "./StockMovementsClient";
 import { hasPermission } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
+import { MovementStatus, UserRole } from "@prisma/client";
+import { auth } from "@/lib/auth";
 
 export const revalidate = 0;
 const PAGE_SIZE = 50;
@@ -18,6 +20,10 @@ export default async function StockMovementsPage({
   if (!canAccess) {
     redirect('/dashboard');
   }
+  
+  // Obtener sesión para verificar si es admin
+  const session = await auth();
+  const isAdmin = session?.user?.role === UserRole.ADMIN;
   
   // Ahora await searchParams para obtener el objeto real
   const { page: pageParam } = await searchParams;
@@ -39,7 +45,14 @@ export default async function StockMovementsPage({
   const movements = hasNext ? rawList.slice(0, PAGE_SIZE) : rawList;
   const hasPrev   = page > 1;
 
-  // 2) Mapear datos para el cliente
+  // 2) Obtener conteo de movimientos pendientes (solo para admins)
+  const pendingCount = isAdmin 
+    ? await prisma.stockMovement.count({
+        where: { status: MovementStatus.PENDING },
+      })
+    : 0;
+
+  // 3) Mapear datos para el cliente
   type AllowedType = "ENTRY" | "EXIT" | "ADJUSTMENT";
   const data = movements.map((mv) => ({
     id:          mv.id,
@@ -62,6 +75,7 @@ export default async function StockMovementsPage({
         page={page}
         hasPrev={hasPrev}
         hasNext={hasNext}
+        pendingCount={pendingCount}
       />
     </section>
   );
