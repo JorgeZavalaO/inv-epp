@@ -93,12 +93,17 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
   const fromDate = from ? new Date(from) : defaultFrom;
   const toDate = to ? new Date(to) : defaultTo;
   
-  // ✅ OPTIMIZACIÓN: Construir WHERE clause más eficiente
-  const where = (() => {
-    const conds = [Prisma.sql`d."createdAt" BETWEEN ${fromDate} AND ${toDate}`];
-    if (warehouseId) conds.push(Prisma.sql`b."warehouseId" = ${warehouseId}`);
-    if (category) conds.push(Prisma.sql`e."category" = ${category}`);
-    if (collaboratorId) conds.push(Prisma.sql`b."collaboratorId" = ${collaboratorId}`);
+  // ✅ Construir condiciones WHERE base (siempre disponibles)
+  const baseConditions = [Prisma.sql`d."createdAt" BETWEEN ${fromDate} AND ${toDate}`];
+  if (warehouseId) baseConditions.push(Prisma.sql`b."warehouseId" = ${warehouseId}`);
+  if (category) baseConditions.push(Prisma.sql`e."category" = ${category}`);
+  if (collaboratorId) baseConditions.push(Prisma.sql`b."collaboratorId" = ${collaboratorId}`);
+  
+  const baseWhere = Prisma.sql`WHERE ${Prisma.join(baseConditions, ' AND ')}`;
+  
+  // ✅ WHERE clause con filtro de localidad (requiere JOIN con Collaborator)
+  const whereWithLocation = (() => {
+    const conds = [...baseConditions];
     if (location) conds.push(Prisma.sql`c."location" = ${location}`);
     return Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}`;
   })();
@@ -111,7 +116,8 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       FROM "Delivery" d
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       INNER JOIN "EPP" e ON e.id = d."eppId"
-      ${where}
+      ${location ? Prisma.sql`LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"` : Prisma.empty}
+      ${location ? whereWithLocation : baseWhere}
       GROUP BY month
       ORDER BY month
     `),
@@ -120,7 +126,8 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       FROM "Delivery" d
       INNER JOIN "EPP" e ON e.id = d."eppId"
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
-      ${where}
+      ${location ? Prisma.sql`LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"` : Prisma.empty}
+      ${location ? whereWithLocation : baseWhere}
       GROUP BY e.id, e.name
       ORDER BY SUM(d.quantity) DESC
       LIMIT 5
@@ -132,7 +139,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"
       INNER JOIN "EPP" e ON e.id = d."eppId"
-      ${where}
+      ${whereWithLocation}
       GROUP BY location
       ORDER BY qty DESC
       LIMIT 5
@@ -150,7 +157,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"
       INNER JOIN "Warehouse" w ON w.id = b."warehouseId"
-      ${where}
+      ${whereWithLocation}
       ORDER BY d."createdAt" DESC
       LIMIT 12
     `),
@@ -160,7 +167,8 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       FROM "Delivery" d
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       INNER JOIN "EPP" e ON e.id = d."eppId"
-      ${where}
+      ${location ? Prisma.sql`LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"` : Prisma.empty}
+      ${location ? whereWithLocation : baseWhere}
       GROUP BY e.category
       ORDER BY qty DESC
     `),
@@ -172,7 +180,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"
       INNER JOIN "EPP" e ON e.id = d."eppId"
-      ${where}
+      ${whereWithLocation}
       GROUP BY location
       ORDER BY qty DESC
     `),
@@ -185,7 +193,8 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       FROM "Delivery" d
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       INNER JOIN "EPP" e ON e.id = d."eppId"
-      ${where}
+      ${location ? Prisma.sql`LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"` : Prisma.empty}
+      ${location ? whereWithLocation : baseWhere}
     `),
     // Cantidad devuelta
     prisma.$queryRaw<Array<{ return_qty: number }>>(Prisma.sql`
@@ -194,7 +203,9 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       INNER JOIN "ReturnBatch" rb ON rb.id = r."batchId"
       INNER JOIN "EPP" e ON e.id = r."eppId"
       WHERE rb."createdAt" BETWEEN ${fromDate} AND ${toDate}
+        AND e."category" IS NOT NULL
         ${category ? Prisma.sql`AND e."category" = ${category}` : Prisma.empty}
+        ${warehouseId ? Prisma.sql`AND rb."warehouseId" = ${warehouseId}` : Prisma.empty}
     `),
     // Solicitudes
     prisma.$queryRaw<Array<{ total_requests: number; completed_requests: number }>>(Prisma.sql`
