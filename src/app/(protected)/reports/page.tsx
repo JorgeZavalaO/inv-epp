@@ -10,7 +10,7 @@ import ReportsFilters from "./reports-filters";
 import { hasPermission } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 
-export default async function ReportsPage({ searchParams }: { searchParams?: Promise<{ year?: string; warehouseId?: string; category?: string; from?: string; to?: string }> }) {
+export default async function ReportsPage({ searchParams }: { searchParams?: Promise<{ year?: string; warehouseId?: string; category?: string; collaboratorId?: string; location?: string; from?: string; to?: string }> }) {
   // Verificar permisos
   const canAccess = await hasPermission('reports_export');
   
@@ -22,10 +22,12 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Pro
   const year = Number(sp.year ?? new Date().getFullYear());
   const warehouseId = sp.warehouseId ? Number(sp.warehouseId) : undefined;
   const category = sp.category || undefined;
+  const collaboratorId = sp.collaboratorId ? Number(sp.collaboratorId) : undefined;
+  const location = sp.location || undefined;
   const from = sp.from || undefined;
   const to = sp.to || undefined;
   const [data, filterData] = await Promise.all([
-    fetchReportsData(year, { warehouseId, category, from, to }),
+    fetchReportsData(year, { warehouseId, category, collaboratorId, location, from, to }),
     fetchReportFilterData(),
   ]);
 
@@ -40,7 +42,9 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Pro
         year={data.year}
         warehouses={filterData.warehouses}
         categories={filterData.categories}
-        selected={{ year, warehouseId, category }}
+        collaborators={filterData.collaborators}
+        locations={filterData.locations}
+        selected={{ year, warehouseId, category, collaboratorId, location }}
       />
 
       <Suspense fallback={<div className="grid gap-6 lg:grid-cols-3"><div className="h-80 bg-muted/50 rounded-lg animate-pulse lg:col-span-3"/></div>}>

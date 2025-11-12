@@ -17,10 +17,12 @@ interface Props {
   year: number;
   warehouses: Array<{ id: number; name: string }>;
   categories: string[];
-  selected: { year?: number; warehouseId?: number; category?: string };
+  collaborators: Array<{ id: number; name: string }>;
+  locations: string[];
+  selected: { year?: number; warehouseId?: number; category?: string; collaboratorId?: number; location?: string };
 }
 
-export default function ReportsFilters({ year, warehouses, categories, selected }: Props) {
+export default function ReportsFilters({ year, warehouses, categories, collaborators, locations, selected }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -57,7 +59,7 @@ export default function ReportsFilters({ year, warehouses, categories, selected 
 
   const onClear = () => {
     const url = new URL(window.location.href);
-    ["year", "warehouseId", "category", "from", "to"].forEach(k => url.searchParams.delete(k));
+    ["year", "warehouseId", "category", "collaboratorId", "location", "from", "to"].forEach(k => url.searchParams.delete(k));
     startTransition(() => router.push(url.pathname));
   };
 
@@ -103,6 +105,36 @@ export default function ReportsFilters({ year, warehouses, categories, selected 
               <SelectItem value="__all">Todas</SelectItem>
               {categories.map(c => (
                 <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-600">Localidad</span>
+          <Select value={selected.location ?? "__all"} onValueChange={(v) => updateParam("location", v === "__all" ? undefined : v)}>
+            <SelectTrigger size="sm" className="min-w-40">
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">Todas</SelectItem>
+              {locations.map(l => (
+                <SelectItem key={l} value={l}>{l}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-600">Colaborador</span>
+          <Select value={selected.collaboratorId ? String(selected.collaboratorId) : "__all"} onValueChange={(v) => updateParam("collaboratorId", v === "__all" ? undefined : v)}>
+            <SelectTrigger size="sm" className="min-w-40">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">Todos</SelectItem>
+              {collaborators.map(c => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>

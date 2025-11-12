@@ -40,6 +40,8 @@ export interface ReportsData {
 export interface ReportsFilters {
   warehouseId?: number;
   category?: string;
+  collaboratorId?: number;
+  location?: string;
   from?: string; // ISO date (yyyy-mm-dd)
   to?: string;   // ISO date (yyyy-mm-dd)
 }
@@ -47,6 +49,8 @@ export interface ReportsFilters {
 export interface FilterData {
   warehouses: Array<{ id: number; name: string }>;
   categories: string[];
+  collaborators: Array<{ id: number; name: string }>;
+  locations: string[];
 }
 
 export interface ReportsIndicators {
@@ -83,7 +87,7 @@ function ensureMonthsInRange(rows: Array<{ month: string; qty: number }>, from: 
 }
 
 export async function fetchReportsData(year: number, filters: ReportsFilters = {}): Promise<ReportsData> {
-  const { warehouseId, category, from, to } = filters;
+  const { warehouseId, category, collaboratorId, location, from, to } = filters;
   const defaultFrom = new Date(year, 0, 1);
   const defaultTo = new Date(year, 11, 31, 23, 59, 59, 999);
   const fromDate = from ? new Date(from) : defaultFrom;
@@ -94,6 +98,8 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
     const conds = [Prisma.sql`d."createdAt" BETWEEN ${fromDate} AND ${toDate}`];
     if (warehouseId) conds.push(Prisma.sql`b."warehouseId" = ${warehouseId}`);
     if (category) conds.push(Prisma.sql`e."category" = ${category}`);
+    if (collaboratorId) conds.push(Prisma.sql`b."collaboratorId" = ${collaboratorId}`);
+    if (location) conds.push(Prisma.sql`c."location" = ${location}`);
     return Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}`;
   })();
   
@@ -238,15 +244,24 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
 }
 
 export async function fetchReportFilterData(): Promise<FilterData> {
-  const [warehouses, categoriesRows] = await Promise.all([
+  const [warehouses, categoriesRows, collaborators, locationsRows] = await Promise.all([
     prisma.warehouse.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.$queryRaw<Array<{ category: string | null }>>`
       SELECT DISTINCT "category" FROM "EPP" WHERE "category" IS NOT NULL ORDER BY "category" ASC
+    `,
+    prisma.collaborator.findMany({ 
+      select: { id: true, name: true }, 
+      orderBy: { name: "asc" }
+    }),
+    prisma.$queryRaw<Array<{ location: string }>>`
+      SELECT DISTINCT "location" FROM "Collaborator" WHERE "location" IS NOT NULL ORDER BY "location" ASC
     `,
   ]);
 
   return {
     warehouses,
     categories: categoriesRows.map(r => r.category!).filter(Boolean),
+    collaborators,
+    locations: locationsRows.map(r => r.location).filter(Boolean),
   };
 }
