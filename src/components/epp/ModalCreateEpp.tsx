@@ -35,6 +35,7 @@ export default function ModalCreateEpp({ onClose }: { onClose(): void }) {
       code:        autoCode,
       name:        "",
       category:    "",
+      subcategory: "",
       description: "",
       minStock:    1,
       items: [
@@ -96,6 +97,11 @@ export default function ModalCreateEpp({ onClose }: { onClose(): void }) {
           <Input {...register("category")} label="Categoría" />
           {formState.errors.category && (
             <p className="text-destructive text-sm">{formState.errors.category.message}</p>
+          )}
+
+          <Input {...register("subcategory")} label="Subcategoría (opcional)" />
+          {formState.errors.subcategory && (
+            <p className="text-destructive text-sm">{formState.errors.subcategory.message}</p>
           )}
 
           <Input {...register("description")} label="Descripción" />

@@ -46,6 +46,7 @@ export async function createEpp(fd: FormData) {
       code,
       name:        data.name,
       category:    data.category,
+      subcategory: data.subcategory,
       description: data.description,
       imageUrl:    data.imageUrl,
       datasheetUrl:data.datasheetUrl,

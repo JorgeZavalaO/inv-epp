@@ -109,6 +109,7 @@ model EPP {
   code         String          @unique @db.VarChar(32)
   name         String          @db.VarChar(128)
   category     String          @db.VarChar(64)
+  subcategory  String?         @db.VarChar(64)
   description  String?
   imageUrl     String?
   datasheetUrl String?
@@ -123,6 +124,7 @@ model EPP {
 
   @@index([name])
   @@index([category])
+  @@index([subcategory])
 }
 
 /// Almacenes físicos

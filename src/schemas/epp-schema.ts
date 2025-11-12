@@ -21,6 +21,7 @@ export const eppSchema = z
     code:        z.string().optional(),
     name:        z.string().min(1, "El nombre es requerido"),
     category:    z.string().min(1, "La categoría es requerida"),
+    subcategory: z.string().optional(),
     description: z.string().optional(),
     minStock:    z
       .coerce.number({ invalid_type_error: "Stock mínimo debe ser un número" })

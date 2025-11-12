@@ -44,6 +44,7 @@ export default async function EppsPage({ searchParams }: Props) {
       code: true,
       name: true,
       category: true,
+      subcategory: true,
       description: true,
       minStock: true,
       stocks: {
@@ -63,6 +64,7 @@ export default async function EppsPage({ searchParams }: Props) {
       code:         e.code,
       name:         e.name,
       category:     e.category,
+      subcategory:  e.subcategory,
       stock:        totalQty,
       // estos campos van para el modal de detalles
       description:  e.description,

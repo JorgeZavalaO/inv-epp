@@ -24,6 +24,7 @@ export default function ModalEditEpp({
     code: string;
     name: string;
     category: string;
+    subcategory: string | null;
     description: string | null;
     minStock: number;
     // stocks múltiples pasados desde la tabla
@@ -50,6 +51,7 @@ export default function ModalEditEpp({
       code:        epp.code,
       name:        epp.name,
       category:    epp.category,
+      subcategory: epp.subcategory ?? "",
       description: epp.description ?? "",
       minStock:    epp.minStock,
       // cargamos los stocks existentes o dejamos dos filas vacías
@@ -118,6 +120,13 @@ export default function ModalEditEpp({
           {formState.errors.category && (
             <p className="text-destructive text-sm">
               {formState.errors.category.message}
+            </p>
+          )}
+
+          <Input {...register("subcategory")} label="Subcategoría (opcional)" />
+          {formState.errors.subcategory && (
+            <p className="text-destructive text-sm">
+              {formState.errors.subcategory.message}
             </p>
           )}
 

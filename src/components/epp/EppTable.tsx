@@ -29,6 +29,7 @@ export type EppRow = {
   code:        string;
   name:        string;
   category:    string;
+  subcategory: string | null;
   stock:       number;
   description: string | null;
   minStock:    number;
