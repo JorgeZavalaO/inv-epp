@@ -9,13 +9,14 @@ import ModalDeleteCollaborator from "@/components/collaborators/ModalDeleteColla
 import ModalImportCollaborators from "@/components/collaborators/ModalImportCollaborators"
 
 interface Collaborator {
-  id:        number;
-  name:      string;
-  email:     string | null;
-  position:  string | null;
-  location:  string | null;
-  createdAt: string;
-  updatedAt: string;
+  id:         number;
+  name:       string;
+  email:      string | null;
+  position:   string | null;
+  location:   string | null;
+  documentId: string | null;
+  createdAt:  string;
+  updatedAt:  string;
 }
 
 interface Props {
@@ -44,6 +45,7 @@ export default function CollaboratorsClient({ list }: Props) {
           <thead>
             <tr className="border-b">
               <th className="p-2 text-left">Nombre</th>
+              <th className="p-2 text-left">DNI/CE</th>
               <th className="p-2 text-left">Email</th>
               <th className="p-2 text-left">Posición</th>
               <th className="p-2 text-left">Ubicación</th>
@@ -54,6 +56,7 @@ export default function CollaboratorsClient({ list }: Props) {
             {list.map((c) => (
               <tr key={c.id} className="border-b hover:bg-muted/50">
                 <td className="p-2">{c.name}</td>
+                <td className="p-2">{c.documentId ?? "-"}</td>
                 <td className="p-2">{c.email ?? "-"}</td>
                 <td className="p-2">{c.position ?? "-"}</td>
                 <td className="p-2">{c.location ?? "-"}</td>
@@ -77,7 +80,7 @@ export default function CollaboratorsClient({ list }: Props) {
             ))}
             {list.length === 0 && (
               <tr>
-                <td colSpan={4} className="text-center py-4 text-muted-foreground">
+                <td colSpan={6} className="text-center py-4 text-muted-foreground">
                   No hay colaboradores aún
                 </td>
               </tr>

@@ -57,6 +57,11 @@ export default function ModalCreateCollaborator({ onClose }: { onClose: () => vo
             <Input {...register("location")} />
             {errors.location && <p className="text-destructive text-sm">{errors.location.message}</p>}
           </div>
+          <div>
+            <Label>DNI / Carnet de Extranjería (opcional)</Label>
+            <Input {...register("documentId")} placeholder="Ej: 12345678" maxLength={20} />
+            {errors.documentId && <p className="text-destructive text-sm">{errors.documentId.message}</p>}
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>
               Cancelar

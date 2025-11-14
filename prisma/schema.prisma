@@ -275,6 +275,7 @@ model Collaborator {
   name            String          @db.VarChar(128)
   email           String?         @db.VarChar(128)
   position        String?         @db.VarChar(64)
+  documentId      String?         @db.VarChar(20)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   location        String?         @db.VarChar(128)
@@ -282,6 +283,7 @@ model Collaborator {
 
   @@index([name])
   @@index([location])
+  @@index([documentId])
 }
 
 /// Configuración general del sistema (solo un registro – id = 1)

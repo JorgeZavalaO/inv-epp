@@ -15,18 +15,19 @@ export default function ModalEditCollaborator({
   collaborator,
   onClose,
 }: {
-  collaborator: { id: number; name: string; email: string | null; position: string | null; location: string | null };
+  collaborator: { id: number; name: string; email: string | null; position: string | null; location: string | null; documentId: string | null };
   onClose:      () => void;
 }) {
   const { register, handleSubmit, formState: { errors, isSubmitting, isValid } } =
     useForm<CollaboratorValues>({
       resolver: zodResolver(collaboratorSchema),
       defaultValues: {
-        id:       collaborator.id,
-        name:     collaborator.name,
-        email:    collaborator.email ?? undefined,
-        position: collaborator.position ?? undefined,
-        location: collaborator.location ?? undefined,
+        id:         collaborator.id,
+        name:       collaborator.name,
+        email:      collaborator.email ?? undefined,
+        position:   collaborator.position ?? undefined,
+        location:   collaborator.location ?? undefined,
+        documentId: collaborator.documentId ?? undefined,
       },
       mode: "onChange",
     });
@@ -71,6 +72,11 @@ export default function ModalEditCollaborator({
             <Label>Ubicación (opcional)</Label>
             <Input {...register("location")} />
             {errors.location && <p className="text-destructive text-sm">{errors.location.message}</p>}
+          </div>
+          <div>
+            <Label>DNI / Carnet de Extranjería (opcional)</Label>
+            <Input {...register("documentId")} placeholder="Ej: 12345678" maxLength={20} />
+            {errors.documentId && <p className="text-destructive text-sm">{errors.documentId.message}</p>}
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>

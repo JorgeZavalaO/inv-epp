@@ -10,10 +10,11 @@ import { requirePermission } from "@/lib/auth-utils";
 export async function createCollaborator(fd: FormData) {
   await requirePermission("collaborators_manage");
   const raw = {
-    name:     fd.get("name")?.toString() ?? "",
-    email:    fd.get("email")?.toString() ?? undefined,
-    position: fd.get("position")?.toString() ?? undefined,
-    location: fd.get("location")?.toString() ?? undefined,
+    name:       fd.get("name")?.toString() ?? "",
+    email:      fd.get("email")?.toString() ?? undefined,
+    position:   fd.get("position")?.toString() ?? undefined,
+    location:   fd.get("location")?.toString() ?? undefined,
+    documentId: fd.get("documentId")?.toString() ?? undefined,
   };
   try {
     const data = collaboratorSchema.parse(raw);
@@ -36,18 +37,19 @@ export async function createCollaborator(fd: FormData) {
 export async function updateCollaborator(fd: FormData) {
   await requirePermission("collaborators_manage");
   const raw = {
-    id:       Number(fd.get("id")),
-    name:     fd.get("name")?.toString() ?? "",
-    email:    fd.get("email")?.toString() ?? undefined,
-    position: fd.get("position")?.toString() ?? undefined,
-    location: fd.get("location")?.toString() ?? undefined,
+    id:         Number(fd.get("id")),
+    name:       fd.get("name")?.toString() ?? "",
+    email:      fd.get("email")?.toString() ?? undefined,
+    position:   fd.get("position")?.toString() ?? undefined,
+    location:   fd.get("location")?.toString() ?? undefined,
+    documentId: fd.get("documentId")?.toString() ?? undefined,
   };
   try {
     const data = collaboratorSchema.parse(raw);
     if (!data.id) throw new Error("ID inválido");
     await prisma.collaborator.update({
       where: { id: data.id },
-      data:  { name: data.name, email: data.email, position: data.position, location: data.location },
+      data:  { name: data.name, email: data.email, position: data.position, location: data.location, documentId: data.documentId },
     });
     revalidatePath("/collaborators");
   } catch (err: unknown) {
