@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useDebouncedCallback } from "use-debounce";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useSession } from "next-auth/react";
 import { Badge } from "@/components/ui/badge";
-import { Clock } from "lucide-react";
+import { Clock, Search } from "lucide-react";
 
 import MovementTable, { Row as MovementRow } from "@/components/stock/MovementTable";
 import ModalCreateMovement from "@/components/stock/ModalCreateMovement";
@@ -31,6 +34,27 @@ export default function StockMovementsClient({
 }: Props) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
+  
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const { replace } = useRouter();
+
+  const handleSearch = useDebouncedCallback((term: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (term) {
+      params.set("query", term);
+    } else {
+      params.delete("query");
+    }
+    params.set("page", "1");
+    replace(`${pathname}?${params.toString()}`);
+  }, 300);
+
+  const createPageURL = (pageNumber: number | string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("page", pageNumber.toString());
+    return `${pathname}?${params.toString()}`;
+  };
 
   /* control de modales */
   const [showCreate, setShowCreate] = useState(false);
@@ -51,7 +75,16 @@ export default function StockMovementsClient({
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar producto..."
+              className="pl-8"
+              defaultValue={searchParams.get("query")?.toString()}
+              onChange={(e) => handleSearch(e.target.value)}
+            />
+          </div>
           {isAdmin && pendingCount > 0 && (
             <Button
               variant="outline"
@@ -80,14 +113,14 @@ export default function StockMovementsClient({
       {/* paginación */}
       <nav className="flex justify-between mt-4">
         {hasPrev ? (
-          <Link href={`/stock-movements?page=${page - 1}`}>
+          <Link href={createPageURL(page - 1)}>
             <Button variant="outline">&larr; Anterior</Button>
           </Link>
         ) : (
           <div />
         )}
         {hasNext && (
-          <Link href={`/stock-movements?page=${page + 1}`}>
+          <Link href={createPageURL(page + 1)}>
             <Button variant="outline">Siguiente &rarr;</Button>
           </Link>
         )}

@@ -12,7 +12,7 @@ export default async function StockMovementsPage({
   searchParams,
 }: {
   /* Next genera PageProps cuyo searchParams es Promise<Record<string,string>> */
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; query?: string }>;
 }) {
   // Verificar permisos
   const canAccess = await hasPermission('stock_movements_manage');
@@ -26,11 +26,24 @@ export default async function StockMovementsPage({
   const isAdmin = session?.user?.role === UserRole.ADMIN;
   
   // Ahora await searchParams para obtener el objeto real
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, query } = await searchParams;
   const page = Math.max(1, Number(pageParam ?? "1"));
+
+  // Filtro de búsqueda
+  const whereClause = query
+    ? {
+        epp: {
+          OR: [
+            { name: { contains: query, mode: "insensitive" as const } },
+            { code: { contains: query, mode: "insensitive" as const } },
+          ],
+        },
+      }
+    : {};
 
   // 1) Movimientos + paginación
   const rawList = await prisma.stockMovement.findMany({
+    where: whereClause,
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE + 1,
     include: {
