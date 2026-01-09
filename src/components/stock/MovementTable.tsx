@@ -15,6 +15,8 @@ export interface Row {
   quantity: number;
   type: "ENTRY" | "EXIT" | "ADJUSTMENT";
   operator: string;
+  unitPrice?: number | null;
+  purchaseOrder?: string | null;
 
   /* necesarios para los modales */
   eppId: number;
@@ -68,6 +70,22 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
       accessorKey: "type",
       header: "Tipo",
       cell: ({ getValue }) => typeBadge(getValue<Row["type"]>()),
+    },
+    {
+      accessorKey: "purchaseOrder",
+      header: "Orden de Compra",
+      cell: ({ getValue }) => {
+        const po = getValue<string | null>();
+        return po ? <span className="font-mono text-sm">{po}</span> : <span className="text-muted-foreground">-</span>;
+      },
+    },
+    {
+      accessorKey: "unitPrice",
+      header: "Precio Unit.",
+      cell: ({ getValue }) => {
+        const price = getValue<number | null>();
+        return price ? <span className="font-medium">S/ {price.toFixed(2)}</span> : <span className="text-muted-foreground">-</span>;
+      },
     },
     { accessorKey: "operator", header: "Operador" },
     {

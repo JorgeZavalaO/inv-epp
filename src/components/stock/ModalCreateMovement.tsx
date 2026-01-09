@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
@@ -105,97 +104,162 @@ export default function ModalCreateMovement({ onClose, defaultValues }: Props) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Nuevo Movimiento</DialogTitle>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="border-b pb-4">
+          <div>
+            <DialogTitle className="text-2xl font-bold">Nuevo Movimiento</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">Registra una entrada, salida o ajuste de inventario</p>
+          </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6">
-          {/* EPP */}
-          <div className="space-y-1">
-            <Label>Equipo de Protección Personal</Label>
-            <Controller
-              name="eppId"
-              control={control}
-              render={({ field }) => <ComboboxEpp value={field.value} onChange={field.onChange} />}
-            />
-            {selectedEppId && currentStock !== null && (
-              <p className="text-sm text-muted-foreground">
-                Stock total actual:{" "}
-                <span
-                  className={
-                    currentStock > 0
-                      ? "text-green-600 font-medium"
-                      : "text-red-600 font-medium"
-                  }
-                >
-                  {currentStock}
-                </span>
-              </p>
-            )}
-            {errors.eppId && <p className="text-destructive text-sm">{errors.eppId.message}</p>}
-          </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* SECCIÓN 1: PRODUCTO Y ALMACÉN */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-900 text-xs font-bold">1</span>
+              Producto y ubicación
+            </h3>
 
-          {/* Almacén */}
-          <div className="space-y-1">
-            <Label>Almacén</Label>
-            <Controller
-              name="warehouseId"
-              control={control}
-              render={({ field }) => (
-                <ComboboxWarehouse
-                  value={field.value ?? null}
-                  onChange={field.onChange}
-                  options={warehouses}
-                />
+            {/* EPP */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Equipo de Protección Personal</Label>
+              <Controller
+                name="eppId"
+                control={control}
+                render={({ field }) => <ComboboxEpp value={field.value} onChange={field.onChange} />}
+              />
+              {selectedEppId && currentStock !== null && (
+                <div className={`p-2.5 rounded-lg border text-sm font-medium flex items-center gap-2 ${
+                  currentStock > 0
+                    ? "bg-green-50 border-green-200 text-green-700"
+                    : "bg-red-50 border-red-200 text-red-700"
+                }`}>
+                  <span className={currentStock > 0 ? "text-green-600" : "text-red-600"}>📊</span>
+                  Stock total: <span className="font-bold">{currentStock} unidades</span>
+                </div>
               )}
-            />
-            {errors.warehouseId && (
-              <p className="text-destructive text-sm">{errors.warehouseId.message}</p>
-            )}
+              {errors.eppId && <p className="text-destructive text-sm flex items-center gap-1">⚠️ {errors.eppId.message}</p>}
+            </div>
+
+            {/* Almacén */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Almacén</Label>
+              <Controller
+                name="warehouseId"
+                control={control}
+                render={({ field }) => (
+                  <ComboboxWarehouse
+                    value={field.value ?? null}
+                    onChange={field.onChange}
+                    options={warehouses}
+                  />
+                )}
+              />
+              {errors.warehouseId && (
+                <p className="text-destructive text-sm flex items-center gap-1">⚠️ {errors.warehouseId.message}</p>
+              )}
+            </div>
           </div>
 
           {/* Tipo y Cantidad */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label>Tipo de movimiento</Label>
-              <select
-                {...register("type")}
-                className="block w-full rounded border px-3 py-2"
-              >
-                <option value="ENTRY">Entrada</option>
-                <option value="EXIT">Salida</option>
-                <option value="ADJUSTMENT">Ajuste</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label>Cantidad</Label>
-              <Input
-                type="number"
-                step={1}
-                min={1}
-                {...register("quantity", { valueAsNumber: true })}
-              />
-              {errors.quantity && (
-                <p className="text-destructive text-sm">{errors.quantity.message}</p>
-              )}
+          <div className="border-t pt-4 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-900 text-xs font-bold">2</span>
+              Detalles del movimiento
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Tipo de movimiento</Label>
+                <select
+                  {...register("type")}
+                  className="block w-full rounded border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white"
+                >
+                  <option value="ENTRY">📥 Entrada</option>
+                  <option value="EXIT">📤 Salida</option>
+                  <option value="ADJUSTMENT">🔧 Ajuste</option>
+                </select>
+                <p className="text-xs text-muted-foreground">Tipo de operación a realizar</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Cantidad</Label>
+                <Input
+                  type="number"
+                  step={1}
+                  min={1}
+                  {...register("quantity", { valueAsNumber: true })}
+                  className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                />
+                {errors.quantity && (
+                  <p className="text-destructive text-sm flex items-center gap-1">⚠️ {errors.quantity.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">Unidades a mover</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Precio unitario</Label>
+                <Input
+                  type="number"
+                  step={0.01}
+                  min={0}
+                  placeholder="0.00"
+                  {...register("unitPrice", { valueAsNumber: true })}
+                  className="focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                />
+                {errors.unitPrice && (
+                  <p className="text-destructive text-sm flex items-center gap-1">⚠️ {errors.unitPrice.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">Precio por unidad</p>
+              </div>
             </div>
           </div>
 
           {/* Nota */}
-          <div className="space-y-1">
-            <Label>Nota (opcional)</Label>
-            <Textarea rows={3} {...register("note")} />
+          <div className="border-t pt-4 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-900 text-xs font-bold">3</span>
+              Información adicional (opcional)
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Orden de Compra</Label>
+                <Input 
+                  {...register("purchaseOrder")} 
+                  placeholder="Ej: OC-2026-001"
+                  className="focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                />
+                <p className="text-xs text-muted-foreground">Para trazabilidad de compras</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Nota</Label>
+                <Input 
+                  {...register("note")} 
+                  placeholder="Ej: Compra urgente, revisión especial..."
+                  className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                />
+                <p className="text-xs text-muted-foreground">Información relevante sobre el movimiento</p>
+              </div>
+            </div>
           </div>
 
           {/* Botones */}
-          <div className="flex justify-end gap-4 pt-4">
-            <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>
+          <div className="flex justify-end gap-3 pt-6 border-t">
+            <Button 
+              variant="outline" 
+              type="button" 
+              onClick={onClose} 
+              disabled={isSubmitting}
+              className="px-6"
+            >
               Cancelar
             </Button>
-            <Button type="submit" disabled={!isValid || isSubmitting} className="flex items-center">
+            <Button 
+              type="submit" 
+              disabled={!isValid || isSubmitting}
+              className="px-8 bg-blue-600 hover:bg-blue-700 flex items-center"
+            >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Guardar
+              {isSubmitting ? "Guardando..." : "Guardar movimiento"}
             </Button>
           </div>
         </form>

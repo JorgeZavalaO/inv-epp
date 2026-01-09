@@ -40,13 +40,11 @@ export default function ModalEditMovement({
   const [warehouses, setWarehouses] = useState<
     { id: number; label: string }[]
   >([]);
-  const [currentStock, setCurrentStock] = useState<number | null>(null);
 
   /* form */
   const {
     register,
     handleSubmit,
-    watch,
     formState: { isSubmitting, errors, isValid },
   } = useForm<MovementValues>({
     resolver: zodResolver(stockMovementSchema),
@@ -56,7 +54,9 @@ export default function ModalEditMovement({
       warehouseId: movement.warehouseId,
       type: movement.type,
       quantity: movement.quantity,
+      unitPrice: movement.unitPrice ?? undefined,
       note: movement.note ?? "",
+      purchaseOrder: movement.purchaseOrder ?? "",
     },
   });
 
@@ -70,25 +70,6 @@ export default function ModalEditMovement({
       )
       .catch(() => setWarehouses([]));
   }, []);
-
-  /* traer stock actual del EPP */
-  const selectedEppId = watch("eppId");
-  useEffect(() => {
-    if (!selectedEppId) {
-      setCurrentStock(null);
-      return;
-    }
-    fetch(`/api/epps/${selectedEppId}`)
-      .then((res) => res.json())
-      .then((d: { stocks?: { quantity: number }[] }) => {
-        if (Array.isArray(d.stocks)) {
-          setCurrentStock(d.stocks.reduce((acc, s) => acc + s.quantity, 0));
-        } else {
-          setCurrentStock(null);
-        }
-      })
-      .catch(() => setCurrentStock(null));
-  }, [selectedEppId]);
 
   /* submit */
   const onSubmit = async (data: MovementValues) => {
@@ -135,46 +116,51 @@ export default function ModalEditMovement({
             />
           </div>
 
-          {/* Tipo */}
-          <div className="space-y-1">
-            <Label>Tipo de movimiento</Label>
-            <Input disabled value={movement.type} />
-          </div>
-
-          {/* Cantidad */}
-          <div className="space-y-1">
-            <Label>Cantidad</Label>
-            <Input
-              type="number"
-              step={1}
-              min={1}
-              {...register("quantity", { valueAsNumber: true })}
-            />
-            {currentStock !== null && (
-              <p className="text-sm text-muted-foreground">
-                Stock total actual:&nbsp;
-                <span
-                  className={
-                    currentStock > 0
-                      ? "text-green-600 font-medium"
-                      : "text-red-600 font-medium"
-                  }
-                >
-                  {currentStock}
-                </span>
-              </p>
-            )}
-            {errors.quantity && (
-              <p className="text-destructive text-sm">
-                {errors.quantity.message}
-              </p>
-            )}
+          {/* Tipo, Cantidad y Precio */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <Label>Tipo de movimiento</Label>
+              <Input disabled value={movement.type} className="bg-gray-100" />
+            </div>
+            <div className="space-y-1">
+              <Label>Cantidad</Label>
+              <Input
+                type="number"
+                step={1}
+                min={1}
+                {...register("quantity", { valueAsNumber: true })}
+                className="focus:ring-2 focus:ring-blue-500"
+              />
+              {errors.quantity && (
+                <p className="text-destructive text-sm">{errors.quantity.message}</p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label>Precio unitario (opcional)</Label>
+              <Input
+                type="number"
+                step={0.01}
+                min={0}
+                placeholder="0.00"
+                {...register("unitPrice", { valueAsNumber: true })}
+                className="focus:ring-2 focus:ring-blue-500"
+              />
+              {errors.unitPrice && (
+                <p className="text-destructive text-sm">{errors.unitPrice.message}</p>
+              )}
+            </div>
           </div>
 
           {/* Nota */}
           <div className="space-y-1">
             <Label>Nota</Label>
             <Textarea rows={3} {...register("note")} />
+          </div>
+
+          {/* Orden de Compra */}
+          <div className="space-y-1">
+            <Label>Orden de Compra (opcional)</Label>
+            <Input {...register("purchaseOrder")} placeholder="Ej: OC-2026-001" />
           </div>
 
           {/* botones */}

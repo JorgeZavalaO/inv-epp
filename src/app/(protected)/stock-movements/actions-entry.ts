@@ -9,7 +9,7 @@ import { UserRole, MovementStatus } from "@prisma/client";
 export async function createEntryBatch(fd: FormData) {
   /* 1) parse FormData -> objeto */
   const objRaw: Record<string, unknown> = {};
-  const itemsMap: Record<number, { eppId?: number; quantity?: number }> = {};
+  const itemsMap: Record<number, { eppId?: number; quantity?: number; unitPrice?: number }> = {};
 
   for (const [k, v] of fd.entries()) {
     const m = k.match(/^items\.(\d+)\.(\w+)$/);
@@ -17,7 +17,11 @@ export async function createEntryBatch(fd: FormData) {
       const idx = Number(m[1]);
       itemsMap[idx] = itemsMap[idx] || {};
       const key = m[2] as keyof typeof itemsMap[number];
-      itemsMap[idx][key] = Number(v);
+      if (key === 'unitPrice') {
+        itemsMap[idx][key] = v ? Number(v) : undefined;
+      } else {
+        itemsMap[idx][key] = Number(v);
+      }
     } else objRaw[k] = v;
   }
   objRaw.items = Object.values(itemsMap);
@@ -39,7 +43,9 @@ export async function createEntryBatch(fd: FormData) {
             warehouseId: data.warehouseId,
             type:        "ENTRY",
             quantity:    it.quantity,
+            unitPrice:   it.unitPrice,
             note:        data.note,
+            purchaseOrder: data.purchaseOrder,
             userId:      dbUser.id,
             status:      MovementStatus.PENDING,
           },
@@ -65,7 +71,9 @@ export async function createEntryBatch(fd: FormData) {
           warehouseId: data.warehouseId,
           type:        "ENTRY",
           quantity:    it.quantity,
+          unitPrice:   it.unitPrice,
           note:        data.note,
+          purchaseOrder: data.purchaseOrder,
           userId:      dbUser.id,
           status:      MovementStatus.APPROVED,
           approvedById: dbUser.id,

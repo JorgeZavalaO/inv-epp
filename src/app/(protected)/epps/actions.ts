@@ -54,23 +54,17 @@ export async function createEpp(fd: FormData) {
     },
   });
 
-  // 4) stocks iniciales (un upsert por cada item)
+  // 4) stocks iniciales: crear con 0 en TODOS los almacenes
+  const allWarehouses = await prisma.warehouse.findMany({
+    select: { id: true },
+  });
   await prisma.$transaction(
-    data.items.map((it) =>
-      prisma.ePPStock.upsert({
-        where: {
-          eppId_warehouseId: {
-            eppId:       newEpp.id,
-            warehouseId: it.warehouseId,
-          },
-        },
-        create: {
-          eppId:       newEpp.id,
-          warehouseId: it.warehouseId,
-          quantity:    it.initialQty,
-        },
-        update: {
-          quantity:    it.initialQty,
+    allWarehouses.map((warehouse) =>
+      prisma.ePPStock.create({
+        data: {
+          eppId: newEpp.id,
+          warehouseId: warehouse.id,
+          quantity: 0,
         },
       })
     )

@@ -70,13 +70,17 @@ Sistema integral para la administración de Equipos de Protección Personal (EPP
 - ✅ Imágenes y hojas de datos técnicos adjuntas
 - ✅ Niveles de stock mínimo configurables por artículo
 - ✅ Alertas automáticas de stock bajo
+- ✅ **Búsqueda en tiempo real** - Búsqueda automática por cada letra tipeada en código, nombre o categoría
 - ✅ Búsqueda y filtrado avanzado
 - ✅ **Edición restringida de stocks iniciales** - Solo administradores pueden modificar stocks después de crear el EPP
 
 ### 📦 Control de Inventario
 - ✅ Stock por almacén con movimientos detallados
 - ✅ Tipos de movimiento: Entrada, Salida, Transferencia, Ajuste
+- ✅ **Campo de precio unitario** - Registro de precio por producto para trazabilidad de costos
+- ✅ **Campo de orden de compra** - Trazabilidad completa de compras
 - ✅ **Sistema de aprobación de movimientos** - Movimientos de no-admins requieren aprobación de administrador
+- ✅ **Modales mejorados con UX/UI optimizada** - Interfaz actualizada con secciones numeradas y mejor feedback visual
 - ✅ Validación automática de disponibilidad
 - ✅ Historial completo de transacciones
 - ✅ Trazabilidad de operador y fecha/hora

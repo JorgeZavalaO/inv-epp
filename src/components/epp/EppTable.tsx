@@ -23,6 +23,7 @@ import ModalEditEpp   from "./ModalEditEpp";
 import ModalViewEpp   from "./ModalViewEpp";
 import ModalImportEpp from "./ModalImportEpp";
 import ComboboxWarehouse from "@/components/ui/ComboboxWarehouse";
+import { useEppsCatalogXlsx } from "@/lib/client-excel/useEppsCatalogXlsx";
 
 export type EppRow = {
   id:          number;
@@ -50,6 +51,8 @@ export type EppRow = {
   const [viewing, setViewing]       = useState<EppRow | null>(null);
   const [importing, setImporting]   = useState(false);
   const [deleting, setDeleting]     = useState<EppRow | null>(null);
+
+  const exportCatalog = useEppsCatalogXlsx();
 
   // Configuración de columnas básicas
   const [showCategory, setShowCategory] = useState(true);
@@ -306,10 +309,44 @@ export type EppRow = {
         </div>
 
           <div className="flex justify-end">
-            <Button variant="outline" onClick={() => { setImporting(true); toast('Importador abierto'); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setImporting(true);
+                toast("Importador abierto");
+              }}
+            >
               Importar
             </Button>
-            <Button className="ml-2" onClick={() => { setShowCreate(true); toast('Formulario de creación abierto'); }}>
+            <Button
+              className="ml-2 bg-green-600 hover:bg-green-700 text-white"
+              variant="secondary"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  try {
+                    toast("Generando Excel...");
+                    await exportCatalog();
+                    toast.success("Excel descargado");
+                  } catch (err: unknown) {
+                    const message =
+                      err instanceof Error
+                        ? err.message
+                        : "No se pudo exportar el catálogo";
+                    toast.error(message);
+                  }
+                })
+              }
+            >
+              Exportar Excel
+            </Button>
+            <Button
+              className="ml-2"
+              onClick={() => {
+                setShowCreate(true);
+                toast("Formulario de creación abierto");
+              }}
+            >
               + Nuevo EPP
             </Button>
           </div>

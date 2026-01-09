@@ -79,6 +79,8 @@ export default async function StockMovementsPage({
     type:        mv.type as AllowedType,
     operator:    mv.user.email,
     note:        mv.note ?? null,
+    purchaseOrder: mv.purchaseOrder ?? null,
+    unitPrice:   mv.unitPrice ? Number(mv.unitPrice) : null,
   }));
 
   return (
