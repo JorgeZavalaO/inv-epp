@@ -28,10 +28,12 @@ export const eppSchema = z
       .min(0, "Stock mínimo debe ser ≥ 0"),
     imageUrl:    z.string().optional(),
     datasheetUrl:z.string().optional(),
-    // Ahora permitimos múltiples stocks iniciales
+    // Items es opcional al crear (stock inicial será 0 automáticamente)
+    // Solo requerido al editar
     items:       z
       .array(stockItemSchema)
-      .min(1, "Agrega al menos un stock inicial"),
+      .optional()
+      .default([]),
   });
 
 export type EppValues = z.infer<typeof eppSchema>;
