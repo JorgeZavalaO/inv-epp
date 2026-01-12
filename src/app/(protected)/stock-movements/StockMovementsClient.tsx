@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSession } from "next-auth/react";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Search } from "lucide-react";
+import { Clock, Search, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import MovementTable, { Row as MovementRow } from "@/components/stock/MovementTable";
 import ModalCreateMovement from "@/components/stock/ModalCreateMovement";
@@ -16,6 +17,7 @@ import ModalEditMovement from "@/components/stock/ModalEditMovement";
 import ModalDeleteMovement from "@/components/stock/ModalDeleteMovement";
 import ModalCreateEntryBatch from "@/components/stock/ModalCreateEntryBatch";
 import ModalPendingApprovals from "@/components/stock/ModalPendingApprovals";
+import { useStockMovementsExcelXlsx } from "@/lib/client-excel/useStockMovementsExcel";
 
 interface Props {
   data: MovementRow[];
@@ -62,6 +64,24 @@ export default function StockMovementsClient({
   const [showPendingApprovals, setShowPendingApprovals] = useState(false);
   const [editing, setEditing] = useState<MovementRow | null>(null);
   const [deleting, setDeleting] = useState<MovementRow | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportMovements = useStockMovementsExcelXlsx();
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      toast.loading("Generando Excel...");
+      await exportMovements();
+      toast.dismiss();
+      toast.success("Excel descargado correctamente");
+    } catch (error) {
+      toast.dismiss();
+      toast.error(error instanceof Error ? error.message : "Error al exportar");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <>
@@ -98,6 +118,14 @@ export default function StockMovementsClient({
               </Badge>
             </Button>
           )}
+          <Button
+            className="bg-green-600 hover:bg-green-700 text-white"
+            disabled={isExporting}
+            onClick={handleExport}
+          >
+            {isExporting && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+            {isExporting ? "Exportando..." : "📊 Exportar Excel"}
+          </Button>
           <Button variant="outline" onClick={() => setShowBatch(true)}>
             + Entrada múltiple
           </Button>
