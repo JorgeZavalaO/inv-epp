@@ -74,7 +74,13 @@ export async function fetchDeliveriesForExport(filters: DeliveriesExportFilters)
     include: {
       batch: {
         include: {
-          collaborator: true,
+          collaborator: {
+            select: {
+              name: true,
+              location: true,
+              documentId: true,
+            },
+          },
         },
       },
       epp: true,
@@ -90,6 +96,9 @@ export async function fetchDeliveriesForExport(filters: DeliveriesExportFilters)
 
 export async function generateDeliveriesExcel(filters: DeliveriesExportFilters = {}) {
   const deliveries = await fetchDeliveriesForExport(filters);
+
+  console.group("[Export Excel] Generación de Excel de entregas");
+  console.log("Total de entregas a exportar:", deliveries.length);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "INV-EPP";
@@ -120,18 +129,24 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
     year: "numeric",
   });
 
-  deliveries.forEach((delivery) => {
+  console.group("Detalles de cada fila:");
+  deliveries.forEach((delivery, index) => {
     const collaboratorName = delivery.batch.collaborator?.name ?? "Sin asignar";
     const collaboratorLocation = delivery.batch.collaborator?.location ?? "";
+    const collaboratorDocumentId = delivery.batch.collaborator?.documentId ?? "";
     const deliveryDate = delivery.batch.createdAt ?? delivery.createdAt;
     const deliveryDateStr = deliveryDate ? dateFormatter.format(deliveryDate) : "";
     const productDescription = delivery.epp.description?.trim()
       ? `${delivery.epp.name} - ${delivery.epp.description}`
       : delivery.epp.name;
-  const note = delivery.batch.note ? String(delivery.batch.note).trim() : "";
+    const note = delivery.batch.note ? String(delivery.batch.note).trim() : "";
+
+    if (index < 3 || index === deliveries.length - 1) {
+      console.log(`Fila ${index + 2}: DNI="${collaboratorDocumentId}", Empleado="${collaboratorName}", Lote="${delivery.batch.code}"`);
+    }
 
     worksheet.addRow([
-      "",
+      collaboratorDocumentId,
       collaboratorName,
       collaboratorLocation,
       deliveryDateStr,
@@ -141,6 +156,7 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
       note,
     ]);
   });
+  console.groupEnd();
 
   worksheet.columns?.forEach((column) => {
     const excelColumn = column as ExcelJS.Column; // typings fix
@@ -154,6 +170,9 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
   });
 
   worksheet.getColumn(7).alignment = { horizontal: "center" };
+
+  console.log("Excel generado exitosamente");
+  console.groupEnd();
 
   return workbook.xlsx.writeBuffer();
 }

@@ -10,6 +10,7 @@ export interface BatchRow {
   id:           number;
   code:         string;
   date:         string;
+  documentId?:  string | null;
   collaborator: string;
   operator:     string;
   warehouse:    string;
@@ -25,6 +26,12 @@ interface Props {
 export default function DeliveryBatchTable({ data, onEdit }: Props) {
   const columns: ColumnDef<BatchRow>[] = [
     { accessorKey: "code", header: "Código" },
+    { accessorKey: "documentId", header: "DNI",
+      cell: ({ getValue }) => {
+        const dni = getValue<string | null>();
+        return <span>{dni ?? ""}</span>;
+      }
+    },
     {
       accessorKey: "date",
       header: "Fecha",

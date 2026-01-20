@@ -19,11 +19,12 @@ export async function GET(
     const record = await prisma.deliveryBatch.findUnique({
       where: { id: batchId },
       include: {
-        collaborator: { select: { name: true, position: true, location: true } },
+        collaborator: { select: { name: true, position: true, location: true, documentId: true } },
         user:         { select: { name: true, email: true } },
         warehouse:    { select: { name: true } },
         deliveries:   {
           include: { epp: { select: { code: true, name: true } } },
+          select: { id: true, epp: { select: { code: true, name: true } }, quantity: true, createdAt: true },
           orderBy: { id: "asc" },
         },
       },

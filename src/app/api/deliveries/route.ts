@@ -78,7 +78,7 @@ export async function GET(request: Request) {
           collaboratorId: true,
           warehouseId: true,
           note: true,
-          collaborator: { select: { name: true } },
+          collaborator: { select: { name: true, documentId: true } },
           user: { select: { name: true, email: true } },
           warehouse: { select: { name: true } },
           _count: { select: { deliveries: true } },

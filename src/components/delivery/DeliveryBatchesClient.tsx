@@ -12,14 +12,15 @@ import DeliveryStats from "./DeliveryStats";
 import ModalCreateDeliveryBatch from "./ModalCreateDeliveryBatch";
 import ModalEditDeliveryBatch from "./ModalEditDeliveryBatch";
 import ModalDeleteDeliveryBatch from "./ModalDeleteDeliveryBatch";
-import { FileSpreadsheet, Loader2 } from "lucide-react";
-import { useDeliveriesXlsx } from "@/lib/client-excel/useDeliveriesXlsx";
+import { ExportAllDeliveriesButton } from "./ExportAllDeliveriesButton";
+import { Loader2 } from "lucide-react";
 import type { DeliveryBatchValues } from "@/schemas/delivery-batch-schema";
 
 export interface BatchRow {
   id: number;
   code: string;
   date: string;
+  documentId?: string | null;
   collaborator: string;
   operator: string;
   warehouse: string;
@@ -34,7 +35,7 @@ interface DeliveryBatchListItem {
   collaboratorId: number;
   warehouseId: number;
   note?: string | null;
-  collaborator: { name: string };
+  collaborator: { name: string; documentId: string | null };
   user: { name: string | null; email: string };
   warehouse: { name: string };
   _count: { deliveries: number };
@@ -105,7 +106,6 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
   
   const router = useRouter();
   const urlSearchParams = useSearchParams();
-  const exportAll = useDeliveriesXlsx();
 
   // Valores actuales de los filtros desde URL
   const currentPage = searchParams.page || "1";
@@ -245,6 +245,7 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
       id: b.id,
       code: b.code,
       date: b.createdAt,
+      documentId: b.collaborator.documentId ?? null,
       collaborator: b.collaborator.name,
       operator: b.user.name ?? b.user.email,
       warehouse: b.warehouse.name,
@@ -277,10 +278,9 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Entregas</h1>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={exportAll} aria-label="Exportar todas las entregas a Excel">
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            Exportar Excel
-          </Button>
+          <ExportAllDeliveriesButton 
+            searchParams={typeof window !== "undefined" ? window.location.search : ""}
+          />
           <Button onClick={() => setShowCreate(true)}>+ Nueva entrega</Button>
         </div>
       </div>
