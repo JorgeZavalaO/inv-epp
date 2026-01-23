@@ -64,6 +64,9 @@ export async function createEntryBatch(fd: FormData) {
 
   /* 4) Si es ADMIN, crear movimientos y actualizar stock inmediatamente */
   await prisma.$transaction(async (tx) => {
+    // ✅ CORRECCIÓN 3: Timestamp consistente para toda la entrada por lote
+    const entryTimestamp = new Date();
+    
     for (const it of data.items) {
       await tx.stockMovement.create({
         data: {
@@ -77,7 +80,8 @@ export async function createEntryBatch(fd: FormData) {
           userId:      dbUser.id,
           status:      MovementStatus.APPROVED,
           approvedById: dbUser.id,
-          approvedAt: new Date(),
+          approvedAt: entryTimestamp,
+          createdAt: entryTimestamp, // ✅ Timestamp consistente
         },
       });
 

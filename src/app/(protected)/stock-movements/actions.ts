@@ -43,6 +43,7 @@ export async function createMovement(fd: FormData) {
   }
 
   // Si es ADMIN, crear el movimiento y actualizar el stock inmediatamente
+  const movementTimestamp = new Date(); // ✅ Timestamp consistente
   await prisma.$transaction([
     prisma.stockMovement.create({
       data: {
@@ -56,7 +57,8 @@ export async function createMovement(fd: FormData) {
         userId:      dbUser.id,
         status:      MovementStatus.APPROVED,
         approvedById: dbUser.id,
-        approvedAt: new Date(),
+        approvedAt: movementTimestamp,
+        createdAt: movementTimestamp, // ✅ Timestamp consistente
       },
     }),
     prisma.ePPStock.upsert({
@@ -155,13 +157,14 @@ export async function approveMovement(movementId: number) {
   }
 
   // Aprobar el movimiento y actualizar el stock
+  const approvalTimestamp = new Date(); // ✅ Timestamp consistente
   await prisma.$transaction([
     prisma.stockMovement.update({
       where: { id: movementId },
       data: {
         status: MovementStatus.APPROVED,
         approvedById: dbUser.id,
-        approvedAt: new Date(),
+        approvedAt: approvalTimestamp,
       },
     }),
     prisma.ePPStock.upsert({
@@ -185,7 +188,7 @@ export async function approveMovement(movementId: number) {
         quantity:    movement.quantity,
       },
     }),
-    // Registrar en auditoría
+    // Registrar en auditoría con timestamp consistente
     prisma.auditLog.create({
       data: {
         action: 'UPDATE',
@@ -193,6 +196,7 @@ export async function approveMovement(movementId: number) {
         entityId: movementId,
         userId: dbUser.id,
         expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 días
+        createdAt: approvalTimestamp, // ✅ Timestamp consistente
         metadata: {
           description: `Movimiento aprobado: ${movement.type} de ${movement.quantity} unidades de ${movement.epp.name}`,
           movementId,

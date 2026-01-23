@@ -33,6 +33,9 @@ export async function createDeliveryBatch(fd: FormData) {
   while (attempt < MAX_RETRIES) {
     try {
       const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // ✅ CORRECCIÓN 3: Usar timestamp consistente para toda la transacción
+        const creationTimestamp = new Date();
+        
         // Generación de código secuencial con timestamp para mayor unicidad
         const last = await tx.deliveryBatch.findFirst({
           where: { code: { startsWith: "DEL-" } },
@@ -50,6 +53,7 @@ export async function createDeliveryBatch(fd: FormData) {
             note:           data.note,
             warehouseId:    data.warehouseId,
             userId:         operator.id,
+            createdAt:      creationTimestamp, // ✅ Timestamp consistente
           },
           select: { 
             id: true, 
@@ -78,12 +82,13 @@ export async function createDeliveryBatch(fd: FormData) {
         // Crear entregas
         await tx.delivery.createMany({ data: rows });
 
-        // Descontar stock y registrar movimientos
+        // Descontar stock y registrar movimientos con timestamp consistente
         for (const r of rows) {
           await tx.ePPStock.update({
             where: { eppId_warehouseId: { eppId: r.eppId, warehouseId: data.warehouseId } },
             data:  { quantity: { decrement: r.quantity } },
           });
+          // ✅ CORRECCIÓN 3: Todos los movimientos con mismo timestamp
           await tx.stockMovement.create({
             data: {
               type:        "EXIT",
@@ -92,6 +97,7 @@ export async function createDeliveryBatch(fd: FormData) {
               quantity:    r.quantity,
               note:        `Entrega ${batch.code}`,
               userId:      operator.id,
+              createdAt:   creationTimestamp, // ✅ Timestamp consistente
             },
           });
         }
@@ -199,6 +205,9 @@ export async function updateDeliveryBatch(fd: FormData) {
     for (const ex of existing) existingMap.set(ex.eppId, { id: ex.id, quantity: ex.quantity });
 
     const summary: string[] = [];
+    
+    // ✅ CORRECCIÓN 2: Usar timestamp consistente para todos los movimientos de edición
+    const editTimestamp = new Date();
 
     // Procesar incoming items
     for (const it of data.items) {
@@ -212,27 +221,37 @@ export async function updateDeliveryBatch(fd: FormData) {
         }
         await tx.delivery.create({ data: { batchId, eppId: it.eppId, quantity: it.quantity } });
         await tx.ePPStock.update({ where: { eppId_warehouseId: { eppId: it.eppId, warehouseId } }, data: { quantity: { decrement: it.quantity } } });
-        await tx.stockMovement.create({ data: { type: "EXIT", eppId: it.eppId, warehouseId, quantity: it.quantity, note: `Entrega ${updatedBatch.code}`, userId: operator.id } });
+        // ✅ Usar timestamp consistente
+        await tx.stockMovement.create({ data: { type: "EXIT", eppId: it.eppId, warehouseId, quantity: it.quantity, note: `Entrega ${updatedBatch.code}`, userId: operator.id, createdAt: editTimestamp } });
         summary.push(`Añadido EPP ${it.eppId} x${it.quantity}`);
       } else if (ex.quantity !== it.quantity) {
-        if (it.quantity > ex.quantity) {
-          const delta = it.quantity - ex.quantity;
+        // ✅ CORRECCIÓN 2: Registrar UN ÚNICO movimiento de ajuste por cambio
+        const delta = it.quantity - ex.quantity;
+        
+        if (delta > 0) {
+          // Aumentó: descuentar stock
           const stockRow = await tx.ePPStock.findUnique({ where: { eppId_warehouseId: { eppId: it.eppId, warehouseId } }, select: { quantity: true } });
           if (!stockRow || stockRow.quantity < delta) {
             const e = await tx.ePP.findUnique({ where: { id: it.eppId }, select: { name: true } });
             throw new Error(`Stock insuficiente para aumentar «${e?.name ?? it.eppId}» en ${delta}`);
           }
+          
           await tx.delivery.update({ where: { id: ex.id }, data: { quantity: it.quantity } });
           await tx.ePPStock.update({ where: { eppId_warehouseId: { eppId: it.eppId, warehouseId } }, data: { quantity: { decrement: delta } } });
-          await tx.stockMovement.create({ data: { type: "EXIT", eppId: it.eppId, warehouseId, quantity: delta, note: `Ajuste entrega ${updatedBatch.code}`, userId: operator.id } });
+          // ✅ UN ÚNICO movimiento EXIT de ajuste
+          await tx.stockMovement.create({ data: { type: "EXIT", eppId: it.eppId, warehouseId, quantity: delta, note: `Ajuste entrega ${updatedBatch.code}`, userId: operator.id, createdAt: editTimestamp } });
           summary.push(`Incrementado EPP ${it.eppId} +${delta}`);
         } else {
-          const delta = ex.quantity - it.quantity;
+          // Disminuyó: restaurar stock
+          const absMultiplierDelta = -delta;
+          
           await tx.delivery.update({ where: { id: ex.id }, data: { quantity: it.quantity } });
-          await tx.ePPStock.update({ where: { eppId_warehouseId: { eppId: it.eppId, warehouseId } }, data: { quantity: { increment: delta } } });
-          await tx.stockMovement.create({ data: { type: "ENTRY", eppId: it.eppId, warehouseId, quantity: delta, note: `Ajuste entrega ${updatedBatch.code}`, userId: operator.id } });
-          summary.push(`Reducido EPP ${it.eppId} -${delta}`);
+          await tx.ePPStock.update({ where: { eppId_warehouseId: { eppId: it.eppId, warehouseId } }, data: { quantity: { increment: absMultiplierDelta } } });
+          // ✅ UN ÚNICO movimiento ENTRY de ajuste
+          await tx.stockMovement.create({ data: { type: "ENTRY", eppId: it.eppId, warehouseId, quantity: absMultiplierDelta, note: `Ajuste entrega ${updatedBatch.code}`, userId: operator.id, createdAt: editTimestamp } });
+          summary.push(`Reducido EPP ${it.eppId} -${absMultiplierDelta}`);
         }
+        
         existingMap.delete(it.eppId);
       } else {
         // no cambios, borrar de mapa para marcar como procesado
@@ -245,7 +264,8 @@ export async function updateDeliveryBatch(fd: FormData) {
       const qty = ex.quantity;
       await tx.delivery.deleteMany({ where: { batchId, eppId } });
       await tx.ePPStock.update({ where: { eppId_warehouseId: { eppId, warehouseId } }, data: { quantity: { increment: qty } } });
-      await tx.stockMovement.create({ data: { type: "ENTRY", eppId, warehouseId, quantity: qty, note: `Eliminado del lote ${updatedBatch.code}`, userId: operator.id } });
+      // ✅ Usar timestamp consistente
+      await tx.stockMovement.create({ data: { type: "ENTRY", eppId, warehouseId, quantity: qty, note: `Eliminado del lote ${updatedBatch.code}`, userId: operator.id, createdAt: editTimestamp } });
       summary.push(`Eliminado EPP ${eppId} x${qty}`);
     }
 
