@@ -14,7 +14,8 @@ import {
   Users,
   ChevronRight,
   Building2,
-  ShieldCheck
+  ShieldCheck,
+  BookOpen
 } from 'lucide-react';
 import { UserMenu } from '@/components/auth/UserMenu';
 
@@ -24,11 +25,13 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/warehouses': ['warehouses_manage', 'warehouses_export'],
   '/epps': ['epps_manage'],
   '/stock-movements': ['stock_movements_manage'],
+  '/kardex': ['stock_movements_manage'],
   '/deliveries': ['deliveries_manage', 'deliveries_export'],
   '/returns': ['returns_manage'],
   '/collaborators': ['collaborators_manage'],
   '/reports': ['reports_export'],
   '/audit-logs': ['audit_view'],
+  '/audit/delivery-consistency': ['stock_movements_manage'],
   '/settings': ['settings_update'],
   '/users': ['user_view'],
   '/performance': [], // Accesible para admins (se verifica en el componente)
@@ -47,6 +50,7 @@ const sections = [
       { href: '/warehouses', label: 'Almacenes', icon: <Warehouse size={18} />, description: 'Centros de almacenamiento' },
       { href: '/epps', label: 'Equipos EPP', icon: <Box size={18} />, description: 'Catálogo de equipos' },
       { href: '/stock-movements', label: 'Movimientos', icon: <SendToBack size={18} />, description: 'Historial de stock' },
+      { href: '/kardex', label: 'Kardex', icon: <BookOpen size={18} />, description: 'Kardex completo' },
     ]
   },
   { 
@@ -63,6 +67,7 @@ const sections = [
     items: [
       { href: '/reports', label: 'Informes', icon: <LayoutDashboard size={18} />, description: 'Reportes y métricas' },
       { href: '/audit-logs', label: 'Auditoría', icon: <ShieldCheck size={18} />, description: 'Historial de cambios' },
+      { href: '/audit/delivery-consistency', label: 'Validar Entregas', icon: <ShieldCheck size={18} />, description: 'Revisar inconsistencias' },
     ]
   },
   // { 

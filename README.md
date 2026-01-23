@@ -75,15 +75,16 @@ Sistema integral para la administración de Equipos de Protección Personal (EPP
 - ✅ **Edición restringida de stocks iniciales** - Solo administradores pueden modificar stocks después de crear el EPP
 
 ### 📦 Control de Inventario
-- ✅ Stock por almacén con movimientos detallados
-- ✅ Tipos de movimiento: Entrada, Salida, Transferencia, Ajuste
-- ✅ **Campo de precio unitario** - Registro de precio por producto para trazabilidad de costos
-- ✅ **Campo de orden de compra** - Trazabilidad completa de compras
-- ✅ **Sistema de aprobación de movimientos** - Movimientos de no-admins requieren aprobación de administrador
-- ✅ **Modales mejorados con UX/UI optimizada** - Interfaz actualizada con secciones numeradas y mejor feedback visual
-- ✅ Validación automática de disponibilidad
-- ✅ Historial completo de transacciones
-- ✅ Trazabilidad de operador y fecha/hora
+ - ✅ Stock por almacén con movimientos detallados
+ - ✅ Tipos de movimiento: Entrada, Salida, Transferencia, Ajuste
+ - ✅ **Campo de precio unitario** - Registro de precio por producto para trazabilidad de costos
+ - ✅ **Campo de orden de compra** - Trazabilidad completa de compras
+ - ✅ **Sistema de aprobación de movimientos** - Movimientos de no-admins requieren aprobación de administrador
+ - ✅ **Modales mejorados con UX/UI optimizada** - Interfaz actualizada con secciones numeradas y mejor feedback visual
+ - ✅ Validación automática de disponibilidad
+ - ✅ Historial completo de transacciones
+ - ✅ Trazabilidad de operador y fecha/hora
+ - ✅ **Kardex completo** - Página dedicada con filtros avanzados, saldos iniciales y corrientes por movimiento, totales y trazabilidad
 
 ### 🚚 Entregas de EPP
 - ✅ Lotes de entrega con código único secuencial (DEL-XXXX)
@@ -232,11 +233,12 @@ inv-epp/
 │   └── uploads/                   # Archivos subidos (logo, etc.)
 ├── src/
 │   ├── app/                       # Next.js App Router
-│   │   ├── (protected)/          # Rutas protegidas
-│   │   │   ├── collaborators/   # Gestión de colaboradores
-│   │   │   ├── dashboard/       # Dashboard principal
-│   │   │   ├── deliveries/      # Entregas de EPP
-│   │   │   ├── epps/            # Catálogo de EPPs
+ │   │   ├── (protected)/          # Rutas protegidas
+ │   │   │   ├── collaborators/   # Gestión de colaboradores
+ │   │   │   ├── dashboard/       # Dashboard principal
+ │   │   │   ├── deliveries/      # Entregas de EPP
+ │   │   │   ├── kardex/          # Kardex completo de movimientos
+ │   │   │   ├── epps/            # Catálogo de EPPs
 │   │   │   ├── reports/         # Reportes y análisis
 │   │   │   ├── returns/         # Devoluciones
 │   │   │   ├── settings/        # Configuración del sistema
@@ -766,6 +768,32 @@ GET    /api/health                         # Estado del sistema y base de datos
 ---
 
 ## 🔍 Mantenimiento y Monitoreo
+## 📘 Kardex
+
+Página dedicada para la trazabilidad detallada de movimientos de stock por EPP y almacén.
+
+### Ruta y Permisos
+- Ruta: `/kardex` (menú Inventario)
+- Requiere permiso: `stock_movements_manage`
+
+### Filtros Disponibles
+- Búsqueda por texto (código/nombre de EPP)
+- EPP específico
+- Almacén
+- Tipo de movimiento: Entrada / Salida / Ajuste
+- Rango de fechas
+
+### Columnas y Cálculos
+- Tipo de movimiento, Fecha y Operador
+- Cantidad y Nota
+- **Saldo inicial** (antes del movimiento)
+- **Saldo** (después del movimiento)
+- Totales agregados por tipo dentro del rango seleccionado
+
+### Comportamiento
+- Los saldos se calculan de forma corrida por EPP/almacén, ordenados ascendentemente por fecha
+- La tabla muestra tanto el estado previo como el posterior para cada movimiento, asegurando trazabilidad clara
+
 
 ### Monitoreo de Salud
 
@@ -1080,6 +1108,12 @@ Hecho con ❤️ usando Next.js y TypeScript
 ---
 
 ## 🗂️ Changelog
+### 2026-01-22
+- ✨ **Módulo de Kardex completo** con filtros, saldos iniciales y corrientes, totales por tipo y trazabilidad de operador/nota
+- ✨ **Auditoría de entregas** con explicación de causa e impacto por issue; campo `daysSinceCreation` para análisis temporal
+- 🐞 **Corrección del flujo “Aplicar Corrección”**: validación de acción y parámetros, soporte para `movementId` y `movementIds`, diálogo controlado por estado
+- 🧪 **Scripts de verificación**: `scripts/test-causes.js` y `scripts/test-fix-flow.js` con resultados validados
+
 
 ### 2025-11-06
 - ✅ **Edición restringida de stocks iniciales en EPP** - Solo administradores pueden editar stocks después de crear un EPP

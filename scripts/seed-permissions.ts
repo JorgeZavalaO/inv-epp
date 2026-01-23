@@ -1,5 +1,16 @@
 import prisma from "@/lib/prisma";
 
+/**
+ * Seed de permisos con soporte de vista previa.
+ * Uso:
+ *   npx tsx scripts/seed-permissions.ts [--preview]
+ *
+ * --preview: no aplica cambios, solo muestra qué se crearía/actualizaría
+ */
+
+const args = process.argv.slice(2);
+const PREVIEW = args.includes("--preview");
+
 async function main() {
   const perms = [
     // Usuarios
@@ -41,15 +52,40 @@ async function main() {
     { name: "reports_export", module: "reports", description: "Exportar reportes" },
   ];
 
+  let created = 0;
+  let updated = 0;
+
   for (const p of perms) {
-    await prisma.permission.upsert({
-      where: { name: p.name },
-      update: { description: p.description, module: p.module },
-      create: { name: p.name, module: p.module, description: p.description },
-    });
+    const existing = await prisma.permission.findUnique({ where: { name: p.name } });
+
+    if (PREVIEW) {
+      console.log(
+        existing
+          ? `🟡 Update → ${p.name} ({ module: ${p.module} })`
+          : `🟢 Create → ${p.name} ({ module: ${p.module} })`
+      );
+      continue;
+    }
+
+    if (existing) {
+      await prisma.permission.update({
+        where: { name: p.name },
+        data: { description: p.description, module: p.module },
+      });
+      updated++;
+    } else {
+      await prisma.permission.create({
+        data: { name: p.name, module: p.module, description: p.description },
+      });
+      created++;
+    }
   }
 
-  console.log(`Seeded ${perms.length} permissions.`);
+  if (PREVIEW) {
+    console.log(`\n🔎 Vista previa completada. Total: ${perms.length} permisos.`);
+  } else {
+    console.log(`\n✅ Seed completado. Creados: ${created}, Actualizados: ${updated}. Total: ${created + updated}.`);
+  }
 }
 
 main()

@@ -4,17 +4,23 @@
  * Elimina logs expirados para prevenir crecimiento descontrolado de la base de datos.
  * 
  * Uso:
- * - Ejecutar manualmente: node --loader ts-node/esm scripts/cleanup-audit-logs.ts
+ * - Ejecutar manualmente: node --loader ts-node/esm scripts/cleanup-audit-logs.ts [--dry-run] [--max-batches=N]
  * - Programar con cron: Vercel Cron Jobs o similar
  * 
  * Características:
  * - Elimina en lotes para no bloquear la DB
  * - Solo elimina logs expirados (campo expiresAt)
  * - Reporta estadísticas de limpieza
+ * - Modo DRY-RUN para validar sin eliminar
  */
 
 import prisma from '../src/lib/prisma';
 import { CLEANUP_CONFIG } from '../src/lib/audit/config';
+
+const args = process.argv.slice(2);
+const DRY_RUN = args.includes('--dry-run');
+const maxBatchesArg = args.find((a) => a.startsWith('--max-batches='));
+const MAX_BATCHES = maxBatchesArg ? parseInt(maxBatchesArg.split('=')[1], 10) : undefined;
 
 interface CleanupStats {
   deletedCount: number;
@@ -31,7 +37,7 @@ export async function cleanupExpiredAuditLogs(): Promise<CleanupStats> {
   const startTime = Date.now();
   const now = new Date();
   
-  console.log(`🗑️ Iniciando limpieza de logs expirados...`);
+  console.log(`🗑️ Iniciando limpieza de logs expirados...${DRY_RUN ? ' (DRY-RUN)' : ''}`);
   console.log(`   Fecha actual: ${now.toISOString()}`);
 
   if (!CLEANUP_CONFIG.enabled) {
@@ -79,25 +85,37 @@ export async function cleanupExpiredAuditLogs(): Promise<CleanupStats> {
       }
       newestDeleted = expiredLogs[expiredLogs.length - 1].createdAt;
 
-      // Eliminar el lote
+      // Eliminar el lote (o simular en DRY-RUN)
       const ids = expiredLogs.map((log) => log.id);
-      const deleted = await prisma.auditLog.deleteMany({
-        where: {
-          id: {
-            in: ids,
+      let deletedCount = 0;
+      if (DRY_RUN) {
+        deletedCount = ids.length;
+      } else {
+        const deleted = await prisma.auditLog.deleteMany({
+          where: {
+            id: {
+              in: ids,
+            },
           },
-        },
-      });
+        });
+        deletedCount = deleted.count;
+      }
 
-      totalDeleted += deleted.count;
+      totalDeleted += deletedCount;
       batchesProcessed++;
 
       console.log(
-        `   Lote ${batchesProcessed}: ${deleted.count} logs eliminados`
+        `   Lote ${batchesProcessed}: ${deletedCount} logs ${DRY_RUN ? 'simulados' : 'eliminados'}`
       );
 
       // Si el lote es menor que el tamaño configurado, terminamos
       if (expiredLogs.length < CLEANUP_CONFIG.batchSize) {
+        break;
+      }
+
+      // Límite de lotes si se configura
+      if (MAX_BATCHES && batchesProcessed >= MAX_BATCHES) {
+        console.log(`   ⏹️ Se alcanzó el límite de lotes configurado (${MAX_BATCHES})`);
         break;
       }
     }
@@ -112,7 +130,7 @@ export async function cleanupExpiredAuditLogs(): Promise<CleanupStats> {
     };
 
     console.log('\n✅ Limpieza completada:');
-    console.log(`   Total eliminados: ${stats.deletedCount} logs`);
+    console.log(`   Total ${DRY_RUN ? 'simulados' : 'eliminados'}: ${stats.deletedCount} logs`);
     console.log(`   Lotes procesados: ${stats.batchesProcessed}`);
     console.log(`   Duración: ${stats.duration}ms`);
     if (stats.oldestDeleted) {

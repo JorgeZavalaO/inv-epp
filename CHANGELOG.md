@@ -133,6 +133,59 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [1.2.0] - 2026-01-22
+
+### ✨ Agregado
+
+#### Módulo de Kardex Completo
+- **Nueva página `/kardex`** bajo rutas protegidas (Inventario)
+- Filtros avanzados: búsqueda por texto, EPP, almacén, tipo (Entrada/Salida/Ajuste), rango de fechas
+- Tabla con columnas de movimiento, cantidades y saldos:
+  - Tipo de movimiento (Entrada/Salida/Ajuste)
+  - Cantidad
+  - Operador y nota
+  - **Saldo inicial** por fila (previo al movimiento)
+  - **Saldo** resultante por fila (después del movimiento)
+- Cálculos de saldo corrido por EPP/almacén (ordenado asc por fecha)
+- Totales agregados por filtro activo (Entradas/Salidas/Ajustes)
+- Acceso controlado por permiso `stock_movements_manage`
+
+#### Auditoría de Entregas: Causa e Impacto
+- Se añaden explicaciones de **causa** e **impacto** para issues de consistencia de entregas:
+  - `MISSING_MOVEMENT`, `QUANTITY_MISMATCH`, `ORPHAN_MOVEMENT`
+- Campo adicional `daysSinceCreation` para apoyar el análisis temporal
+- Bloque visual “Causa e Impacto” en el UI del componente de auditoría
+
+### 🛠️ Cambiado
+- Diálogo de confirmación de “Aplicar Corrección” ahora **controlado por estado** (evita triggers frágiles)
+- Normalización de payload de corrección: soporte para `movementId` (singular) y `movementIds` (arreglo)
+- Mensajería y validación de acciones mejoradas en cliente (toasts más claros)
+
+### 🐞 Corregido
+- Error “**Acción no soportada**” al aplicar correcciones en auditoría:
+  - Validación de acción y parámetros requerida antes de enviar
+  - Soporte consistente para IDs de movimiento (singular vs múltiple)
+  - Cierre fiable del diálogo tras éxito
+- Alineación de tipos entre UI y API (incluye `daysSinceCreation` en Issue)
+
+### 🔧 Técnico
+- Endpoint de fix de auditoría soporta:
+  - `DELETE_MOVEMENT`: revierte stock y elimina movimiento
+  - `UPDATE_DELIVERY`: ajusta cantidad y genera movimiento de ajuste si corresponde
+  - `CREATE_MOVEMENT`: crea salida y descuenta stock
+- Registro de auditoría para operaciones de corrección
+- Scripts de verificación:
+  - `scripts/test-causes.js` — valida generación de causas e impactos
+  - `scripts/test-fix-flow.js` — prueba end-to-end del flujo de corrección (18/18 pasan)
+
+### 📄 Documentación
+- **README** actualizado para incluir el módulo **Kardex** y su funcionamiento
+
+### 🗃️ Migraciones
+- No se requieren migraciones de base de datos para esta versión
+
+---
+
 ## [1.0.0] - 2025-11-14
 
 ### Versión inicial con funcionalidades principales
