@@ -10,6 +10,13 @@ import { useSession } from "next-auth/react";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import MovementTable, { Row as MovementRow } from "@/components/stock/MovementTable";
 import ModalCreateMovement from "@/components/stock/ModalCreateMovement";
@@ -22,6 +29,7 @@ import { useStockMovementsExcelXlsx } from "@/lib/client-excel/useStockMovements
 interface Props {
   data: MovementRow[];
   page: number;
+  pageSize: number;
   hasPrev: boolean;
   hasNext: boolean;
   pendingCount?: number;
@@ -30,6 +38,7 @@ interface Props {
 export default function StockMovementsClient({
   data,
   page,
+  pageSize,
   hasPrev,
   hasNext,
   pendingCount = 0,
@@ -56,6 +65,13 @@ export default function StockMovementsClient({
     const params = new URLSearchParams(searchParams);
     params.set("page", pageNumber.toString());
     return `${pathname}?${params.toString()}`;
+  };
+
+  const handlePageSizeChange = (newSize: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("pageSize", newSize);
+    params.set("page", "1");
+    replace(`${pathname}?${params.toString()}`);
   };
 
   /* control de modales */
@@ -139,19 +155,40 @@ export default function StockMovementsClient({
       </div>
 
       {/* paginación */}
-      <nav className="flex justify-between mt-4">
-        {hasPrev ? (
-          <Link href={createPageURL(page - 1)}>
-            <Button variant="outline">&larr; Anterior</Button>
-          </Link>
-        ) : (
-          <div />
-        )}
-        {hasNext && (
-          <Link href={createPageURL(page + 1)}>
-            <Button variant="outline">Siguiente &rarr;</Button>
-          </Link>
-        )}
+      <nav className="flex justify-between items-center mt-4 gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Items por página:</span>
+          <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+            <SelectTrigger className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {hasPrev ? (
+            <Link href={createPageURL(page - 1)}>
+              <Button variant="outline">&larr; Anterior</Button>
+            </Link>
+          ) : (
+            <div />
+          )}
+          <span className="text-sm text-muted-foreground px-2">
+            Página {page}
+          </span>
+          {hasNext && (
+            <Link href={createPageURL(page + 1)}>
+              <Button variant="outline">Siguiente &rarr;</Button>
+            </Link>
+          )}
+        </div>
       </nav>
 
       {/* modales */}

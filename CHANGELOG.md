@@ -186,6 +186,25 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [1.2.1] - 2026-01-30
+
+### ✨ Agregado
+
+- **Columna de Estado en Movimientos**
+  - Se agregó la columna `Estado` en la tabla de movimientos para mostrar claramente si un movimiento está `PENDING`, `APPROVED` o `REJECTED`.
+  - Badges con colores e íconos: Pendiente (amarillo), Aprobado (verde), Rechazado (rojo).
+  - Los movimientos rechazados muestran un botón para ver la razón del rechazo en un modal.
+
+- **Paginación personalizable**
+  - Paginación por defecto configurada a **20** movimientos por página.
+  - Selector en la interfaz permite elegir 5, 10, 20, 50 o 100 items por página; la preferencia se persiste en la URL (`pageSize`).
+  - Validación de `pageSize` en servidor: mínimo 5, máximo 100.
+
+### 🔧 Cambiado
+
+- Los botones de editar/eliminar ahora están deshabilitados para movimientos rechazados para evitar acciones inconsistentes.
+
+
 ## [1.0.0] - 2025-11-14
 
 ### Versión inicial con funcionalidades principales

@@ -6,13 +6,14 @@ import { MovementStatus, UserRole } from "@prisma/client";
 import { auth } from "@/lib/auth";
 
 export const revalidate = 0;
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
 
 export default async function StockMovementsPage({
   searchParams,
 }: {
   /* Next genera PageProps cuyo searchParams es Promise<Record<string,string>> */
-  searchParams: Promise<{ page?: string; query?: string }>;
+  searchParams: Promise<{ page?: string; query?: string; pageSize?: string }>;
 }) {
   // Verificar permisos
   const canAccess = await hasPermission('stock_movements_manage');
@@ -26,8 +27,9 @@ export default async function StockMovementsPage({
   const isAdmin = session?.user?.role === UserRole.ADMIN;
   
   // Ahora await searchParams para obtener el objeto real
-  const { page: pageParam, query } = await searchParams;
+  const { page: pageParam, query, pageSize: pageSizeParam } = await searchParams;
   const page = Math.max(1, Number(pageParam ?? "1"));
+  const pageSize = Math.min(Math.max(Number(pageSizeParam ?? DEFAULT_PAGE_SIZE), 5), MAX_PAGE_SIZE);
 
   // Filtro de búsqueda
   const whereClause = query
@@ -44,8 +46,8 @@ export default async function StockMovementsPage({
   // 1) Movimientos + paginación
   const rawList = await prisma.stockMovement.findMany({
     where: whereClause,
-    skip: (page - 1) * PAGE_SIZE,
-    take: PAGE_SIZE + 1,
+    skip: (page - 1) * pageSize,
+    take: pageSize + 1,
     include: {
       epp:       { select: { code: true, name: true } },
       user:      { select: { email: true } },
@@ -54,8 +56,8 @@ export default async function StockMovementsPage({
     orderBy: { createdAt: "desc" },
   });
 
-  const hasNext   = rawList.length > PAGE_SIZE;
-  const movements = hasNext ? rawList.slice(0, PAGE_SIZE) : rawList;
+  const hasNext   = rawList.length > pageSize;
+  const movements = hasNext ? rawList.slice(0, pageSize) : rawList;
   const hasPrev   = page > 1;
 
   // 2) Obtener conteo de movimientos pendientes (solo para admins)
@@ -81,6 +83,8 @@ export default async function StockMovementsPage({
     note:        mv.note ?? null,
     purchaseOrder: mv.purchaseOrder ?? null,
     unitPrice:   mv.unitPrice ? Number(mv.unitPrice) : null,
+    status:      mv.status,
+    rejectionNote: mv.rejectionNote ?? null,
   }));
 
   return (
@@ -88,6 +92,7 @@ export default async function StockMovementsPage({
       <StockMovementsClient
         data={data}
         page={page}
+        pageSize={pageSize}
         hasPrev={hasPrev}
         hasNext={hasNext}
         pendingCount={pendingCount}

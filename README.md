@@ -80,6 +80,8 @@ Sistema integral para la administración de Equipos de Protección Personal (EPP
  - ✅ **Campo de precio unitario** - Registro de precio por producto para trazabilidad de costos
  - ✅ **Campo de orden de compra** - Trazabilidad completa de compras
  - ✅ **Sistema de aprobación de movimientos** - Movimientos de no-admins requieren aprobación de administrador
+ - ✅ **Columna de Estado en Movimientos** - La tabla de movimientos ahora muestra el estado de cada movimiento (Pendiente / Aprobado / Rechazado) con badges coloreados y un modal para ver la razón de rechazo cuando aplica.
+ - ✅ **Paginación personalizable** - Por defecto se muestran 20 movimientos por página, pero el usuario puede cambiar la cantidad (5, 10, 20, 50, 100) desde la interfaz; la preferencia se guarda en la URL (`pageSize`).
  - ✅ **Modales mejorados con UX/UI optimizada** - Interfaz actualizada con secciones numeradas y mejor feedback visual
  - ✅ Validación automática de disponibilidad
  - ✅ Historial completo de transacciones

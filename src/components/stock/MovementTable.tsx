@@ -4,6 +4,15 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge }  from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/DataTable";
+import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export interface Row {
   /* columnas visibles */
@@ -17,6 +26,8 @@ export interface Row {
   operator: string;
   unitPrice?: number | null;
   purchaseOrder?: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  rejectionNote?: string | null;
 
   /* necesarios para los modales */
   eppId: number;
@@ -30,7 +41,34 @@ interface Props {
   onDelete: (row: Row) => void;
 }
 
+function StatusBadge({ status }: { status: Row["status"] }) {
+  switch (status) {
+    case "PENDING":
+      return (
+        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 flex items-center gap-1 w-fit">
+          <Clock className="h-3 w-3" />
+          Pendiente
+        </Badge>
+      );
+    case "APPROVED":
+      return (
+        <Badge className="bg-green-100 text-green-800 hover:bg-green-100 flex items-center gap-1 w-fit">
+          <CheckCircle2 className="h-3 w-3" />
+          Aprobado
+        </Badge>
+      );
+    case "REJECTED":
+      return (
+        <Badge className="bg-red-100 text-red-800 hover:bg-red-100 flex items-center gap-1 w-fit">
+          <AlertCircle className="h-3 w-3" />
+          Rechazado
+        </Badge>
+      );
+  }
+}
+
 export default function MovementTable({ data, onEdit, onDelete }: Props) {
+  const [rejectionDetail, setRejectionDetail] = useState<{ movementId: number; note: string } | null>(null);
   const typeBadge = (t: Row["type"]) => (
     <Badge variant={t === "ENTRY" ? "default" : t === "EXIT" ? "destructive" : "secondary"}>
       {t === "ENTRY" ? "Entrada" : t === "EXIT" ? "Salida" : "Ajuste"}
@@ -89,18 +127,48 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
     },
     { accessorKey: "operator", header: "Operador" },
     {
+      accessorKey: "status",
+      header: "Estado",
+      cell: ({ row }) => {
+        const mv = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <StatusBadge status={mv.status} />
+            {mv.status === "REJECTED" && mv.rejectionNote && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 hover:bg-red-100"
+                onClick={() =>
+                  setRejectionDetail({
+                    movementId: mv.id,
+                    note: mv.rejectionNote!,
+                  })
+                }
+                title="Ver razón del rechazo"
+              >
+                ℹ️
+              </Button>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       id: "actions",
       header: "Acciones",
       cell: ({ row }) => {
         const mv = row.original;
+        // Solo permitir edición/eliminación si está pendiente o aprobado
+        const canModify = mv.status !== "REJECTED";
         return (
           <div className="flex gap-2">
-            {mv.type !== "ADJUSTMENT" && (
+            {mv.type !== "ADJUSTMENT" && canModify && (
               <Button size="sm" variant="secondary" onClick={() => onEdit(mv)}>
                 ✏️
               </Button>
             )}
-            {mv.type !== "ADJUSTMENT" && (
+            {mv.type !== "ADJUSTMENT" && canModify && (
               <Button size="sm" variant="destructive" onClick={() => onDelete(mv)}>
                 🗑
               </Button>
@@ -111,5 +179,31 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
     },
   ];
 
-  return <DataTable columns={columns} data={data} />;
+  return (
+    <>
+      <DataTable columns={columns} data={data} />
+
+      {/* Modal para ver razón de rechazo */}
+      {rejectionDetail && (
+        <Dialog open={!!rejectionDetail} onOpenChange={() => setRejectionDetail(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                Razón del Rechazo
+              </DialogTitle>
+              <DialogDescription>
+                Movimiento ID: {rejectionDetail.movementId}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <p className="text-sm text-red-900 whitespace-pre-wrap">
+                {rejectionDetail.note}
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
 }
