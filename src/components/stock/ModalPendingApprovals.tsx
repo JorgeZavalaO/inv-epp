@@ -147,7 +147,7 @@ export default function ModalPendingApprovals({ onClose }: Props) {
   return (
     <>
       <Dialog open onOpenChange={onClose}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-7xl! max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-amber-600" />
