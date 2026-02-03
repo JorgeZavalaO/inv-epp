@@ -85,7 +85,8 @@ export default async function StockMovementsPage({
     unitPrice:   mv.unitPrice ? Number(mv.unitPrice) : null,
     status:      mv.status,
     rejectionNote: mv.rejectionNote ?? null,
-    isCancellation: mv.note ? mv.note.includes("[ANULACIÓN]") : false,
+    // Detectar ambos formatos de anulación
+    isCancellation: mv.note ? (mv.note.includes("[ANULACIÓN]") || mv.note.startsWith("Anulación entrega")) : false,
   }));
 
   return (

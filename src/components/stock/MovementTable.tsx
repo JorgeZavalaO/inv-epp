@@ -116,10 +116,23 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
       header: "Origen",
       cell: ({ row }) => {
         const { note } = row.original;
-        if (note && note.includes("[ANULACIÓN]")) {
-          // Extraer la razón si está disponible
-          const reasonMatch = note.match(/Razón: (.+?)(?:\s*→|$)/);
-          const reason = reasonMatch ? reasonMatch[1].trim() : "Anulación de entrega";
+        // Detectar ambos formatos:
+        // Nuevo: [ANULACIÓN] DEL-XXXX → DEV-YYYY | Razón: {motivo}
+        // Anterior: Anulación entrega DEL-XXXX → Devolución DEV-XXXX
+        if (note && (note.includes("[ANULACIÓN]") || note.startsWith("Anulación entrega"))) {
+          let reason = "Anulación de entrega";
+          
+          // Si tiene el formato nuevo, extraer la razón
+          if (note.includes("[ANULACIÓN]")) {
+            const reasonMatch = note.match(/Razón: (.+?)(?:\s*→|$)/);
+            if (reasonMatch) {
+              reason = reasonMatch[1].trim();
+            }
+          } else if (note.startsWith("Anulación entrega")) {
+            // Para el formato anterior, mostrar información de las entregas
+            reason = note;
+          }
+          
           return (
             <div className="flex items-center gap-2">
               <Badge className="bg-red-100 text-red-800 hover:bg-red-100 flex items-center gap-1">
