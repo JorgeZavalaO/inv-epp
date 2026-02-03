@@ -33,6 +33,8 @@ export interface Row {
   eppId: number;
   warehouseId: number;
   note?: string | null;
+  isCancellation?: boolean;
+  cancellationReason?: string | null;
 }
 
 interface Props {
@@ -108,6 +110,41 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
       accessorKey: "type",
       header: "Tipo",
       cell: ({ getValue }) => typeBadge(getValue<Row["type"]>()),
+    },
+    {
+      id: "cancellation",
+      header: "Origen",
+      cell: ({ row }) => {
+        const { note } = row.original;
+        if (note && note.includes("[ANULACIÓN]")) {
+          // Extraer la razón si está disponible
+          const reasonMatch = note.match(/Razón: (.+?)(?:\s*→|$)/);
+          const reason = reasonMatch ? reasonMatch[1].trim() : "Anulación de entrega";
+          return (
+            <div className="flex items-center gap-2">
+              <Badge className="bg-red-100 text-red-800 hover:bg-red-100 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                Anulación
+              </Badge>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 hover:bg-red-100"
+                onClick={() =>
+                  setRejectionDetail({
+                    movementId: row.original.id,
+                    note: reason,
+                  })
+                }
+                title="Ver razón de la anulación"
+              >
+                ℹ️
+              </Button>
+            </div>
+          );
+        }
+        return <span className="text-muted-foreground">-</span>;
+      },
     },
     {
       accessorKey: "purchaseOrder",

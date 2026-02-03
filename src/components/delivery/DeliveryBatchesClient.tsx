@@ -160,7 +160,13 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
         ...(currentDateTo && { dateTo: currentDateTo }),
       });
 
-      const response = await fetch(`/api/deliveries?${params.toString()}`);
+      const response = await fetch(`/api/deliveries?${params.toString()}`, {
+        method: 'GET',
+        cache: 'no-store', // Asegurar que no cacheamos
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        }
+      });
       if (!response.ok) throw new Error('Error al cargar datos');
       
       const result: ApiResponse = await response.json();
@@ -278,8 +284,11 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
 
   // Función para refrescar datos después de operaciones CRUD
   const refreshData = useCallback(() => {
+    // Invalidar caché del servidor
+    router.refresh();
+    // Refrescar datos del cliente
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, router]);
 
   // Verificar si hay filtros activos
   const hasActiveFilters = !!(currentSearch || currentCollaboratorId || currentWarehouseId || currentLocation || currentDateFrom || currentDateTo);

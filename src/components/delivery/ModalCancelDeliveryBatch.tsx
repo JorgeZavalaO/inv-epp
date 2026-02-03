@@ -39,6 +39,10 @@ export default function ModalCancelDeliveryBatch({
     startTransition(async () => {
       try {
         await cancelDeliveryBatch(batch.id, reason);
+        
+        // Pequeño delay para asegurar que la BD está actualizada
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         toast.success(`Entrega ${batch.code} anulada correctamente`);
         setReason("");
         onConfirm();

@@ -96,12 +96,15 @@ Sistema integral para la administración de Equipos de Protección Personal (EPP
 - ✅ Descuento automático de stock con validación
 - ✅ **Protección anti-duplicación** con retry logic implementado
 - ✅ **Botón de eliminación deshabilitado** para prevenir borrados accidentales
+- ✅ **Sistema de anulación de entregas** - Anulación completa con devolución automática de stock y generación de devolución (DEV-XXXX) con captura de razón
+- ✅ **Trazabilidad de anulaciones** - Movimientos de stock identificados con etiqueta [ANULACIÓN] y razón del usuario incluida
 
 ### 🔄 Devoluciones
 - ✅ Registro de devoluciones con estado (Reutilizable/Descartado)
 - ✅ Reingreso automático de stock para EPPs reutilizables
 - ✅ Control de calidad en el proceso de devolución
 - ✅ Lotes de devolución con trazabilidad
+- ✅ **Identificación de origen de devolución** - Muestra cuando una devolución fue generada por anulación de entrega con código de entrega original
 
 ### 👥 Gestión de Colaboradores
 - ✅ Base de datos de colaboradores con información detallada

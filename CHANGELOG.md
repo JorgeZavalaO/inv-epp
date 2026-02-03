@@ -5,6 +5,36 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.2.0] - 2026-01-10
+
+### ✨ Agregado
+
+#### Sistema de Anulación de Entregas
+- **Anulación completa de entregas por lote** con transacciones atómicas
+- Devolución automática de stock al almacén (creación de devolución DEV-XXXX)
+- Captura de razón de anulación en el modal de confirmación
+- Campos en modelo `DeliveryBatch`: `isCancelled`, `cancelledAt`, `cancelledBy`, `cancellationReason`
+- Auditoría completa: logs en tabla `AuditLog` con contexto de cancelación
+- Visualización de estado cancelado con badge distintivo en listados
+- Información de cancelación mostrada en detalle de entrega
+- Movimientos de stock registrados como ENTRY con etiqueta [ANULACIÓN] y razón incluida
+
+### 🐛 Corregido
+
+#### Visibilidad de Anulaciones en Movimientos de Stock
+- **Notas mejoradas en movimientos de stock** que incluyen:
+  - Etiqueta clara [ANULACIÓN] para identificar devoluciones por cancelación
+  - Código de entrega original y devolución generada
+  - Razón de anulación capturada del usuario
+  - Formato: `[ANULACIÓN] DEL-XXXX → DEV-YYYY | Razón: {motivo del usuario}`
+- Mejora de trazabilidad en el kardex para operaciones de devolución
+
+#### Problemas de Cache en Listado de Entregas
+- **Cache invalidation mejorada** con `router.refresh()` inmediato
+- Fetch con header `cache: 'no-store'` para garantizar datos frescos
+- Delay de sincronización (500ms) en modal de cancelación para confirmación de BD
+- Actualización correcta del listado tras operación de cancelación
+
 ## [1.1.0] - 2026-01-09
 
 ### ✨ Agregado

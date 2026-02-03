@@ -464,7 +464,7 @@ export async function cancelDeliveryBatch(batchId: number, reason: string) {
           eppId: delivery.eppId,
           warehouseId: batch.warehouseId,
           quantity: delivery.quantity,
-          note: `Anulación entrega ${batch.code} → Devolución ${returnCode}`,
+          note: `[ANULACIÓN] ${batch.code} → DEV-${returnCode} | Razón: ${reason.trim()}`,
           userId: operator.id,
           status: "APPROVED",
           approvedById: operator.id,
@@ -489,5 +489,7 @@ export async function cancelDeliveryBatch(batchId: number, reason: string) {
     }
   );
 
+  // Invalidar cachés
   ["deliveries", "returns", "dashboard", "epps"].forEach((p) => revalidatePath(`/${p}`));
+  revalidatePath("/api/deliveries");
 }
