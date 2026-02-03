@@ -14,6 +14,7 @@ export async function GET(
     where: { id: batchId },
     include: {
       items: { include: { epp: { select: { code: true, name: true } } } },
+      cancelledDeliveryBatch: { select: { code: true } },
     },
   });
   return rb

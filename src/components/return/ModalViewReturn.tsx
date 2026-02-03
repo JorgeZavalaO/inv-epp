@@ -32,6 +32,7 @@ export default function ModalViewReturn({ batchId, onClose }: Props) {
     warehouse?: { name: string | null };
     items: ReturnBatchItem[];
     note?: string | null;
+    cancelledDeliveryBatch?: { code: string } | null;
   }
 
   /* ---------- Estado ---------- */
@@ -61,9 +62,16 @@ export default function ModalViewReturn({ batchId, onClose }: Props) {
         <DialogHeader>
           <div className="flex items-start justify-between">
             <div>
-              <DialogTitle className="text-lg font-semibold">
-                Detalle devolución&nbsp;{data?.code ?? ""}
-              </DialogTitle>
+              <div className="flex items-center gap-2">
+                <DialogTitle className="text-lg font-semibold">
+                  Detalle devolución&nbsp;{data?.code ?? ""}
+                </DialogTitle>
+                {data?.cancelledDeliveryBatch && (
+                  <Badge variant="outline" className="text-xs">
+                    Anulación {data.cancelledDeliveryBatch.code}
+                  </Badge>
+                )}
+              </div>
               {data?.warehouse?.name && (
                 <p className="text-sm text-muted-foreground">
                   Almacén: {data.warehouse.name}

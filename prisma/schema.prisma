@@ -25,6 +25,7 @@ model User {
   approvals              Approval[]       @relation("UserApprovals")
   auditLogs              AuditLog[]       @relation("UserAuditLogs")
   deliveryBatches        DeliveryBatch[]  @relation("UserDeliveryBatches")
+  cancelledDeliveryBatches DeliveryBatch[] @relation("CancelledDeliveryBatches")
   requests               Request[]        @relation("UserRequests")
   returnBatches          ReturnBatch[]    @relation("UserReturnBatches")
   sessions               Session[]
@@ -181,21 +182,28 @@ model StockMovement {
 
 /// Lote de entregas
 model DeliveryBatch {
-  id             Int          @id @default(autoincrement())
-  note           String?
-  warehouseId    Int
-  createdAt      DateTime     @default(now())
-  code           String       @unique @db.VarChar(32)
-  collaboratorId Int
-  userId         String
-  deliveries     Delivery[]
-  collaborator   Collaborator @relation(fields: [collaboratorId], references: [id])
-  user           User         @relation("UserDeliveryBatches", fields: [userId], references: [id])
-  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id])
+  id                 Int          @id @default(autoincrement())
+  note               String?
+  warehouseId        Int
+  createdAt          DateTime     @default(now())
+  code               String       @unique @db.VarChar(32)
+  collaboratorId     Int
+  userId             String
+  isCancelled        Boolean      @default(false)
+  cancelledAt        DateTime?
+  cancelledBy        String?
+  cancellationReason String?
+  deliveries         Delivery[]
+  collaborator       Collaborator @relation(fields: [collaboratorId], references: [id])
+  user               User         @relation("UserDeliveryBatches", fields: [userId], references: [id])
+  cancelledByUser    User?        @relation("CancelledDeliveryBatches", fields: [cancelledBy], references: [id])
+  warehouse          Warehouse    @relation(fields: [warehouseId], references: [id])
+  returnBatch        ReturnBatch? @relation("CancelledDeliveryReturn")
 
   @@index([createdAt])
   @@index([collaboratorId])
   @@index([warehouseId])
+  @@index([isCancelled])
 }
 
 /// Cada línea de entrega
@@ -215,17 +223,20 @@ model Delivery {
 
 /// Lote de devoluciones
 model ReturnBatch {
-  id          Int          @id @default(autoincrement())
-  code        String       @unique @db.VarChar(32)
-  warehouseId Int
-  note        String?
-  createdAt   DateTime     @default(now())
-  userId      String
-  user        User         @relation("UserReturnBatches", fields: [userId], references: [id])
-  warehouse   Warehouse    @relation(fields: [warehouseId], references: [id])
-  items       ReturnItem[]
+  id                       Int            @id @default(autoincrement())
+  code                     String         @unique @db.VarChar(32)
+  warehouseId              Int
+  note                     String?
+  createdAt                DateTime       @default(now())
+  userId                   String
+  cancelledDeliveryBatchId Int?           @unique
+  user                     User           @relation("UserReturnBatches", fields: [userId], references: [id])
+  warehouse                Warehouse      @relation(fields: [warehouseId], references: [id])
+  cancelledDeliveryBatch   DeliveryBatch? @relation("CancelledDeliveryReturn", fields: [cancelledDeliveryBatchId], references: [id])
+  items                    ReturnItem[]
 
   @@index([createdAt])
+  @@index([cancelledDeliveryBatchId])
 }
 
 /// Cada línea de devolución

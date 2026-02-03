@@ -32,6 +32,15 @@ async function getBatchDetails(id: number) {
       code: true,
       createdAt: true,
       note: true,
+      isCancelled: true,
+      cancelledAt: true,
+      cancellationReason: true,
+      cancelledByUser: {
+        select: {
+          name: true,
+          email: true,
+        }
+      },
       collaborator: {
         select: {
           name: true,
@@ -102,17 +111,30 @@ export default async function DeliveryBatchDetail({
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-lg">
-              <Package className="w-6 h-6 text-white" />
+            <div className={`${b.isCancelled ? 'bg-red-600' : 'bg-blue-600'} p-2 rounded-lg`}>
+              <Package className={`w-6 h-6 ${b.isCancelled ? 'text-white' : 'text-white'}`} />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
-                Entrega #{b.code}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+                  Entrega #{b.code}
+                </h1>
+                {b.isCancelled && (
+                  <Badge variant="destructive" className="text-sm">
+                    ANULADA
+                  </Badge>
+                )}
+              </div>
               <p className="text-slate-600 flex items-center gap-1 mt-1">
                 <Calendar className="w-4 h-4" />
                {formatDateLima(b.createdAt)}
               </p>
+              {b.isCancelled && b.cancelledAt && (
+                <p className="text-red-600 text-sm mt-1">
+                  Anulada el {formatDateLima(b.cancelledAt.toString())}
+                  {b.cancelledByUser && ` por ${b.cancelledByUser.name || b.cancelledByUser.email}`}
+                </p>
+              )}
             </div>
           </div>
           
@@ -121,12 +143,14 @@ export default async function DeliveryBatchDetail({
               <Hash className="w-3 h-3 mr-1" />
               {b.deliveries.length} ítems
             </Badge>
-            <Link href={`/api/delivery-batches/${b.id}/pdf`} target="_blank">
-              <Button className="bg-red-600 hover:bg-red-700 text-white">
-                <FileText className="w-4 h-4 mr-2" />
-              Exportar PDF
-            </Button>
-            </Link>
+            {!b.isCancelled && (
+              <Link href={`/api/delivery-batches/${b.id}/pdf`} target="_blank">
+                <Button className="bg-red-600 hover:bg-red-700 text-white">
+                  <FileText className="w-4 h-4 mr-2" />
+                Exportar PDF
+              </Button>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -232,19 +256,56 @@ export default async function DeliveryBatchDetail({
           </Card>
         </div>
 
+        {/* Cancellation Info - si aplica */}
+        {b.isCancelled && b.cancellationReason && (
+          <Card className="shadow-md border-0 bg-red-50 border-l-4 border-red-600">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg text-red-800">
+                <Package className="w-5 h-5" />
+                Información de Anulación
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-red-700 mb-1">Fecha de anulación</p>
+                  <p className="font-semibold text-slate-900">
+                    {b.cancelledAt ? formatDateLima(b.cancelledAt.toString()) : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-red-700 mb-1">Anulada por</p>
+                  <p className="font-semibold text-slate-900">
+                    {b.cancelledByUser ? (b.cancelledByUser.name || b.cancelledByUser.email) : "—"}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-red-700 mb-1">Razón de anulación</p>
+                <p className="text-slate-700 bg-white p-3 rounded border-l-4 border-red-400">
+                  {b.cancellationReason}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Divider */}
+        {b.isCancelled && <Separator className="my-4" />}
+
         {/* Items Table */}
-        <Card className="shadow-md border-0 bg-white/70 backdrop-blur-sm">
+        <Card className={`shadow-md border-0 ${b.isCancelled ? 'bg-red-50/70 backdrop-blur-sm' : 'bg-white/70 backdrop-blur-sm'}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-purple-600" />
-              Detalle de Artículos Entregados
+              <FileText className={`w-5 h-5 ${b.isCancelled ? 'text-red-600' : 'text-purple-600'}`} />
+              {b.isCancelled ? 'Artículos Anulados (Retornados)' : 'Detalle de Artículos Entregados'}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b bg-slate-50/50">
+                  <tr className={`border-b ${b.isCancelled ? 'bg-red-100/50' : 'bg-slate-50/50'}`}>
                     <th className="text-left p-4 font-semibold text-slate-700">#</th>
                     <th className="text-left p-4 font-semibold text-slate-700">Código EPP</th>
                     <th className="text-left p-4 font-semibold text-slate-700">Descripción</th>
@@ -255,13 +316,13 @@ export default async function DeliveryBatchDetail({
                   {b.deliveries.map((delivery, index) => (
                     <tr 
                       key={delivery.id} 
-                      className="border-b hover:bg-slate-50/50 transition-colors"
+                      className={`border-b transition-colors ${b.isCancelled ? 'hover:bg-red-50/50' : 'hover:bg-slate-50/50'}`}
                     >
                       <td className="p-4 text-slate-600 font-mono text-sm">
                         {(index + 1).toString().padStart(2, '0')}
                       </td>
                       <td className="p-4">
-                        <Badge variant="outline" className="font-mono">
+                        <Badge variant={b.isCancelled ? "destructive" : "outline"} className="font-mono">
                           {delivery.epp.code}
                         </Badge>
                       </td>
@@ -269,7 +330,7 @@ export default async function DeliveryBatchDetail({
                         {delivery.epp.name}
                       </td>
                       <td className="p-4 text-center">
-                        <div className="inline-flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full font-semibold text-blue-800">
+                        <div className={`inline-flex items-center justify-center w-10 h-10 ${b.isCancelled ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'} rounded-full font-semibold`}>
                           {delivery.quantity}
                         </div>
                       </td>

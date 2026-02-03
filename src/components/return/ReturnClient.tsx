@@ -16,6 +16,7 @@ export interface ReturnBatchRow {
   warehouse: string;
   user:      string;
   count:     number;
+  cancelledDeliveryBatchCode?: string | null;
 }
 
 interface Props {

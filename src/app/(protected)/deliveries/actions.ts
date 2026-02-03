@@ -364,3 +364,130 @@ export async function deleteBatch(batchId: number) {
 
   ["deliveries", "dashboard", "epps"].forEach((p) => revalidatePath(`/${p}`));
 }
+
+/**
+ * Anula un lote de entregas completo
+ * - Marca el batch como anulado
+ * - Genera una devolución automática
+ * - Restaura el stock al almacén
+ * - Registra movimientos de entrada
+ */
+export async function cancelDeliveryBatch(batchId: number, reason: string) {
+  await requirePermission("deliveries_manage");
+  const operator = await ensureAuthUser();
+
+  if (!reason?.trim()) {
+    throw new Error("Debe proporcionar una razón para la anulación");
+  }
+
+  const batch = await prisma.deliveryBatch.findUnique({
+    where: { id: batchId },
+    include: { 
+      deliveries: { include: { epp: true } },
+      warehouse: true,
+      collaborator: true 
+    },
+  });
+
+  if (!batch) throw new Error("Lote de entrega no encontrado");
+  if (batch.isCancelled) throw new Error("Este lote ya está anulado");
+  if (batch.deliveries.length === 0) throw new Error("El lote no tiene entregas");
+
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const cancelTimestamp = new Date();
+
+    // 1. Marcar el batch como anulado
+    await tx.deliveryBatch.update({
+      where: { id: batchId },
+      data: {
+        isCancelled: true,
+        cancelledAt: cancelTimestamp,
+        cancelledBy: operator.id,
+        cancellationReason: reason.trim(),
+      },
+    });
+
+    // 2. Generar código de devolución automática
+    const lastReturn = await tx.returnBatch.findFirst({
+      where: { code: { startsWith: "DEV-" } },
+      orderBy: { code: "desc" },
+      select: { code: true },
+    });
+    const num = lastReturn ? Number(lastReturn.code.replace("DEV-", "")) + 1 : 1;
+    const returnCode = `DEV-${String(num).padStart(4, "0")}`;
+
+    // 3. Crear ReturnBatch asociado a la anulación
+    const returnBatch = await tx.returnBatch.create({
+      data: {
+        code: returnCode,
+        warehouseId: batch.warehouseId,
+        note: `Anulación de entrega ${batch.code}. Razón: ${reason.trim()}`,
+        userId: operator.id,
+        cancelledDeliveryBatchId: batchId,
+        createdAt: cancelTimestamp,
+      },
+    });
+
+    // 4. Crear ReturnItems y restaurar stock
+    for (const delivery of batch.deliveries) {
+      // Crear item de devolución
+      await tx.returnItem.create({
+        data: {
+          batchId: returnBatch.id,
+          eppId: delivery.eppId,
+          quantity: delivery.quantity,
+          condition: "REUSABLE", // Anulaciones consideradas como reutilizables
+          createdAt: cancelTimestamp,
+        },
+      });
+
+      // Restaurar stock
+      await tx.ePPStock.upsert({
+        where: {
+          eppId_warehouseId: {
+            eppId: delivery.eppId,
+            warehouseId: batch.warehouseId,
+          },
+        },
+        update: { quantity: { increment: delivery.quantity } },
+        create: {
+          eppId: delivery.eppId,
+          warehouseId: batch.warehouseId,
+          quantity: delivery.quantity,
+        },
+      });
+
+      // Crear movimiento de ENTRY
+      await tx.stockMovement.create({
+        data: {
+          type: "ENTRY",
+          eppId: delivery.eppId,
+          warehouseId: batch.warehouseId,
+          quantity: delivery.quantity,
+          note: `Anulación entrega ${batch.code} → Devolución ${returnCode}`,
+          userId: operator.id,
+          status: "APPROVED",
+          approvedById: operator.id,
+          approvedAt: cancelTimestamp,
+          createdAt: cancelTimestamp,
+        },
+      });
+    }
+  });
+
+  // Auditar la anulación
+  await auditUpdate(
+    operator.id,
+    'DeliveryBatch',
+    batchId,
+    { isCancelled: false },
+    { 
+      isCancelled: true, 
+      cancelledAt: new Date(),
+      cancelledBy: operator.id,
+      cancellationReason: reason.trim()
+    }
+  );
+
+  ["deliveries", "returns", "dashboard", "epps"].forEach((p) => revalidatePath(`/${p}`));
+}

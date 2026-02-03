@@ -15,8 +15,9 @@ export default async function ReturnsPage() {
   
   const list = await prisma.returnBatch.findMany({
     include: {
-      warehouse: { select: { name: true } },     // <- puede venir null
-      user:      { select: { name: true, email: true } }, // <- idem
+      warehouse: { select: { name: true } },
+      user:      { select: { name: true, email: true } },
+      cancelledDeliveryBatch: { select: { code: true } },
       _count:    { select: { items: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -30,6 +31,7 @@ export default async function ReturnsPage() {
     warehouse: b.warehouse?.name ?? "—",
     user:      b.user?.name ?? b.user?.email ?? "—",
     count:     b._count.items,
+    cancelledDeliveryBatchCode: b.cancelledDeliveryBatch?.code ?? null,
   }));
 
   return <ReturnClient initialData={data} />;

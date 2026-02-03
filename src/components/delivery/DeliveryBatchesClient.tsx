@@ -12,6 +12,7 @@ import DeliveryStats from "./DeliveryStats";
 import ModalCreateDeliveryBatch from "./ModalCreateDeliveryBatch";
 import ModalEditDeliveryBatch from "./ModalEditDeliveryBatch";
 import ModalDeleteDeliveryBatch from "./ModalDeleteDeliveryBatch";
+import ModalCancelDeliveryBatch from "./ModalCancelDeliveryBatch";
 import { ExportAllDeliveriesButton } from "./ExportAllDeliveriesButton";
 import { Loader2 } from "lucide-react";
 import type { DeliveryBatchValues } from "@/schemas/delivery-batch-schema";
@@ -25,6 +26,9 @@ export interface BatchRow {
   operator: string;
   warehouse: string;
   items: number;
+  isCancelled: boolean;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
 }
 
 // Lightweight batch row from list endpoint
@@ -35,6 +39,9 @@ interface DeliveryBatchListItem {
   collaboratorId: number;
   warehouseId: number;
   note?: string | null;
+  isCancelled: boolean;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
   collaborator: { name: string; documentId: string | null };
   user: { name: string | null; email: string };
   warehouse: { name: string };
@@ -103,6 +110,7 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [editingItem, setEditingItem] = useState<DeliveryBatchDetail | null>(null);
   const [deleting, setDeleting] = useState<DeliveryBatchListItem | null>(null);
+  const [cancelling, setCancelling] = useState<DeliveryBatchListItem | null>(null);
   
   const router = useRouter();
   const urlSearchParams = useSearchParams();
@@ -250,6 +258,9 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
       operator: b.user.name ?? b.user.email,
       warehouse: b.warehouse.name,
       items: b._count.deliveries,
+      isCancelled: b.isCancelled,
+      cancelledAt: b.cancelledAt ?? null,
+      cancellationReason: b.cancellationReason ?? null,
     })), [data]
   );
 
@@ -357,6 +368,10 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
                   console.error(e);
                 }
               }}
+              onCancel={(row) => {
+                const match = data.find((b) => b.id === row.id);
+                if (match) setCancelling(match);
+              }}
               // TEMPORALMENTE DESHABILITADO: Se está eliminando registros por accidente
               // onDelete={(row) => {
               //   const match = data.find((b) => b.id === row.id);
@@ -422,6 +437,24 @@ export default function DeliveryBatchesClient({ searchParams }: Props) {
           batch={{ id: deleting.id, code: deleting.code }}
           onConfirm={() => {
             setDeleting(null);
+            refreshData();
+          }}
+        />
+      )}
+
+      {/* Modal Anular */}
+      {cancelling && (
+        <ModalCancelDeliveryBatch
+          open={!!cancelling}
+          onOpenChange={(open) => {
+            if (!open) {
+              setCancelling(null);
+              refreshData();
+            }
+          }}
+          batch={{ id: cancelling.id, code: cancelling.code }}
+          onConfirm={() => {
+            setCancelling(null);
             refreshData();
           }}
         />

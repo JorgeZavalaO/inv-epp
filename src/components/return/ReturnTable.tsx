@@ -3,6 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button }    from "@/components/ui/button";
+import { Badge }     from "@/components/ui/badge";
 import { ReturnBatchRow } from "./ReturnClient";
 import { formatDateLima } from "@/lib/formatDate";
 
@@ -14,7 +15,20 @@ interface Props {
 
 export default function ReturnTable({ data, onDelete, onView }: Props) {
   const cols: ColumnDef<ReturnBatchRow>[] = [
-    { accessorKey: "code", header: "Código" },
+    { 
+      accessorKey: "code", 
+      header: "Código",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <span>{row.original.code}</span>
+          {row.original.cancelledDeliveryBatchCode && (
+            <Badge variant="outline" className="text-xs">
+              Anulación {row.original.cancelledDeliveryBatchCode}
+            </Badge>
+          )}
+        </div>
+      ),
+    },
     {
       accessorKey: "date",
       header: "Fecha",
