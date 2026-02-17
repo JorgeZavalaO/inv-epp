@@ -23,8 +23,13 @@ export async function GET(
         user:         { select: { name: true, email: true } },
         warehouse:    { select: { name: true } },
         deliveries:   {
-          include: { epp: { select: { code: true, name: true } } },
-          select: { id: true, epp: { select: { code: true, name: true } }, quantity: true, createdAt: true },
+          select: {
+            id: true,
+            eppId: true,
+            quantity: true,
+            createdAt: true,
+            epp: { select: { code: true, name: true } },
+          },
           orderBy: { id: "asc" },
         },
       },

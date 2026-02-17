@@ -26,14 +26,18 @@ interface BatchRow {
 
 /* estructuras que recibimos del endpoint /api/delivery-batches/[id] */
 interface DeliveryAPI {
-  eppId:   number;
-  quantity:number;
-  epp:     { code: string; name: string };
+  id?: number;
+  eppId: number;
+  quantity: number;
+  createdAt?: string;
+  epp: { code: string; name: string };
 }
 interface DeliveryBatchAPI {
-  warehouseId:   number;
-  warehouse:     { name: string };
-  deliveries:    DeliveryAPI[];
+  id?: number;
+  warehouseId: number;
+  warehouse: { name: string };
+  deliveries: DeliveryAPI[];
+  [key: string]: unknown; // Permitir campos adicionales del servidor
 }
 
 export default function ModalCreateReturn({
@@ -50,24 +54,59 @@ export default function ModalCreateReturn({
   /* traemos sólo pedidos pendientes */
   React.useEffect(() => {
     fetch("/api/available-batches")
-      .then((r) => r.json())
-      .then(setBatches);
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        console.log("[ModalCreateReturn] Entregas disponibles cargadas:", data);
+        setBatches(data);
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : "Error al cargar entregas";
+        console.error("[ModalCreateReturn] Error al cargar available-batches:", err);
+        toast.error(msg);
+        setBatches([]);
+      });
   }, []);
 
   /* devuelve el detalle tipado del pedido elegido */
   const fetchDetails = React.useCallback(
     async (batchId: number): Promise<DetailRow[]> => {
-      const res = await fetch(`/api/delivery-batches/${batchId}`);
-      const b: DeliveryBatchAPI = await res.json();
+      try {
+        const res = await fetch(`/api/delivery-batches/${batchId}`);
+        if (!res.ok) {
+          const payload = await res.json().catch(() => null);
+          const message = payload?.error ?? `HTTP ${res.status}: No se pudo cargar la entrega`;
+          console.error("fetchDetails HTTP error:", res.status, message);
+          toast.error(message);
+          return [];
+        }
+        const b: DeliveryBatchAPI = await res.json();
 
-      return b.deliveries.map((d) => ({
-        eppId:         d.eppId,
-        warehouseId:   b.warehouseId,
-        warehouseName: b.warehouse.name,
-        delivered:     d.quantity,
-        code:          d.epp.code,
-        name:          d.epp.name,
-      }));
+        if (!b.deliveries || !Array.isArray(b.deliveries)) {
+          console.error("fetchDetails: deliveries is not an array", b);
+          toast.error("Estructura de datos inválida en la respuesta del servidor");
+          return [];
+        }
+
+        const result = b.deliveries.map((d) => ({
+          eppId:         d.eppId,
+          warehouseId:   b.warehouseId,
+          warehouseName: b.warehouse.name,
+          delivered:     d.quantity,
+          code:          d.epp.code,
+          name:          d.epp.name,
+        }));
+
+        console.log("fetchDetails success:", { batchId, itemCount: result.length });
+        return result;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Error desconocido al cargar detalles";
+        console.error("fetchDetails exception:", err);
+        toast.error(msg);
+        return [];
+      }
     },
     [],
   );
