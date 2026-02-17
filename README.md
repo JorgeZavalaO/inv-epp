@@ -63,6 +63,22 @@ Sistema integral para la administración de Equipos de Protección Personal (EPP
 
 ---
 
+## 🔄 Últimas Actualizaciones (v1.3.0)
+
+### 🚀 Modal de Devolución Mejorado
+- **Selección de almacén editable** - Combobox con búsqueda para elegir a dónde regresa el producto
+- **Eliminación de líneas** - Botón Basura para quitar productos que no se desean devolver
+- **UI mejorada** - Tabla con encabezados claros, tarjeta con bordes y botones de acción por línea
+- **Texto guía instructivo** - Indicaciones claras para el usuario
+
+### 🔧 Bug Crítico Corregido: Disponibilidad de Entregas
+- ✅ **Problema:** Entregas con múltiples productos no aparecían en el selector de devoluciones
+- ✅ **Causa:** Algoritmo sumaba TODAS las devoluciones del almacén sin distinguir entregas
+- ✅ **Solución:** Ahora solo cuenta devoluciones vinculadas a esa entrega específica
+- ✅ **Resultado:** DEL-0200 y DEL-0199 correctamente disponibles nuevamente
+
+---
+
 ## ✨ Características Principales
 
 ### 🏭 Gestión de EPP
@@ -105,6 +121,8 @@ Sistema integral para la administración de Equipos de Protección Personal (EPP
 - ✅ Control de calidad en el proceso de devolución
 - ✅ Lotes de devolución con trazabilidad
 - ✅ **Identificación de origen de devolución** - Muestra cuando una devolución fue generada por anulación de entrega con código de entrega original
+- ✅ **Modal de devolución mejorado** - Selector editable de almacén destino, eliminación de líneas, UI con tabla clara y botones de acción
+- ✅ **Disponibilidad correcta de entregas** - Solo cuenta devoluciones vinculadas a cada entrega, no todas del almacén
 
 ### 👥 Gestión de Colaboradores
 - ✅ Base de datos de colaboradores con información detallada
@@ -685,17 +703,21 @@ Todos los endpoints de API requieren autenticación mediante Clerk. El middlewar
 
 ### Endpoints Principales
 
+#### Devoluciones
+```
+GET    /api/available-batches               # Entregas disponibles para devolución (filtro crítico)
+GET    /api/delivery-batches/[id]           # Detalle de entrega con items
+POST   /api/returns                         # Crear devolución (Server Action)
+GET    /api/return-batch-details            # Detalles de ReturnBatch específicas
+GET    /api/suspicious-returns              # DEBUG: Investiga devoluciones por almacén/EPP
+```
+
+**Nota crítica sobre disponibilidad:**
+- `/api/available-batches` cuenta SOLO devoluciones vinculadas a cada entrega (via `cancelledDeliveryBatchId`)
+- No suma devoluciones de otras entregas en el mismo almacén
+- Una devolución de DEL-0168 no afecta disponibilidad de DEL-0200 aunque ambas tengan los mismos EPPs
+
 #### Entregas
-```
-GET    /api/deliveries                     # Listar entregas con paginación y filtros
-GET    /api/delivery-batches/[id]          # Detalle de una entrega específica
-POST   /api/delivery-batches               # Crear nueva entrega (Server Action)
-PATCH  /api/delivery-batches/[id]          # Editar entrega existente
-DELETE /api/delivery-batches/[id]          # Eliminar entrega (deshabilitado en UI)
-GET    /api/delivery-batches/[id]/pdf      # Descargar PDF de entrega
-GET    /api/deliveries/filters             # Opciones para filtros (colaboradores, almacenes)
-GET    /api/deliveries/stats               # Estadísticas de entregas
-```
 
 #### EPPs
 ```

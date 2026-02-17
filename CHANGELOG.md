@@ -5,6 +5,48 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.3.0] - 2026-02-17
+
+### ✨ Agregado
+
+#### Modal de Devolución Mejorado
+- **Selección de almacén editable** en el formulario de devolución (ReturnForm)
+- Combobox de almacenes cargado desde `/api/warehouses` con búsqueda en tiempo real
+- **Eliminación de líneas de productos** que no se desean devolver con botón Basura
+- Tabla de items mejorada con:
+  - Encabezados claros (Código, Nombre, Entregado, Devolver, Acciones)
+  - Tarjeta con bordes y sombreado para mejor visual
+  - Botones de acción individuales para cada línea
+  - Texto guía instructivo: "Elimina las líneas que no quieras devolver o ajusta sus cantidades"
+  - Input de cantidad centrado con validación
+- Almacén sugerido desde la entrega pero modificable por el usuario
+- Mejor UX general del formulario con espaciado y colores coherentes
+
+#### Endpoints de Debugging
+- **`GET /api/suspicious-returns`** - Investiga devoluciones sospechosas
+  - Parámetros: `warehouseId` (number), `eppIds` (comma-separated)
+  - Retorna: quién creó la devolución, cuándo, cuánto se devolvió de cada EPP
+  - Útil para auditar: "¿Por qué se devolvieron más unidades de las entregadas?"
+
+### 🐛 Corregido
+
+#### ⚠️ CRÍTICO: Disponibilidad de Entregas Incorrecta
+- **Bug: Entregas con múltiples productos no aparecían en el selector de devoluciones**
+- **Causa raíz:** El query en `/api/available-batches` sumaba TODAS las devoluciones del almacén por EPP, sin distinguir entregas
+  - Ejemplo: DEV-0001 (cancelada DEL-0168, almacén 14) contaba para DEL-0200 (también almacén 14)
+  - Resultado: DEL-0200 mostraba "devuelto=26, entregado=12" → excluido incorrectamente
+- **Solución:** Query modificado para contar SOLO devoluciones vinculadas a esa entrega específica
+  - Antes: `GROUP BY rb."warehouseId", ri."eppId"` (agrupa por almacén + EPP)
+  - Ahora: `GROUP BY rb."cancelledDeliveryBatchId", ri."eppId"` (agrupa por entrega + EPP)
+  - Filtro: `WHERE rb."cancelledDeliveryBatchId" IS NOT NULL` (solo cancellaciones vinculadas)
+- Entregas como DEL-0200 y DEL-0199 ahora correctamente disponibles para devolución
+
+#### Manejo de Errores en Carga de Entregas
+- Toast de error visible cuando falla la carga de entregas disponibles (`/api/available-batches`)
+- Toast de error cuando falla la carga de detalles de entrega (`/api/delivery-batches/[id]`)
+- Console logs detallados para debugging en desarrollo
+- Validación robusta de estructura de datos en la respuesta
+
 ## [1.2.0] - 2026-01-10
 
 ### ✨ Agregado
