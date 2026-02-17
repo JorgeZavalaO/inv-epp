@@ -4,7 +4,7 @@ export const stockMovementSchema = z.object({
   id:          z.coerce.number().optional(),
   eppId:       z.coerce.number().min(1, "Selecciona un EPP"),
   warehouseId: z.coerce.number().min(1, "Selecciona un almacén"),
-  type:        z.enum(["ENTRY", "EXIT", "ADJUSTMENT"]),
+  type:        z.enum(["ENTRY", "EXIT", "ADJUSTMENT", "TRANSFER_IN", "TRANSFER_OUT"]),
   quantity: z.coerce
               .number({ invalid_type_error: "Cantidad inválida" })
               .int()

@@ -20,6 +20,7 @@ import {
 
 import MovementTable, { Row as MovementRow } from "@/components/stock/MovementTable";
 import ModalCreateMovement from "@/components/stock/ModalCreateMovement";
+import ModalCreateTransfer from "@/components/stock/ModalCreateTransfer";
 import ModalEditMovement from "@/components/stock/ModalEditMovement";
 import ModalDeleteMovement from "@/components/stock/ModalDeleteMovement";
 import ModalCreateEntryBatch from "@/components/stock/ModalCreateEntryBatch";
@@ -76,6 +77,7 @@ export default function StockMovementsClient({
 
   /* control de modales */
   const [showCreate, setShowCreate] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
   const [showBatch,  setShowBatch]  = useState(false);
   const [showPendingApprovals, setShowPendingApprovals] = useState(false);
   const [editing, setEditing] = useState<MovementRow | null>(null);
@@ -145,6 +147,9 @@ export default function StockMovementsClient({
           <Button variant="outline" onClick={() => setShowBatch(true)}>
             + Entrada múltiple
           </Button>
+          <Button variant="outline" onClick={() => setShowTransfer(true)}>
+            ↔ Traslado
+          </Button>
           <Button onClick={() => setShowCreate(true)}>+ Movimiento simple</Button>
         </div>
       </header>
@@ -193,6 +198,7 @@ export default function StockMovementsClient({
 
       {/* modales */}
       {showCreate && <ModalCreateMovement onClose={() => setShowCreate(false)} />}
+      {showTransfer && <ModalCreateTransfer onClose={() => setShowTransfer(false)} />}
       {showBatch  && <ModalCreateEntryBatch onClose={() => setShowBatch(false)} />}
       {showPendingApprovals && <ModalPendingApprovals onClose={() => setShowPendingApprovals(false)} />}
       {editing && (

@@ -35,6 +35,22 @@ export interface ReportsData {
   categories?: Array<{ category: string; qty: number; pct: number }>;
   locationsFull?: LocationItem[]; // sin límite
   indicators?: ReportsIndicators;
+  transferSummary?: {
+    totalTransfers: number;
+    totalUnits: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+  };
+  latestTransfers?: Array<{
+    code: string;
+    date: string;
+    eppName: string;
+    quantity: number;
+    fromWarehouse: string;
+    toWarehouse: string;
+    status: string;
+  }>;
 }
 
 export interface ReportsFilters {
@@ -109,7 +125,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
   })();
   
   // ✅ OPTIMIZACIÓN: Queries paralelas optimizadas con límites
-  const [monthlyRaw, topEpps, topLocations, latest, categoriesRaw, locationsFull, indicatorsDeliveryBase, returnAgg, requestsAgg] = await Promise.all([
+  const [monthlyRaw, topEpps, topLocations, latest, categoriesRaw, locationsFull, indicatorsDeliveryBase, returnAgg, requestsAgg, transferSummaryRaw, latestTransfersRaw] = await Promise.all([
     prisma.$queryRaw<Array<{ month: string; qty: number }>>(Prisma.sql`
       SELECT TO_CHAR(date_trunc('month', d."createdAt"), 'YYYY-MM') AS month,
              SUM(d.quantity)::int AS qty
@@ -216,6 +232,40 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       WHERE req."createdAt" BETWEEN ${fromDate} AND ${toDate}
         ${category ? Prisma.sql`AND e."category" = ${category}` : Prisma.empty}
     `),
+    prisma.$queryRaw<Array<{ total_transfers: number; total_units: number; pending: number; approved: number; rejected: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS total_transfers,
+             COALESCE(SUM(sm.quantity), 0)::int AS total_units,
+             SUM(CASE WHEN sm.status = 'PENDING' THEN 1 ELSE 0 END)::int AS pending,
+             SUM(CASE WHEN sm.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved,
+             SUM(CASE WHEN sm.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected
+      FROM "StockMovement" sm
+      INNER JOIN "EPP" e ON e.id = sm."eppId"
+      WHERE sm.type = 'TRANSFER_OUT'
+        AND sm."createdAt" BETWEEN ${fromDate} AND ${toDate}
+        AND sm."purchaseOrder" IS NOT NULL
+        ${warehouseId ? Prisma.sql`AND sm."warehouseId" = ${warehouseId}` : Prisma.empty}
+        ${category ? Prisma.sql`AND e."category" = ${category}` : Prisma.empty}
+    `),
+    prisma.$queryRaw<Array<{ code: string; date: string; "eppName": string; quantity: number; "fromWarehouse": string; "toWarehouse": string; status: string }>>(Prisma.sql`
+      SELECT sm."purchaseOrder" AS code,
+             MIN(sm."createdAt")::text AS date,
+             e.name AS "eppName",
+             MAX(sm.quantity)::int AS quantity,
+             COALESCE(MAX(CASE WHEN sm.type = 'TRANSFER_OUT' THEN w.name END), 'N/A') AS "fromWarehouse",
+             COALESCE(MAX(CASE WHEN sm.type = 'TRANSFER_IN' THEN w.name END), 'N/A') AS "toWarehouse",
+             MAX(sm.status)::text AS status
+      FROM "StockMovement" sm
+      INNER JOIN "EPP" e ON e.id = sm."eppId"
+      INNER JOIN "Warehouse" w ON w.id = sm."warehouseId"
+      WHERE sm.type IN ('TRANSFER_OUT', 'TRANSFER_IN')
+        AND sm."createdAt" BETWEEN ${fromDate} AND ${toDate}
+        AND sm."purchaseOrder" IS NOT NULL
+        ${warehouseId ? Prisma.sql`AND sm."warehouseId" = ${warehouseId}` : Prisma.empty}
+        ${category ? Prisma.sql`AND e."category" = ${category}` : Prisma.empty}
+      GROUP BY sm."purchaseOrder", e.name
+      ORDER BY MIN(sm."createdAt") DESC
+      LIMIT 10
+    `),
   ]);
 
   const deliveredQty = indicatorsDeliveryBase[0]?.delivered_qty ?? 0;
@@ -241,6 +291,13 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
   };
 
   const categoriesTotal = categoriesRaw.reduce((a, c) => a + c.qty, 0) || 1;
+  const transferSummary = transferSummaryRaw[0] ?? {
+    total_transfers: 0,
+    total_units: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+  };
 
   return {
     year,
@@ -251,6 +308,14 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
     categories: categoriesRaw.map(row => ({ category: row.category, qty: row.qty, pct: row.qty / categoriesTotal })),
     locationsFull,
     indicators,
+    transferSummary: {
+      totalTransfers: transferSummary.total_transfers,
+      totalUnits: transferSummary.total_units,
+      pending: transferSummary.pending,
+      approved: transferSummary.approved,
+      rejected: transferSummary.rejected,
+    },
+    latestTransfers: latestTransfersRaw,
   };
 }
 

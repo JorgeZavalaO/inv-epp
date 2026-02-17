@@ -68,7 +68,7 @@ export default async function StockMovementsPage({
     : 0;
 
   // 3) Mapear datos para el cliente
-  type AllowedType = "ENTRY" | "EXIT" | "ADJUSTMENT";
+  type AllowedType = "ENTRY" | "EXIT" | "ADJUSTMENT" | "TRANSFER_IN" | "TRANSFER_OUT";
   const data = movements.map((mv) => ({
     id:          mv.id,
     eppId:       mv.eppId,

@@ -33,6 +33,8 @@ async function main() {
 
     // Movimientos de stock
     { name: "stock_movements_manage", module: "stock", description: "Crear/eliminar movimientos de stock" },
+    { name: "stock_transfers_manage", module: "stock", description: "Crear solicitudes de traslado entre almacenes" },
+    { name: "stock_transfers_approve", module: "stock", description: "Aprobar o rechazar traslados entre almacenes" },
 
     // Devoluciones
     { name: "returns_manage", module: "returns", description: "Crear/eliminar lotes de devolución" },

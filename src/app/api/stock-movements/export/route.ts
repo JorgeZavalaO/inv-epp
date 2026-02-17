@@ -56,6 +56,8 @@ export async function GET() {
     const typeMap: Record<string, string> = {
       ENTRY: "Entrada",
       EXIT: "Salida",
+      TRANSFER_IN: "Traslado Entrada",
+      TRANSFER_OUT: "Traslado Salida",
       ADJUSTMENT: "Ajuste",
     };
 

@@ -421,15 +421,16 @@ function processMovementsByDay(movements: MovementRaw[]): MovementPoint[] {
 
     switch (movement.type) {
       case 'ENTRY':
-      case 'TRANSFER_IN':
         acc[date].entry += movement.quantity;
         break;
       case 'EXIT':
-      case 'TRANSFER_OUT':
         acc[date].exit += movement.quantity;
         break;
       case 'ADJUSTMENT':
         acc[date].adjustment += Math.abs(movement.quantity);
+        break;
+      default:
+        // TRANSFER_IN / TRANSFER_OUT se excluyen del consumo operativo
         break;
     }
 

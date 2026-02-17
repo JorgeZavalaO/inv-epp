@@ -61,6 +61,69 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Pro
           <TopLocationsChart data={data.topLocations} />
           <LatestDeliveriesTable data={data.latest} />
         </section>
+
+        <section className="grid gap-6 lg:grid-cols-4">
+          <div className="rounded-xl border bg-white p-4">
+            <p className="text-xs text-muted-foreground">Traslados</p>
+            <p className="text-2xl font-bold">{data.transferSummary?.totalTransfers ?? 0}</p>
+          </div>
+          <div className="rounded-xl border bg-white p-4">
+            <p className="text-xs text-muted-foreground">Unidades trasladadas</p>
+            <p className="text-2xl font-bold text-indigo-600">{data.transferSummary?.totalUnits ?? 0}</p>
+          </div>
+          <div className="rounded-xl border bg-white p-4">
+            <p className="text-xs text-muted-foreground">Pendientes</p>
+            <p className="text-2xl font-bold text-amber-600">{data.transferSummary?.pending ?? 0}</p>
+          </div>
+          <div className="rounded-xl border bg-white p-4">
+            <p className="text-xs text-muted-foreground">Aprobados / Rechazados</p>
+            <p className="text-2xl font-bold text-emerald-600">
+              {data.transferSummary?.approved ?? 0}
+              <span className="text-muted-foreground"> / </span>
+              <span className="text-rose-600">{data.transferSummary?.rejected ?? 0}</span>
+            </p>
+          </div>
+        </section>
+
+        <section className="rounded-xl border bg-white p-4">
+          <h2 className="text-lg font-semibold mb-3">Últimos traslados</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-4">Código</th>
+                  <th className="py-2 pr-4">Fecha</th>
+                  <th className="py-2 pr-4">EPP</th>
+                  <th className="py-2 pr-4">Cantidad</th>
+                  <th className="py-2 pr-4">Origen</th>
+                  <th className="py-2 pr-4">Destino</th>
+                  <th className="py-2">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.latestTransfers ?? []).length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-4 text-muted-foreground">
+                      No hay traslados para los filtros seleccionados.
+                    </td>
+                  </tr>
+                ) : (
+                  (data.latestTransfers ?? []).map((tr) => (
+                    <tr key={`${tr.code}-${tr.date}`} className="border-b last:border-0">
+                      <td className="py-2 pr-4 font-mono">{tr.code}</td>
+                      <td className="py-2 pr-4">{new Date(tr.date).toLocaleDateString()}</td>
+                      <td className="py-2 pr-4">{tr.eppName}</td>
+                      <td className="py-2 pr-4">{tr.quantity}</td>
+                      <td className="py-2 pr-4">{tr.fromWarehouse}</td>
+                      <td className="py-2 pr-4">{tr.toWarehouse}</td>
+                      <td className="py-2">{tr.status}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </Suspense>
     </div>
   );

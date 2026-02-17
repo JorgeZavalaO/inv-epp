@@ -31,7 +31,7 @@ export type KardexRow = {
   eppName: string;
   warehouseId: number;
   warehouse: string;
-  type: "ENTRY" | "EXIT" | "ADJUSTMENT";
+  type: "ENTRY" | "EXIT" | "ADJUSTMENT" | "TRANSFER_IN" | "TRANSFER_OUT";
   quantity: number;
   balance: number;
   previousBalance: number;
@@ -44,7 +44,7 @@ export type KardexRow = {
 
 type Props = {
   data: KardexRow[];
-  totals: { entry: number; exit: number; adjustment: number };
+  totals: { entry: number; exit: number; adjustment: number; transferIn: number; transferOut: number };
   filters: {
     epps: Array<{ id: number; code: string; name: string }>;
     warehouses: Array<{ id: number; name: string }>;
@@ -83,8 +83,16 @@ export default function KardexClient({ data, totals, filters, selected }: Props)
   };
 
   const typeBadge = (t: KardexRow["type"]) => (
-    <Badge variant={t === "ENTRY" ? "default" : t === "EXIT" ? "destructive" : "secondary"}>
-      {t === "ENTRY" ? "Entrada" : t === "EXIT" ? "Salida" : "Ajuste"}
+    <Badge variant={t === "ENTRY" || t === "TRANSFER_IN" ? "default" : t === "EXIT" || t === "TRANSFER_OUT" ? "destructive" : "secondary"}>
+      {t === "ENTRY"
+        ? "Entrada"
+        : t === "EXIT"
+        ? "Salida"
+        : t === "TRANSFER_IN"
+        ? "Traslado Entrada"
+        : t === "TRANSFER_OUT"
+        ? "Traslado Salida"
+        : "Ajuste"}
     </Badge>
   );
 
@@ -155,6 +163,8 @@ export default function KardexClient({ data, totals, filters, selected }: Props)
             <SelectItem value="all">Todos los tipos</SelectItem>
             <SelectItem value="ENTRY">Entrada</SelectItem>
             <SelectItem value="EXIT">Salida</SelectItem>
+            <SelectItem value="TRANSFER_IN">Traslado Entrada</SelectItem>
+            <SelectItem value="TRANSFER_OUT">Traslado Salida</SelectItem>
             <SelectItem value="ADJUSTMENT">Ajuste</SelectItem>
           </SelectContent>
         </Select>
@@ -193,6 +203,10 @@ export default function KardexClient({ data, totals, filters, selected }: Props)
         <div className="rounded-lg border bg-white p-4">
           <p className="text-xs text-muted-foreground">Total Ajustes</p>
           <p className="text-2xl font-bold text-amber-600">{totals.adjustment}</p>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <p className="text-xs text-muted-foreground">Traslados In/Out</p>
+          <p className="text-2xl font-bold text-indigo-600">{totals.transferIn}/{totals.transferOut}</p>
         </div>
         <div className="rounded-lg border bg-white p-4">
           <p className="text-xs text-muted-foreground">Movimientos</p>
@@ -239,10 +253,10 @@ export default function KardexClient({ data, totals, filters, selected }: Props)
                     <TableCell>{row.warehouse}</TableCell>
                     <TableCell>{typeBadge(row.type)}</TableCell>
                     <TableCell className="text-right text-emerald-700">
-                      {row.type === "ENTRY" ? row.quantity : "-"}
+                      {row.type === "ENTRY" || row.type === "TRANSFER_IN" ? row.quantity : "-"}
                     </TableCell>
                     <TableCell className="text-right text-rose-700">
-                      {row.type === "EXIT" ? row.quantity : "-"}
+                      {row.type === "EXIT" || row.type === "TRANSFER_OUT" ? row.quantity : "-"}
                     </TableCell>
                     <TableCell className="text-right text-amber-700">
                       {row.type === "ADJUSTMENT" ? row.quantity : "-"}

@@ -92,11 +92,11 @@ export default async function KardexPage({
     }),
   ]);
 
-  const totals = { entry: 0, exit: 0, adjustment: 0 };
+  const totals = { entry: 0, exit: 0, adjustment: 0, transferIn: 0, transferOut: 0 };
   const balanceMap = new Map<string, number>();
 
   const data = movements
-    .filter((mv) => ["ENTRY", "EXIT", "ADJUSTMENT"].includes(mv.type))
+    .filter((mv) => ["ENTRY", "EXIT", "ADJUSTMENT", "TRANSFER_IN", "TRANSFER_OUT"].includes(mv.type))
     .map((mv) => {
       const key = `${mv.eppId}-${mv.warehouseId}`;
       const previousBalance = balanceMap.get(key) ?? 0;
@@ -108,6 +108,12 @@ export default async function KardexPage({
       } else if (mv.type === "EXIT") {
         balance = previousBalance - mv.quantity;
         totals.exit += mv.quantity;
+      } else if (mv.type === "TRANSFER_IN") {
+        balance = previousBalance + mv.quantity;
+        totals.transferIn += mv.quantity;
+      } else if (mv.type === "TRANSFER_OUT") {
+        balance = previousBalance - mv.quantity;
+        totals.transferOut += mv.quantity;
       } else {
         balance = mv.quantity;
         totals.adjustment += mv.quantity;
@@ -123,7 +129,7 @@ export default async function KardexPage({
         eppName: mv.epp.name,
         warehouseId: mv.warehouseId,
         warehouse: mv.warehouse.name,
-        type: mv.type as "ENTRY" | "EXIT" | "ADJUSTMENT",
+        type: mv.type as "ENTRY" | "EXIT" | "ADJUSTMENT" | "TRANSFER_IN" | "TRANSFER_OUT",
         quantity: mv.quantity,
         balance,
         previousBalance,

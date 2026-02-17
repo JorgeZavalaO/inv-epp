@@ -22,7 +22,7 @@ export interface Row {
   eppName: string;
   warehouse: string;
   quantity: number;
-  type: "ENTRY" | "EXIT" | "ADJUSTMENT";
+  type: "ENTRY" | "EXIT" | "ADJUSTMENT" | "TRANSFER_IN" | "TRANSFER_OUT";
   operator: string;
   unitPrice?: number | null;
   purchaseOrder?: string | null;
@@ -72,8 +72,16 @@ function StatusBadge({ status }: { status: Row["status"] }) {
 export default function MovementTable({ data, onEdit, onDelete }: Props) {
   const [rejectionDetail, setRejectionDetail] = useState<{ movementId: number; note: string } | null>(null);
   const typeBadge = (t: Row["type"]) => (
-    <Badge variant={t === "ENTRY" ? "default" : t === "EXIT" ? "destructive" : "secondary"}>
-      {t === "ENTRY" ? "Entrada" : t === "EXIT" ? "Salida" : "Ajuste"}
+    <Badge variant={t === "ENTRY" || t === "TRANSFER_IN" ? "default" : t === "EXIT" || t === "TRANSFER_OUT" ? "destructive" : "secondary"}>
+      {t === "ENTRY"
+        ? "Entrada"
+        : t === "EXIT"
+        ? "Salida"
+        : t === "TRANSFER_IN"
+        ? "Traslado Entrada"
+        : t === "TRANSFER_OUT"
+        ? "Traslado Salida"
+        : "Ajuste"}
     </Badge>
   );
 
@@ -98,9 +106,9 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
       cell: ({ row }) => {
         const { quantity, type } = row.original;
         const color =
-          type === "ENTRY"
+          type === "ENTRY" || type === "TRANSFER_IN"
             ? "text-green-600"
-            : type === "EXIT"
+            : type === "EXIT" || type === "TRANSFER_OUT"
             ? "text-red-600"
             : "";
         return <span className={`${color} font-medium`}>{quantity}</span>;
@@ -211,14 +219,15 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
         const mv = row.original;
         // Solo permitir edición/eliminación si está pendiente o aprobado
         const canModify = mv.status !== "REJECTED";
+        const canEditOrDelete = (mv.type === "ENTRY" || mv.type === "EXIT") && canModify;
         return (
           <div className="flex gap-2">
-            {mv.type !== "ADJUSTMENT" && canModify && (
+            {canEditOrDelete && (
               <Button size="sm" variant="secondary" onClick={() => onEdit(mv)}>
                 ✏️
               </Button>
             )}
-            {mv.type !== "ADJUSTMENT" && canModify && (
+            {canEditOrDelete && (
               <Button size="sm" variant="destructive" onClick={() => onDelete(mv)}>
                 🗑
               </Button>
