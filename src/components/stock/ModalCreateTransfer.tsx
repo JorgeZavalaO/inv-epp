@@ -65,6 +65,12 @@ export default function ModalCreateTransfer({ onClose }: Props) {
 
     try {
       const result = await createTransfer(fd);
+      
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
+      
       if (result.requiresApproval) {
         toast.warning(result.message, { duration: 5000 });
       } else {

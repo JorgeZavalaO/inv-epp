@@ -83,7 +83,14 @@ export default function ModalEditMovement({
       const fd = new FormData();
       Object.entries(rest).forEach(([k, v]) => fd.append(k, String(v)));
 
-      await createMovement(fd);             // crear nuevo
+      const result = await createMovement(fd);
+      
+      // Verificar si hubo un error
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
+      
       toast.success("Movimiento actualizado");
       onClose();
       router.replace("/stock-movements");

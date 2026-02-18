@@ -61,13 +61,19 @@ export default function ModalCreateEntryBatch({ onClose }: { onClose(): void }) 
     try {
       const result = await createEntryBatch(fd);
       
+      // Verificar si hubo un error
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
+      
       // Verificar si el resultado indica que requiere aprobación
-      if (result && 'requiresApproval' in result && result.requiresApproval) {
+      if (result.requiresApproval) {
         toast.warning(result.message || "Entrada múltiple creada. Pendiente de aprobación.", {
           duration: 5000,
         });
       } else {
-        toast.success(result?.message || "Entrada múltiple registrada exitosamente");
+        toast.success(result.message || "Entrada múltiple registrada exitosamente");
       }
       
       onClose();

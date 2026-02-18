@@ -24,48 +24,49 @@ async function validateAvailableStock(eppId: number, warehouseId: number, quanti
 }
 
 export async function createMovement(fd: FormData) {
-  await requirePermission("stock_movements_manage");
-  const data = stockMovementSchema.parse(Object.fromEntries(fd));
-  const dbUser = await ensureAuthUser();
+  try {
+    await requirePermission("stock_movements_manage");
+    const data = stockMovementSchema.parse(Object.fromEntries(fd));
+    const dbUser = await ensureAuthUser();
 
-  if (data.type === "EXIT") {
-    await validateAvailableStock(data.eppId, data.warehouseId, data.quantity);
-  }
+    if (data.type === "EXIT") {
+      await validateAvailableStock(data.eppId, data.warehouseId, data.quantity);
+    }
 
-  // Determinar si requiere aprobación
-  // Los ADMIN pueden crear movimientos aprobados directamente
-  // Otros roles deben esperar aprobación
-  const requiresApproval = dbUser.role !== UserRole.ADMIN;
+    // Determinar si requiere aprobación
+    // Los ADMIN pueden crear movimientos aprobados directamente
+    // Otros roles deben esperar aprobación
+    const requiresApproval = dbUser.role !== UserRole.ADMIN;
 
-  // Si requiere aprobación, NO actualizar el stock todavía
-  if (requiresApproval) {
-    // Solo crear el movimiento en estado PENDING
-    await prisma.stockMovement.create({
-      data: {
-        eppId:       data.eppId,
-        warehouseId: data.warehouseId,
-        type:        data.type,
-        quantity:    data.quantity,
-        unitPrice:   data.unitPrice,
-        note:        data.note,
-        purchaseOrder: data.purchaseOrder,
-        userId:      dbUser.id,
-        status:      MovementStatus.PENDING,
-      },
-    });
+    // Si requiere aprobación, NO actualizar el stock todavía
+    if (requiresApproval) {
+      // Solo crear el movimiento en estado PENDING
+      await prisma.stockMovement.create({
+        data: {
+          eppId:       data.eppId,
+          warehouseId: data.warehouseId,
+          type:        data.type,
+          quantity:    data.quantity,
+          unitPrice:   data.unitPrice,
+          note:        data.note,
+          purchaseOrder: data.purchaseOrder,
+          userId:      dbUser.id,
+          status:      MovementStatus.PENDING,
+        },
+      });
 
-    revalidatePath("/stock-movements");
-    
-    return {
-      success: true,
-      requiresApproval: true,
-      message: "Movimiento creado. Pendiente de aprobación por un administrador.",
-    };
-  }
+      revalidatePath("/stock-movements");
+      
+      return {
+        success: true,
+        requiresApproval: true,
+        message: "Movimiento creado. Pendiente de aprobación por un administrador.",
+      };
+    }
 
-  // Si es ADMIN, crear el movimiento y actualizar el stock inmediatamente
-  const movementTimestamp = new Date(); // ✅ Timestamp consistente
-  await prisma.$transaction([
+    // Si es ADMIN, crear el movimiento y actualizar el stock inmediatamente
+    const movementTimestamp = new Date(); // ✅ Timestamp consistente
+    await prisma.$transaction([
     prisma.stockMovement.create({
       data: {
         eppId:       data.eppId,
@@ -105,158 +106,176 @@ export async function createMovement(fd: FormData) {
     }),
   ]);
 
-  revalidatePath("/stock-movements");
-  revalidatePath("/epps");
-  
-  return {
-    success: true,
-    requiresApproval: false,
-    message: "Movimiento creado y aplicado exitosamente.",
-  };
+    revalidatePath("/stock-movements");
+    revalidatePath("/epps");
+    
+    return {
+      success: true,
+      requiresApproval: false,
+      message: "Movimiento creado y aplicado exitosamente.",
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error al procesar el movimiento";
+    return {
+      success: false,
+      message,
+    };
+  }
 }
 
 export async function createTransfer(fd: FormData) {
-  await requirePermission("stock_transfers_manage");
+  try {
+    await requirePermission("stock_transfers_manage");
 
-  const rawItems = fd.get("items");
-  let items: unknown[] = [];
+    const rawItems = fd.get("items");
+    let items: unknown[] = [];
 
-  if (typeof rawItems === "string" && rawItems.trim().length > 0) {
-    try {
-      items = JSON.parse(rawItems);
-    } catch {
-      throw new Error("Formato inválido de productos para traslado");
+    if (typeof rawItems === "string" && rawItems.trim().length > 0) {
+      try {
+        items = JSON.parse(rawItems);
+      } catch {
+        return {
+          success: false,
+          message: "Formato inválido de productos para traslado",
+        };
+      }
     }
-  }
 
-  const data = transferBatchSchema.parse({
-    fromId: fd.get("fromId"),
-    toId: fd.get("toId"),
-    note: fd.get("note"),
-    items,
-  });
+    const data = transferBatchSchema.parse({
+      fromId: fd.get("fromId"),
+      toId: fd.get("toId"),
+      note: fd.get("note"),
+      items,
+    });
 
-  const dbUser = await ensureAuthUser();
-  const transferCode = buildTransferCode();
+    const dbUser = await ensureAuthUser();
+    const transferCode = buildTransferCode();
 
-  for (const item of data.items) {
-    await validateAvailableStock(item.eppId, data.fromId, item.quantity);
-  }
+    for (const item of data.items) {
+      await validateAvailableStock(item.eppId, data.fromId, item.quantity);
+    }
 
-  const requiresApproval = dbUser.role !== UserRole.ADMIN;
-  const transferNote = data.note?.trim() || "Traslado entre almacenes";
-  const timestamp = new Date();
+    const requiresApproval = dbUser.role !== UserRole.ADMIN;
+    const transferNote = data.note?.trim() || "Traslado entre almacenes";
+    const timestamp = new Date();
 
-  if (requiresApproval) {
-    await prisma.$transaction(
-      data.items.flatMap((item) => [
-        prisma.stockMovement.create({
-          data: {
+    if (requiresApproval) {
+      await prisma.$transaction(
+        data.items.flatMap((item) => [
+          prisma.stockMovement.create({
+            data: {
+              eppId: item.eppId,
+              warehouseId: data.fromId,
+              type: "TRANSFER_OUT",
+              quantity: item.quantity,
+              note: `[${transferCode}] Salida por traslado. ${transferNote}`,
+              purchaseOrder: transferCode,
+              userId: dbUser.id,
+              status: MovementStatus.PENDING,
+              createdAt: timestamp,
+            },
+          }),
+          prisma.stockMovement.create({
+            data: {
+              eppId: item.eppId,
+              warehouseId: data.toId,
+              type: "TRANSFER_IN",
+              quantity: item.quantity,
+              note: `[${transferCode}] Entrada por traslado. ${transferNote}`,
+              purchaseOrder: transferCode,
+              userId: dbUser.id,
+              status: MovementStatus.PENDING,
+              createdAt: timestamp,
+            },
+          }),
+        ])
+      );
+
+      revalidatePath("/stock-movements");
+
+      return {
+        success: true,
+        requiresApproval: true,
+        message: `Traslado ${transferCode} creado con ${data.items.length} producto(s). Pendiente de aprobación por un administrador.`,
+        transferCode,
+      };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const item of data.items) {
+        const originStock = await tx.ePPStock.findUnique({
+          where: { eppId_warehouseId: { eppId: item.eppId, warehouseId: data.fromId } },
+          select: { quantity: true },
+        });
+
+        const available = originStock?.quantity ?? 0;
+        if (available < item.quantity) {
+          throw new Error(`Stock insuficiente en almacén origen para EPP ${item.eppId}. Disponible: ${available}, solicitado: ${item.quantity}`);
+        }
+      }
+
+      await tx.stockMovement.createMany({
+        data: data.items.flatMap((item) => [
+          {
             eppId: item.eppId,
             warehouseId: data.fromId,
-            type: "TRANSFER_OUT",
+            type: "TRANSFER_OUT" as const,
             quantity: item.quantity,
             note: `[${transferCode}] Salida por traslado. ${transferNote}`,
             purchaseOrder: transferCode,
             userId: dbUser.id,
-            status: MovementStatus.PENDING,
+            status: MovementStatus.APPROVED,
+            approvedById: dbUser.id,
+            approvedAt: timestamp,
             createdAt: timestamp,
           },
-        }),
-        prisma.stockMovement.create({
-          data: {
+          {
             eppId: item.eppId,
             warehouseId: data.toId,
-            type: "TRANSFER_IN",
+            type: "TRANSFER_IN" as const,
             quantity: item.quantity,
             note: `[${transferCode}] Entrada por traslado. ${transferNote}`,
             purchaseOrder: transferCode,
             userId: dbUser.id,
-            status: MovementStatus.PENDING,
+            status: MovementStatus.APPROVED,
+            approvedById: dbUser.id,
+            approvedAt: timestamp,
             createdAt: timestamp,
           },
-        }),
-      ])
-    );
+        ]),
+      });
+
+      for (const item of data.items) {
+        await tx.ePPStock.update({
+          where: { eppId_warehouseId: { eppId: item.eppId, warehouseId: data.fromId } },
+          data: { quantity: { decrement: item.quantity } },
+        });
+
+        await tx.ePPStock.upsert({
+          where: { eppId_warehouseId: { eppId: item.eppId, warehouseId: data.toId } },
+          update: { quantity: { increment: item.quantity } },
+          create: { eppId: item.eppId, warehouseId: data.toId, quantity: item.quantity },
+        });
+      }
+    });
 
     revalidatePath("/stock-movements");
+    revalidatePath("/epps");
+    revalidatePath("/dashboard");
 
     return {
       success: true,
-      requiresApproval: true,
-      message: `Traslado ${transferCode} creado con ${data.items.length} producto(s). Pendiente de aprobación por un administrador.`,
+      requiresApproval: false,
+      message: `Traslado ${transferCode} aplicado exitosamente con ${data.items.length} producto(s).`,
       transferCode,
     };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error al procesar el traslado";
+    return {
+      success: false,
+      message,
+    };
   }
-
-  await prisma.$transaction(async (tx) => {
-    for (const item of data.items) {
-      const originStock = await tx.ePPStock.findUnique({
-        where: { eppId_warehouseId: { eppId: item.eppId, warehouseId: data.fromId } },
-        select: { quantity: true },
-      });
-
-      const available = originStock?.quantity ?? 0;
-      if (available < item.quantity) {
-        throw new Error(`Stock insuficiente en almacén origen para EPP ${item.eppId}. Disponible: ${available}, solicitado: ${item.quantity}`);
-      }
-    }
-
-    await tx.stockMovement.createMany({
-      data: data.items.flatMap((item) => [
-        {
-          eppId: item.eppId,
-          warehouseId: data.fromId,
-          type: "TRANSFER_OUT" as const,
-          quantity: item.quantity,
-          note: `[${transferCode}] Salida por traslado. ${transferNote}`,
-          purchaseOrder: transferCode,
-          userId: dbUser.id,
-          status: MovementStatus.APPROVED,
-          approvedById: dbUser.id,
-          approvedAt: timestamp,
-          createdAt: timestamp,
-        },
-        {
-          eppId: item.eppId,
-          warehouseId: data.toId,
-          type: "TRANSFER_IN" as const,
-          quantity: item.quantity,
-          note: `[${transferCode}] Entrada por traslado. ${transferNote}`,
-          purchaseOrder: transferCode,
-          userId: dbUser.id,
-          status: MovementStatus.APPROVED,
-          approvedById: dbUser.id,
-          approvedAt: timestamp,
-          createdAt: timestamp,
-        },
-      ]),
-    });
-
-    for (const item of data.items) {
-      await tx.ePPStock.update({
-        where: { eppId_warehouseId: { eppId: item.eppId, warehouseId: data.fromId } },
-        data: { quantity: { decrement: item.quantity } },
-      });
-
-      await tx.ePPStock.upsert({
-        where: { eppId_warehouseId: { eppId: item.eppId, warehouseId: data.toId } },
-        update: { quantity: { increment: item.quantity } },
-        create: { eppId: item.eppId, warehouseId: data.toId, quantity: item.quantity },
-      });
-    }
-  });
-
-  revalidatePath("/stock-movements");
-  revalidatePath("/epps");
-  revalidatePath("/dashboard");
-
-  return {
-    success: true,
-    requiresApproval: false,
-    message: `Traslado ${transferCode} aplicado exitosamente con ${data.items.length} producto(s).`,
-    transferCode,
-  };
 }
 
 export async function deleteMovement(id: number) {

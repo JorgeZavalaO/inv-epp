@@ -7,28 +7,29 @@ import { revalidatePath }  from "next/cache";
 import { UserRole, MovementStatus } from "@prisma/client";
 
 export async function createEntryBatch(fd: FormData) {
-  /* 1) parse FormData -> objeto */
-  const objRaw: Record<string, unknown> = {};
-  const itemsMap: Record<number, { eppId?: number; quantity?: number; unitPrice?: number }> = {};
+  try {
+    /* 1) parse FormData -> objeto */
+    const objRaw: Record<string, unknown> = {};
+    const itemsMap: Record<number, { eppId?: number; quantity?: number; unitPrice?: number }> = {};
 
-  for (const [k, v] of fd.entries()) {
-    const m = k.match(/^items\.(\d+)\.(\w+)$/);
-    if (m) {
-      const idx = Number(m[1]);
-      itemsMap[idx] = itemsMap[idx] || {};
-      const key = m[2] as keyof typeof itemsMap[number];
-      if (key === 'unitPrice') {
-        itemsMap[idx][key] = v ? Number(v) : undefined;
-      } else {
-        itemsMap[idx][key] = Number(v);
-      }
-    } else objRaw[k] = v;
-  }
-  objRaw.items = Object.values(itemsMap);
+    for (const [k, v] of fd.entries()) {
+      const m = k.match(/^items\.(\d+)\.(\w+)$/);
+      if (m) {
+        const idx = Number(m[1]);
+        itemsMap[idx] = itemsMap[idx] || {};
+        const key = m[2] as keyof typeof itemsMap[number];
+        if (key === 'unitPrice') {
+          itemsMap[idx][key] = v ? Number(v) : undefined;
+        } else {
+          itemsMap[idx][key] = Number(v);
+        }
+      } else objRaw[k] = v;
+    }
+    objRaw.items = Object.values(itemsMap);
 
-  /* 2) validar */
-  const data = entryBatchSchema.parse(objRaw);
-  const dbUser = await ensureAuthUser();
+    /* 2) validar */
+    const data = entryBatchSchema.parse(objRaw);
+    const dbUser = await ensureAuthUser();
 
   // Determinar si requiere aprobación
   const requiresApproval = dbUser.role !== UserRole.ADMIN;
@@ -99,12 +100,19 @@ export async function createEntryBatch(fd: FormData) {
     }
   });
 
-  revalidatePath("/stock-movements");
-  revalidatePath("/epps");
-  
-  return {
-    success: true,
-    requiresApproval: false,
-    message: `Entrada múltiple de ${data.items.length} items creada y aplicada exitosamente.`,
-  };
+    revalidatePath("/stock-movements");
+    revalidatePath("/epps");
+    
+    return {
+      success: true,
+      requiresApproval: false,
+      message: `Entrada múltiple de ${data.items.length} items creada y aplicada exitosamente.`,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error al procesar la entrada múltiple";
+    return {
+      success: false,
+      message,
+    };
+  }
 }
