@@ -202,7 +202,7 @@ export default function ModalCreateMovement({ onClose, defaultValues }: Props) {
                 <p className="text-xs text-muted-foreground">Unidades a mover</p>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Precio unitario</Label>
+                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Precio unitario <span className="text-slate-400 normal-case font-normal">(opcional)</span></Label>
                 <Input
                   type="number"
                   step={0.01}
