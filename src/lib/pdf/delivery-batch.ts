@@ -448,17 +448,49 @@ currentY -= headerHeight + 30;
       size: 12, 
       color: colors.primary 
     });
-    
+
     currentY -= 25;
-    const noteHeight = 40;
+
+    // Dividir el texto en líneas que quepan en el ancho disponible
+    const noteMaxWidth = tableWidth - 30;
+    const noteFontSize = 10;
+    const noteLineHeight = 16;
+    const notePaddingX = tableX + 15;
+    const notePaddingY = 12; // padding superior e inferior
+
+    const words = sanitizeText(batch.note).split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      if (font.widthOfTextAtSize(testLine, noteFontSize) <= noteMaxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) lines.push(currentLine);
+        // Si una sola palabra es demasiado larga, truncarla
+        let wordFit = word;
+        while (font.widthOfTextAtSize(wordFit, noteFontSize) > noteMaxWidth && wordFit.length > 1) {
+          wordFit = wordFit.slice(0, -1);
+        }
+        currentLine = wordFit;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+
+    const noteHeight = Math.max(40, lines.length * noteLineHeight + notePaddingY * 2);
     drawRect(tableX, currentY - noteHeight, tableWidth, noteHeight, colors.secondary, colors.border);
-    
-    drawText(batch.note, tableX + 15, currentY - 20, { 
-      size: 10, 
-      color: colors.text,
-      maxWidth: tableWidth - 30
+
+    lines.forEach((line, i) => {
+      page.drawText(line, {
+        x: notePaddingX,
+        y: currentY - notePaddingY - noteFontSize - i * noteLineHeight,
+        font,
+        size: noteFontSize,
+        color: colors.text,
+      });
     });
-    
+
     currentY -= noteHeight + 30;
   }
 
