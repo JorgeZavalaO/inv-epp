@@ -1,6 +1,6 @@
-import { auth } from '@/lib/auth';
-import { UserRole } from '@prisma/client';
-import prisma from './prisma';
+import { auth } from "@/lib/auth";
+import { UserRole } from "@prisma/client";
+import prisma from "./prisma";
 
 /**
  * Obtener la sesión del usuario actual
@@ -16,7 +16,7 @@ export async function getCurrentUser() {
 export async function hasRole(role: UserRole): Promise<boolean> {
   const user = await getCurrentUser();
   if (!user) return false;
-  
+
   return user.role === role;
 }
 
@@ -26,7 +26,7 @@ export async function hasRole(role: UserRole): Promise<boolean> {
 export async function hasAnyRole(roles: UserRole[]): Promise<boolean> {
   const user = await getCurrentUser();
   if (!user) return false;
-  
+
   return roles.includes(user.role as UserRole);
 }
 
@@ -38,7 +38,7 @@ export async function hasPermission(permissionName: string): Promise<boolean> {
   if (!user) return false;
 
   // Los ADMIN tienen todos los permisos
-  if (user.role === 'ADMIN') return true;
+  if (user.role === "ADMIN") return true;
 
   // Verificar permiso en la base de datos
   const userPermission = await prisma.userPermission.findFirst({
@@ -56,12 +56,14 @@ export async function hasPermission(permissionName: string): Promise<boolean> {
 /**
  * Verificar si el usuario tiene AL MENOS UNO de los permisos especificados (OR)
  */
-export async function hasAnyPermission(permissionNames: string[]): Promise<boolean> {
+export async function hasAnyPermission(
+  permissionNames: string[],
+): Promise<boolean> {
   const user = await getCurrentUser();
   if (!user) return false;
 
   // Los ADMIN tienen todos los permisos
-  if (user.role === 'ADMIN') return true;
+  if (user.role === "ADMIN") return true;
 
   // Verificar si tiene al menos uno de los permisos
   const userPermission = await prisma.userPermission.findFirst({
@@ -81,12 +83,14 @@ export async function hasAnyPermission(permissionNames: string[]): Promise<boole
 /**
  * Verificar si el usuario tiene todos los permisos especificados
  */
-export async function hasAllPermissions(permissionNames: string[]): Promise<boolean> {
+export async function hasAllPermissions(
+  permissionNames: string[],
+): Promise<boolean> {
   const user = await getCurrentUser();
   if (!user) return false;
 
   // Los ADMIN tienen todos los permisos
-  if (user.role === 'ADMIN') return true;
+  if (user.role === "ADMIN") return true;
 
   // Verificar todos los permisos
   const userPermissions = await prisma.userPermission.findMany({
@@ -139,7 +143,7 @@ export async function getUserPermissions(): Promise<string[]> {
     include: { permission: true },
   });
 
-  return permissions.map(up => up.permission.name);
+  return permissions.map((up) => up.permission.name);
 }
 
 /**
@@ -148,7 +152,7 @@ export async function getUserPermissions(): Promise<string[]> {
 export async function requireAuth() {
   const user = await getCurrentUser();
   if (!user) {
-    throw new Error('No autenticado');
+    throw new Error("No autenticado");
   }
   return user;
 }
@@ -160,7 +164,7 @@ export async function requireAuth() {
 export async function ensureAuthUser() {
   const session = await auth();
   if (!session?.user?.id) {
-    throw new Error('Usuario no autenticado');
+    throw new Error("Usuario no autenticado");
   }
 
   // Obtener datos completos del usuario desde la base de datos
@@ -178,7 +182,7 @@ export async function ensureAuthUser() {
   });
 
   if (!user) {
-    throw new Error('Usuario no encontrado en la base de datos');
+    throw new Error("Usuario no encontrado en la base de datos");
   }
 
   return user;
@@ -189,8 +193,8 @@ export async function ensureAuthUser() {
  */
 export async function requireRole(role: UserRole) {
   const user = await requireAuth();
-  if (user.role !== role && user.role !== 'ADMIN') {
-    throw new Error('No autorizado - Rol insuficiente');
+  if (user.role !== role && user.role !== "ADMIN") {
+    throw new Error("No autorizado - Rol insuficiente");
   }
   return user;
 }
@@ -201,11 +205,11 @@ export async function requireRole(role: UserRole) {
 export async function requireRoleLevel(minRole: UserRole) {
   const user = await requireAuth();
   const hasLevel = await hasRoleLevel(minRole);
-  
+
   if (!hasLevel) {
-    throw new Error('No autorizado - Nivel de rol insuficiente');
+    throw new Error("No autorizado - Nivel de rol insuficiente");
   }
-  
+
   return user;
 }
 
@@ -215,10 +219,55 @@ export async function requireRoleLevel(minRole: UserRole) {
 export async function requirePermission(permissionName: string) {
   const user = await requireAuth();
   const hasPerm = await hasPermission(permissionName);
-  
+
   if (!hasPerm) {
     throw new Error(`No autorizado - Permiso requerido: ${permissionName}`);
   }
-  
+
   return user;
+}
+
+/**
+ * Roles que tienen restricción de almacenes. ADMIN y roles inferiores quedan sin restricción.
+ */
+const WAREHOUSE_RESTRICTED_ROLES: UserRole[] = [
+  "SUPERVISOR",
+  "WAREHOUSE_MANAGER",
+];
+
+/**
+ * Devuelve los IDs de almacenes accesibles para el usuario en sesión.
+ * - null  → sin restricción (ADMIN, OPERATOR, VIEWER)
+ * - number[] → lista de IDs permitidos (puede ser vacía si no tiene asignaciones)
+ */
+export async function getAccessibleWarehouseIds(): Promise<number[] | null> {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  if (!WAREHOUSE_RESTRICTED_ROLES.includes(user.role as UserRole)) return null;
+
+  const assignments = await prisma.userWarehouse.findMany({
+    where: { userId: user.id },
+    select: { warehouseId: true },
+  });
+
+  return assignments.map((a) => a.warehouseId);
+}
+
+/**
+ * Lanza un error 403 si el usuario con rol SUPERVISOR o WAREHOUSE_MANAGER
+ * no tiene el almacén dado entre sus asignaciones.
+ * Para otros roles no hace nada (sin restricción).
+ */
+export async function assertWarehouseAccess(
+  warehouseId: number,
+): Promise<void> {
+  const allowed = await getAccessibleWarehouseIds();
+  if (allowed === null) return; // sin restricción
+
+  if (!allowed.includes(warehouseId)) {
+    const error = new Error("No autorizado - Sin acceso al almacén solicitado");
+    (error as Error & { statusCode: number }).statusCode = 403;
+    throw error;
+  }
 }

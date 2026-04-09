@@ -1,7 +1,7 @@
-import prisma from '@/lib/prisma';
-import { NextResponse } from 'next/server';
-import type { Prisma, StockMovementType } from '@prisma/client';
-import { requirePermission } from '@/lib/auth-utils';
+import prisma from "@/lib/prisma";
+import { NextResponse } from "next/server";
+import type { Prisma, StockMovementType } from "@prisma/client";
+import { requirePermission, assertWarehouseAccess } from "@/lib/auth-utils";
 
 export async function GET(request: Request) {
   try {
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100); // Max 100
     const skip = (page - 1) * limit;
-    
+
     const search = searchParams.get("search") || "";
     const eppId = searchParams.get("eppId");
     const warehouseId = searchParams.get("warehouseId");
@@ -26,7 +26,8 @@ export async function GET(request: Request) {
     }
     if (eppId) where.eppId = parseInt(eppId);
     if (warehouseId) where.warehouseId = parseInt(warehouseId);
-    if (type && isValidStockMovementType(type)) where.type = type as StockMovementType;
+    if (type && isValidStockMovementType(type))
+      where.type = type as StockMovementType;
 
     const [movements, totalCount] = await Promise.all([
       prisma.stockMovement.findMany({
@@ -61,17 +62,29 @@ export async function GET(request: Request) {
     });
   } catch (error: unknown) {
     console.error("Error fetching stock movements:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
 function isValidStockMovementType(type: string): type is StockMovementType {
-  return ['ENTRY', 'EXIT', 'TRANSFER_IN', 'TRANSFER_OUT', 'ADJUSTMENT'].includes(type);
+  return [
+    "ENTRY",
+    "EXIT",
+    "TRANSFER_IN",
+    "TRANSFER_OUT",
+    "ADJUSTMENT",
+  ].includes(type);
 }
 
 export async function POST(req: Request) {
   await requirePermission("stock_movements_manage");
   const data = await req.json();
+  if (data.warehouseId) {
+    await assertWarehouseAccess(Number(data.warehouseId));
+  }
   const created = await prisma.stockMovement.create({ data });
   return NextResponse.json(created, { status: 201 });
 }

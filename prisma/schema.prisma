@@ -10,28 +10,29 @@ datasource db {
 
 /// Usuarios con Auth.js
 model User {
-  email                  String           @unique
-  name                   String?
-  createdAt              DateTime         @default(now())
-  updatedAt              DateTime         @updatedAt
-  id                     String           @id @default(cuid())
-  password               String
-  emailVerified          DateTime?
-  image                  String?
-  isActive               Boolean          @default(true)
-  lastLoginAt            DateTime?
-  role                   UserRole         @default(VIEWER)
-  accounts               Account[]
-  approvals              Approval[]       @relation("UserApprovals")
-  auditLogs              AuditLog[]       @relation("UserAuditLogs")
-  deliveryBatches        DeliveryBatch[]  @relation("UserDeliveryBatches")
-  cancelledDeliveryBatches DeliveryBatch[] @relation("CancelledDeliveryBatches")
-  requests               Request[]        @relation("UserRequests")
-  returnBatches          ReturnBatch[]    @relation("UserReturnBatches")
-  sessions               Session[]
-  approvedStockMovements StockMovement[]  @relation("ApprovedStockMovements")
-  stockMovements         StockMovement[]  @relation("UserStockMovements")
-  permissions            UserPermission[]
+  email                    String           @unique
+  name                     String?
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+  id                       String           @id @default(cuid())
+  password                 String
+  emailVerified            DateTime?
+  image                    String?
+  isActive                 Boolean          @default(true)
+  lastLoginAt              DateTime?
+  role                     UserRole         @default(VIEWER)
+  accounts                 Account[]
+  approvals                Approval[]       @relation("UserApprovals")
+  auditLogs                AuditLog[]       @relation("UserAuditLogs")
+  deliveryBatches          DeliveryBatch[]  @relation("UserDeliveryBatches")
+  cancelledDeliveryBatches DeliveryBatch[]  @relation("CancelledDeliveryBatches")
+  requests                 Request[]        @relation("UserRequests")
+  returnBatches            ReturnBatch[]    @relation("UserReturnBatches")
+  sessions                 Session[]
+  approvedStockMovements   StockMovement[]  @relation("ApprovedStockMovements")
+  stockMovements           StockMovement[]  @relation("UserStockMovements")
+  permissions              UserPermission[]
+  warehouseAssignments     UserWarehouse[]
 
   @@index([email])
   @@index([role])
@@ -138,8 +139,23 @@ model Warehouse {
   stocks          EPPStock[]
   returnBatches   ReturnBatch[]
   movements       StockMovement[]
+  userAssignments UserWarehouse[]
 
   @@index([name])
+}
+
+/// Asignación de almacenes a usuarios (SUPERVISOR / WAREHOUSE_MANAGER)
+model UserWarehouse {
+  id          String    @id @default(cuid())
+  userId      String
+  warehouseId Int
+  assignedAt  DateTime  @default(now())
+  assignedBy  String?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, warehouseId])
+  @@index([userId])
 }
 
 /// Inventario por almacén
@@ -158,7 +174,7 @@ model StockMovement {
   id            Int               @id @default(autoincrement())
   type          StockMovementType
   quantity      Int
-  unitPrice     Decimal?          @db.Decimal(10,2)
+  unitPrice     Decimal?          @db.Decimal(10, 2)
   note          String?
   purchaseOrder String?
   createdAt     DateTime          @default(now())

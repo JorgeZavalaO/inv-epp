@@ -71,11 +71,13 @@ import {
   Users,
   ShieldCheck,
   ShieldAlert,
+  Warehouse,
 } from 'lucide-react';
 import { UserRole } from '@prisma/client';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import PermissionsManager from './PermissionsManager';
+import WarehouseAssignment from './WarehouseAssignment';
 
 // Tipos
 type User = {
@@ -134,6 +136,7 @@ export default function UserManagementClient() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
+  const [isWarehousesModalOpen, setIsWarehousesModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithPermissions | null>(null);
 
@@ -313,6 +316,16 @@ export default function UserManagementClient() {
     }
   };
 
+  const openWarehousesModal = async (userId: string) => {
+    try {
+      const user = await getUserById(userId);
+      setSelectedUser(user as unknown as UserWithPermissions);
+      setIsWarehousesModalOpen(true);
+    } catch {
+      toast.error('Error al cargar datos del usuario');
+    }
+  };
+
   const handleSavePermissions = async () => {
     if (!selectedUser) return;
 
@@ -450,6 +463,12 @@ export default function UserManagementClient() {
                               <Shield className="h-4 w-4 mr-2" />
                               Gestionar Permisos
                             </DropdownMenuItem>
+                            {(user.role === 'SUPERVISOR' || user.role === 'WAREHOUSE_MANAGER') && (
+                              <DropdownMenuItem onClick={() => openWarehousesModal(user.id)}>
+                                <Warehouse className="h-4 w-4 mr-2" />
+                                Asignar Almacenes
+                              </DropdownMenuItem>
+                            )}
                             {!isCurrentUser && (
                               <>
                                 <DropdownMenuSeparator />
@@ -703,6 +722,37 @@ export default function UserManagementClient() {
             <Button onClick={handleSavePermissions} disabled={isPending}>
               {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Guardar Permisos ({userPermissions.length})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Asignar Almacenes (solo SUPERVISOR / WAREHOUSE_MANAGER) */}
+      <Dialog open={isWarehousesModalOpen} onOpenChange={setIsWarehousesModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Asignar Almacenes</DialogTitle>
+            <DialogDescription>
+              {selectedUser &&
+                `Definir los almacenes accesibles para ${selectedUser.name} (${ROLE_INFO[selectedUser.role].label})`}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <WarehouseAssignment
+              userId={selectedUser.id}
+              userName={selectedUser.name}
+            />
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsWarehousesModalOpen(false);
+                setSelectedUser(null);
+              }}
+            >
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>

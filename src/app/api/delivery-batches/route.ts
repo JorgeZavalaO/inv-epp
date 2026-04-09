@@ -1,7 +1,11 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { deliveryBatchSchema } from "@/schemas/delivery-batch-schema";
-import { ensureAuthUser, requirePermission } from "@/lib/auth-utils";
+import {
+  ensureAuthUser,
+  requirePermission,
+  assertWarehouseAccess,
+} from "@/lib/auth-utils";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 
@@ -11,11 +15,13 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
     const cursor = searchParams.get("cursor");
-    
+
     // ✅ OPTIMIZACIÓN: Usar cursor pagination para mejor performance
-    const where = cursor ? {
-      id: { lt: parseInt(cursor) }
-    } : undefined;
+    const where = cursor
+      ? {
+          id: { lt: parseInt(cursor) },
+        }
+      : undefined;
 
     const [batches, totalCount] = await Promise.all([
       prisma.deliveryBatch.findMany({
@@ -25,28 +31,28 @@ export async function GET(request: Request) {
           code: true,
           createdAt: true,
           note: true,
-          collaborator: { 
-            select: { 
-              name: true, 
-              position: true, 
-              location: true 
-            } 
+          collaborator: {
+            select: {
+              name: true,
+              position: true,
+              location: true,
+            },
           },
-          user: { 
-            select: { 
-              name: true, 
-              email: true 
-            } 
+          user: {
+            select: {
+              name: true,
+              email: true,
+            },
           },
-          warehouse: { 
-            select: { 
-              name: true 
-            } 
+          warehouse: {
+            select: {
+              name: true,
+            },
           },
-          _count: { 
-            select: { 
-              deliveries: true 
-            } 
+          _count: {
+            select: {
+              deliveries: true,
+            },
           },
         },
         orderBy: { id: "desc" }, // ✅ Usar ID para mejor índice
@@ -74,82 +80,106 @@ export async function GET(request: Request) {
     });
   } catch (error: unknown) {
     console.error("Error fetching delivery batches:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
 export async function POST(req: Request) {
   try {
     await requirePermission("deliveries_manage");
-    const payload  = await req.json();
-    const data     = deliveryBatchSchema.parse(payload);
+    const payload = await req.json();
+    const data = deliveryBatchSchema.parse(payload);
+    await assertWarehouseAccess(data.warehouseId);
     const operator = await ensureAuthUser();
 
-    const batchId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // 1) Generar código
-      const last = await tx.deliveryBatch.findFirst({
-        where: { code: { startsWith: "DEL-" } },
-        orderBy: { code: "desc" },
-        select: { code: true },
-      });
-      const num  = last ? Number(last.code.replace("DEL-", "")) + 1 : 1;
-      const code = `DEL-${String(num).padStart(4, "0")}`;
-
-      // 2) Crear batch
-      const { id } = await tx.deliveryBatch.create({
-        data: {
-          code,
-          collaboratorId: data.collaboratorId,
-          note:           data.note,
-          warehouseId:    data.warehouseId,
-          userId:         operator.id,
-        },
-        select: { id: true },
-      });
-
-      // 3) Validar stock y preparar filas
-      const rows = await Promise.all(
-        data.items.map(async (it) => {
-          const stockRow = await tx.ePPStock.findUnique({
-            where: { eppId_warehouseId: { eppId: it.eppId, warehouseId: data.warehouseId } },
-            select: { quantity: true },
-          });
-          if (!stockRow || stockRow.quantity < it.quantity) {
-            const e = await tx.ePP.findUnique({ where: { id: it.eppId }, select: { name: true } });
-            throw new Error(`Stock insuficiente para «${e?.name ?? it.eppId}»`);
-          }
-          return { batchId: id, eppId: it.eppId, quantity: it.quantity };
-        })
-      );
-
-      // 4) Crear entregas
-      await tx.delivery.createMany({ data: rows });
-
-      // 5) Ajustar stock y registrar movimientos
-      for (const r of rows) {
-        await tx.ePPStock.update({
-          where: { eppId_warehouseId: { eppId: r.eppId, warehouseId: data.warehouseId } },
-          data:  { quantity: { decrement: r.quantity } },
+    const batchId = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        // 1) Generar código
+        const last = await tx.deliveryBatch.findFirst({
+          where: { code: { startsWith: "DEL-" } },
+          orderBy: { code: "desc" },
+          select: { code: true },
         });
-        await tx.stockMovement.create({
+        const num = last ? Number(last.code.replace("DEL-", "")) + 1 : 1;
+        const code = `DEL-${String(num).padStart(4, "0")}`;
+
+        // 2) Crear batch
+        const { id } = await tx.deliveryBatch.create({
           data: {
-            type:        "EXIT",
-            eppId:       r.eppId,
+            code,
+            collaboratorId: data.collaboratorId,
+            note: data.note,
             warehouseId: data.warehouseId,
-            quantity:    r.quantity,
-            note:        `Entrega ${code}`,
-            userId:      operator.id,
+            userId: operator.id,
           },
+          select: { id: true },
         });
-      }
 
-      return id;
-    });
+        // 3) Validar stock y preparar filas
+        const rows = await Promise.all(
+          data.items.map(async (it) => {
+            const stockRow = await tx.ePPStock.findUnique({
+              where: {
+                eppId_warehouseId: {
+                  eppId: it.eppId,
+                  warehouseId: data.warehouseId,
+                },
+              },
+              select: { quantity: true },
+            });
+            if (!stockRow || stockRow.quantity < it.quantity) {
+              const e = await tx.ePP.findUnique({
+                where: { id: it.eppId },
+                select: { name: true },
+              });
+              throw new Error(
+                `Stock insuficiente para «${e?.name ?? it.eppId}»`,
+              );
+            }
+            return { batchId: id, eppId: it.eppId, quantity: it.quantity };
+          }),
+        );
+
+        // 4) Crear entregas
+        await tx.delivery.createMany({ data: rows });
+
+        // 5) Ajustar stock y registrar movimientos
+        for (const r of rows) {
+          await tx.ePPStock.update({
+            where: {
+              eppId_warehouseId: {
+                eppId: r.eppId,
+                warehouseId: data.warehouseId,
+              },
+            },
+            data: { quantity: { decrement: r.quantity } },
+          });
+          await tx.stockMovement.create({
+            data: {
+              type: "EXIT",
+              eppId: r.eppId,
+              warehouseId: data.warehouseId,
+              quantity: r.quantity,
+              note: `Entrega ${code}`,
+              userId: operator.id,
+            },
+          });
+        }
+
+        return id;
+      },
+    );
 
     return NextResponse.json({ id: batchId }, { status: 201 });
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.errors[0].message }, { status: 400 });
+      return NextResponse.json(
+        { error: err.errors[0].message },
+        { status: 400 },
+      );
     }
     const msg = err instanceof Error ? err.message : "Error inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });

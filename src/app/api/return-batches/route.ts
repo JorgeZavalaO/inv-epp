@@ -1,7 +1,11 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { returnBatchSchema } from "@/schemas/return-schema";
-import { ensureAuthUser, requirePermission } from "@/lib/auth-utils";
+import {
+  ensureAuthUser,
+  requirePermission,
+  assertWarehouseAccess,
+} from "@/lib/auth-utils";
 import { z } from "zod";
 
 export async function GET(request: Request) {
@@ -42,7 +46,10 @@ export async function GET(request: Request) {
     });
   } catch (error: unknown) {
     console.error("Error fetching return batches:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -50,8 +57,9 @@ export async function POST(req: Request) {
   try {
     await requirePermission("returns_manage");
     const payload = await req.json();
-    const data    = returnBatchSchema.parse(payload);
-    const user    = await ensureAuthUser();
+    const data = returnBatchSchema.parse(payload);
+    await assertWarehouseAccess(data.warehouseId);
+    const user = await ensureAuthUser();
 
     const batch = await prisma.$transaction(async (tx) => {
       // 1) generar código autonumérico
@@ -60,7 +68,7 @@ export async function POST(req: Request) {
         orderBy: { code: "desc" },
         select: { code: true },
       });
-      const num  = last ? Number(last.code.replace("RET-", "")) + 1 : 1;
+      const num = last ? Number(last.code.replace("RET-", "")) + 1 : 1;
       const code = `RET-${String(num).padStart(4, "0")}`;
 
       // 2) crear batch
@@ -68,8 +76,8 @@ export async function POST(req: Request) {
         data: {
           code,
           warehouseId: data.warehouseId,
-          userId:      user.id,
-          note:        data.note,
+          userId: user.id,
+          note: data.note,
         },
       });
 
@@ -92,11 +100,14 @@ export async function POST(req: Request) {
       // ajustar stock solo si es REUSABLE (bulk operations)
       if (data.condition === "REUSABLE") {
         // Agrupar por warehouse para optimizar upserts
-        const warehouseGroups = validItems.reduce((acc, it) => {
-          if (!acc[it.warehouseId]) acc[it.warehouseId] = [];
-          acc[it.warehouseId].push(it);
-          return acc;
-        }, {} as Record<number, typeof validItems>);
+        const warehouseGroups = validItems.reduce(
+          (acc, it) => {
+            if (!acc[it.warehouseId]) acc[it.warehouseId] = [];
+            acc[it.warehouseId].push(it);
+            return acc;
+          },
+          {} as Record<number, typeof validItems>,
+        );
 
         // Ejecutar upserts por warehouse
         for (const [warehouseId, items] of Object.entries(warehouseGroups)) {
@@ -116,8 +127,8 @@ export async function POST(req: Request) {
                   warehouseId: whId,
                   quantity: it.quantity,
                 },
-              })
-            )
+              }),
+            ),
           );
         }
       }
@@ -128,7 +139,10 @@ export async function POST(req: Request) {
     return NextResponse.json(batch, { status: 201 });
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.errors[0].message }, { status: 400 });
+      return NextResponse.json(
+        { error: err.errors[0].message },
+        { status: 400 },
+      );
     }
     const msg = err instanceof Error ? err.message : "Error interno";
     return NextResponse.json({ error: msg }, { status: 500 });

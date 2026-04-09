@@ -1,15 +1,19 @@
-import prisma                     from "@/lib/prisma";
-import { NextResponse }           from "next/server";
-import { ensureAuthUser, requirePermission }         from "@/lib/auth-utils";
-import { z }                      from "zod";
-import type { Prisma }            from "@prisma/client";
+import prisma from "@/lib/prisma";
+import { NextResponse } from "next/server";
+import {
+  ensureAuthUser,
+  requirePermission,
+  assertWarehouseAccess,
+} from "@/lib/auth-utils";
+import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 
 /*────────── GET /api/delivery-batches/[id] ──────────*/
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;             // 👈 se espera la promise
+  const { id } = await params; // 👈 se espera la promise
   const batchId = Number(id);
   if (Number.isNaN(batchId)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });
@@ -19,10 +23,17 @@ export async function GET(
     const record = await prisma.deliveryBatch.findUnique({
       where: { id: batchId },
       include: {
-        collaborator: { select: { name: true, position: true, location: true, documentId: true } },
-        user:         { select: { name: true, email: true } },
-        warehouse:    { select: { name: true } },
-        deliveries:   {
+        collaborator: {
+          select: {
+            name: true,
+            position: true,
+            location: true,
+            documentId: true,
+          },
+        },
+        user: { select: { name: true, email: true } },
+        warehouse: { select: { name: true } },
+        deliveries: {
           select: {
             id: true,
             eppId: true,
@@ -46,7 +57,7 @@ export async function GET(
 /*────────── PUT /api/delivery-batches/[id] ──────────*/
 export async function PUT(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     await requirePermission("deliveries_manage");
@@ -64,18 +75,21 @@ export async function PUT(
     const raw = await req.json();
     const editSchema = z.object({
       collaboratorId: z.number().int().positive(),
-      note:           z.string().max(255).optional(),
+      note: z.string().max(255).optional(),
     });
     const data = editSchema.parse(raw);
 
     const updated = await prisma.deliveryBatch.update({
       where: { id: batchId },
-      data:  { collaboratorId: data.collaboratorId, note: data.note },
+      data: { collaboratorId: data.collaboratorId, note: data.note },
     });
     return NextResponse.json(updated);
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.errors[0].message }, { status: 400 });
+      return NextResponse.json(
+        { error: err.errors[0].message },
+        { status: 400 },
+      );
     }
     const msg = err instanceof Error ? err.message : "Error inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -85,7 +99,7 @@ export async function PUT(
 /*────────── DELETE /api/delivery-batches/[id] ──────────*/
 export async function DELETE(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     await requirePermission("deliveries_manage");
@@ -102,26 +116,48 @@ export async function DELETE(
   try {
     const operator = await ensureAuthUser();
 
+    // Verificar acceso al almacén antes de modificar
+    const batchForCheck = await prisma.deliveryBatch.findUnique({
+      where: { id: batchId },
+      select: { warehouseId: true },
+    });
+    if (!batchForCheck) {
+      return NextResponse.json(
+        { error: "Lote no encontrado" },
+        { status: 404 },
+      );
+    }
+    await assertWarehouseAccess(batchForCheck.warehouseId);
+
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const rows = await tx.delivery.findMany({
-        where:  { batchId },
-        select: { eppId: true, quantity: true, batch: { select: { warehouseId: true } } },
+        where: { batchId },
+        select: {
+          eppId: true,
+          quantity: true,
+          batch: { select: { warehouseId: true } },
+        },
       });
       if (rows.length === 0) throw new Error("Lote vacío o no existe");
 
       for (const r of rows) {
         await tx.ePPStock.update({
-          where: { eppId_warehouseId: { eppId: r.eppId, warehouseId: r.batch.warehouseId } },
-          data:  { quantity: { increment: r.quantity } },
+          where: {
+            eppId_warehouseId: {
+              eppId: r.eppId,
+              warehouseId: r.batch.warehouseId,
+            },
+          },
+          data: { quantity: { increment: r.quantity } },
         });
         await tx.stockMovement.create({
           data: {
-            type:        "ENTRY",
-            eppId:       r.eppId,
+            type: "ENTRY",
+            eppId: r.eppId,
             warehouseId: r.batch.warehouseId,
-            quantity:    r.quantity,
-            note:        `Deshacer lote ${batchId}`,
-            userId:      operator.id,
+            quantity: r.quantity,
+            note: `Deshacer lote ${batchId}`,
+            userId: operator.id,
           },
         });
       }

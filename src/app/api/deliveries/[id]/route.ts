@@ -1,10 +1,17 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { requirePermission, ensureAuthUser } from "@/lib/auth-utils";
+import {
+  requirePermission,
+  ensureAuthUser,
+  assertWarehouseAccess,
+} from "@/lib/auth-utils";
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  _: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const { id } = await params;
-  
+
   try {
     const record = await prisma.delivery.findUnique({
       where: { id: Number(id) },
@@ -19,7 +26,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
         epp: { select: { code: true, name: true } },
       },
     });
-    
+
     return record
       ? NextResponse.json(record)
       : NextResponse.json({ error: "No encontrado" }, { status: 404 });
@@ -29,17 +36,20 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   }
 }
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   await requirePermission("deliveries_manage");
   const { id } = await params;
-  
+
   try {
     const data = await req.json();
     const updated = await prisma.delivery.update({
       where: { id: Number(id) },
       data,
     });
-    
+
     return NextResponse.json(updated);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -47,14 +57,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  _: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   await requirePermission("deliveries_manage");
   const { id } = await params;
-  
+
   try {
     const deliveryId = Number(id);
     const operator = await ensureAuthUser();
-    
+
     // ✅ CORRECCIÓN 1: Transacción atómica para DELETE seguro
     // Leer entrega ANTES de eliminar para revertir movimiento
     const delivery = await prisma.delivery.findUnique({
@@ -69,11 +82,16 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
         },
       },
     });
-    
+
     if (!delivery) {
-      return NextResponse.json({ error: "Entrega no encontrada" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Entrega no encontrada" },
+        { status: 404 },
+      );
     }
-    
+
+    await assertWarehouseAccess(delivery.batch.warehouseId);
+
     // Ejecutar transacción atómica: revertir stock + crear movimiento compensatorio + eliminar entrega
     await prisma.$transaction(async (tx) => {
       // 1. Restaurar stock (incrementar porque era una salida)
@@ -86,7 +104,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
         },
         data: { quantity: { increment: delivery.quantity } },
       });
-      
+
       // 2. Crear movimiento ENTRY compensatorio para auditoría
       const compensationTimestamp = new Date();
       await tx.stockMovement.create({
@@ -103,7 +121,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
           createdAt: compensationTimestamp,
         },
       });
-      
+
       // 3. Registrar auditoría
       await tx.auditLog.create({
         data: {
@@ -121,22 +139,23 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
           },
         },
       });
-      
+
       // 4. Finalmente, eliminar la entrega
       await tx.delivery.delete({
         where: { id: deliveryId },
       });
     });
-    
-    return NextResponse.json({ 
-      ok: true, 
+
+    return NextResponse.json({
+      ok: true,
       message: "Entrega eliminada y stock restaurado correctamente",
       restored: delivery.quantity,
       warehouseId: delivery.batch.warehouseId,
     });
   } catch (error: unknown) {
     console.error("Error eliminando entrega:", error);
-    const message = error instanceof Error ? error.message : "Error desconocido";
+    const message =
+      error instanceof Error ? error.message : "Error desconocido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
