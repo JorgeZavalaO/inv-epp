@@ -150,7 +150,8 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 w-6 p-0 hover:bg-red-100"
+                className="min-h-11 min-w-11 p-0 hover:bg-red-100"
+                aria-label="Ver razón de la anulación"
                 onClick={() =>
                   setRejectionDetail({
                     movementId: row.original.id,
@@ -180,7 +181,7 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
       header: "Precio Unit.",
       cell: ({ getValue }) => {
         const price = getValue<number | null>();
-        return price ? <span className="font-medium">S/ {price.toFixed(2)}</span> : <span className="text-muted-foreground">-</span>;
+        return price !== null && price !== undefined ? <span className="font-medium">S/ {price.toFixed(2)}</span> : <span className="text-muted-foreground">-</span>;
       },
     },
     { accessorKey: "operator", header: "Operador" },
@@ -196,7 +197,8 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 w-6 p-0 hover:bg-red-100"
+                className="min-h-11 min-w-11 p-0 hover:bg-red-100"
+                aria-label="Ver razón del rechazo"
                 onClick={() =>
                   setRejectionDetail({
                     movementId: mv.id,
@@ -223,12 +225,12 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
         return (
           <div className="flex gap-2">
             {canEditOrDelete && (
-              <Button size="sm" variant="secondary" onClick={() => onEdit(mv)}>
+              <Button size="sm" variant="secondary" onClick={() => onEdit(mv)} className="min-h-11 min-w-11" aria-label={`Editar movimiento ${mv.id}`} title="Editar movimiento">
                 ✏️
               </Button>
             )}
             {canEditOrDelete && (
-              <Button size="sm" variant="destructive" onClick={() => onDelete(mv)}>
+              <Button size="sm" variant="destructive" onClick={() => onDelete(mv)} className="min-h-11 min-w-11" aria-label={`Eliminar movimiento ${mv.id}`} title="Eliminar movimiento">
                 🗑
               </Button>
             )}
@@ -244,12 +246,12 @@ export default function MovementTable({ data, onEdit, onDelete }: Props) {
 
       {/* Modal para ver razón de rechazo */}
       {rejectionDetail && (
-        <Dialog open={!!rejectionDetail} onOpenChange={() => setRejectionDetail(null)}>
-          <DialogContent>
+        <Dialog open={!!rejectionDetail} onOpenChange={(open) => { if (!open) setRejectionDetail(null); }}>
+          <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5 text-red-600" />
-                Razón del Rechazo
+                Razón del rechazo
               </DialogTitle>
               <DialogDescription>
                 Movimiento ID: {rejectionDetail.movementId}

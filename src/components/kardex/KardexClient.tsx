@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useDebouncedCallback } from "use-debounce";
+import SmartPagination from "@/components/delivery/SmartPagination";
+import PageSizeSelector from "@/components/delivery/PageSizeSelector";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +47,14 @@ export type KardexRow = {
 type Props = {
   data: KardexRow[];
   totals: { entry: number; exit: number; adjustment: number; transferIn: number; transferOut: number };
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
   filters: {
     epps: Array<{ id: number; code: string; name: string }>;
     warehouses: Array<{ id: number; name: string }>;
@@ -56,10 +66,12 @@ type Props = {
     type?: string;
     from?: string;
     to?: string;
+    page: number;
+    limit: number;
   };
 };
 
-export default function KardexClient({ data, totals, filters, selected }: Props) {
+export default function KardexClient({ data, totals, pagination, filters, selected }: Props) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -71,6 +83,7 @@ export default function KardexClient({ data, totals, filters, selected }: Props)
     } else {
       params.delete(key);
     }
+    if (key !== "page") params.set("page", "1");
     router.replace(`${pathname}?${params.toString()}`);
   };
 
@@ -210,7 +223,7 @@ export default function KardexClient({ data, totals, filters, selected }: Props)
         </div>
         <div className="rounded-lg border bg-white p-4">
           <p className="text-xs text-muted-foreground">Movimientos</p>
-          <p className="text-2xl font-bold">{rows.length}</p>
+          <p className="text-2xl font-bold">{pagination.totalCount}</p>
         </div>
       </div>
 
@@ -279,6 +292,28 @@ export default function KardexClient({ data, totals, filters, selected }: Props)
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-muted-foreground">
+            Showing {rows.length === 0 ? 0 : ((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.totalCount)} of {pagination.totalCount} movements
+          </div>
+          <PageSizeSelector
+            pageSize={pagination.limit}
+            onPageSizeChange={(size) => updateParam("limit", String(size))}
+            totalCount={pagination.totalCount}
+          />
+        </div>
+        {pagination.totalPages > 1 && (
+          <SmartPagination
+            currentPage={pagination.page}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => updateParam("page", String(page))}
+            hasNext={pagination.hasNext}
+            hasPrev={pagination.hasPrev}
+          />
+        )}
       </div>
     </div>
   );

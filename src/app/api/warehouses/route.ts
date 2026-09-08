@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth-utils";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
 
 /*────────── Schema de validación con Zod ──────────*/
 const warehouseSchema = z.object({
@@ -11,10 +12,41 @@ const warehouseSchema = z.object({
 });
 
 /*────────── GET /api/warehouses ──────────*/
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const search = searchParams.get("search")?.trim();
+  const hasPagination = searchParams.has("page") || searchParams.has("limit") || Boolean(search);
+  const where = search
+    ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { location: { contains: search, mode: "insensitive" as const } },
+        ],
+      }
+    : undefined;
+
+  if (hasPagination) {
+    const requestedPagination = parsePagination(searchParams.get("page"), searchParams.get("limit"));
+    const totalCount = await prisma.warehouse.count({ where });
+    const pagination = createPaginationMeta(
+      requestedPagination.page,
+      requestedPagination.limit,
+      totalCount,
+    );
+    const list = await prisma.warehouse.findMany({
+      where,
+      select: { id: true, name: true, location: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      skip: getPaginationSkip(pagination),
+      take: pagination.limit,
+    });
+
+    return NextResponse.json({ warehouses: list, pagination });
+  }
+
   const list = await prisma.warehouse.findMany({
     select: { id: true, name: true, location: true },
-    orderBy: { name: "asc" },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
   });
   
   return NextResponse.json(list, {

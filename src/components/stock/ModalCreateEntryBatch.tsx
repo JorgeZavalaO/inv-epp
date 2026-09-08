@@ -2,17 +2,15 @@
 
 import { useFieldArray, useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input }  from "@/components/ui/input";
-import { Label }  from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import ComboboxEpp from "@/components/ui/ComboboxEpp";
 import ComboboxWarehouse from "@/components/ui/ComboboxWarehouse";
 import { entryBatchSchema, EntryBatchValues } from "@/schemas/entry-batch-schema";
 import { createEntryBatch } from "@/app/(protected)/stock-movements/actions-entry";
-import { Plus, Trash, Loader2 } from "lucide-react";
+import { AlertCircle, Plus, Trash, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -20,14 +18,12 @@ import { useEffect, useState } from "react";
 export default function ModalCreateEntryBatch({ onClose }: { onClose(): void }) {
   const router = useRouter();
   const [warehouses, setWarehouses] = useState<{ id: number; label: string }[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  /* cargar almacenes */
   useEffect(() => {
     fetch("/api/warehouses")
       .then((r) => r.json())
-      .then((arr: { id: number; name: string }[]) =>
-        setWarehouses(arr.map((w) => ({ id: w.id, label: w.name })))
-      )
+      .then((arr: { id: number; name: string }[]) => setWarehouses(arr.map((w) => ({ id: w.id, label: w.name }))))
       .catch(() => setWarehouses([]));
   }, []);
 
@@ -42,128 +38,152 @@ export default function ModalCreateEntryBatch({ onClose }: { onClose(): void }) 
     defaultValues: {
       warehouseId: undefined!,
       note: "",
-      items: [{ eppId: undefined!, quantity: 1 }],
+      purchaseOrder: "",
+      items: [{ eppId: undefined!, quantity: 1, unitPrice: undefined }],
     },
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
 
   const submit = async (data: EntryBatchValues) => {
+    setSubmitError(null);
     const fd = new FormData();
     fd.append("warehouseId", String(data.warehouseId));
     fd.append("note", data.note ?? "");
+    fd.append("purchaseOrder", data.purchaseOrder ?? "");
 
-    data.items.forEach((it, i) => {
-      fd.append(`items.${i}.eppId`, String(it.eppId));
-      fd.append(`items.${i}.quantity`, String(it.quantity));
+    data.items.forEach((item, index) => {
+      fd.append(`items.${index}.eppId`, String(item.eppId));
+      fd.append(`items.${index}.quantity`, String(item.quantity));
+      if (item.unitPrice !== undefined && !Number.isNaN(item.unitPrice)) {
+        fd.append(`items.${index}.unitPrice`, String(item.unitPrice));
+      }
     });
 
     try {
       const result = await createEntryBatch(fd);
-      
-      // Verificar si hubo un error
       if (!result.success) {
-        toast.error(result.message);
+        setSubmitError(result.message);
         return;
       }
-      
-      // Verificar si el resultado indica que requiere aprobación
+
       if (result.requiresApproval) {
-        toast.warning(result.message || "Entrada múltiple creada. Pendiente de aprobación.", {
-          duration: 5000,
-        });
+        toast.warning(result.message || "Entrada múltiple creada. Pendiente de aprobación.", { duration: 5000 });
       } else {
         toast.success(result.message || "Entrada múltiple registrada exitosamente");
       }
-      
+
       onClose();
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar");
+      setSubmitError(err instanceof Error ? err.message : "Error al guardar la entrada múltiple");
     }
   };
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !isSubmitting) onClose();
+  };
+
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={handleOpenChange}>
+      <DialogContent className="max-h-[92vh] max-w-[calc(100%-2rem)] overflow-y-auto sm:max-w-4xl">
         <DialogHeader className="border-b pb-4">
-          <div>
-            <DialogTitle className="text-2xl font-bold">Entrada rápida de productos</DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">Registra múltiples productos en un mismo almacén</p>
-          </div>
+          <DialogTitle className="text-xl font-bold sm:text-2xl">Entrada rápida de productos</DialogTitle>
+          <DialogDescription>Registra múltiples productos en un mismo almacén.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(submit)} className="space-y-6">
-          {/* SECCIÓN 1: ALMACÉN DESTINO */}
-          <div className="bg-gradient-to-r from-blue-50 to-transparent p-4 rounded-lg border border-blue-100">
-            <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 text-blue-900 text-xs font-bold">1</span>
+          <div className="rounded-lg border border-blue-100 bg-gradient-to-r from-blue-50 to-transparent p-4">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-blue-900">
+              <span className="flex size-7 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-900">1</span>
               Selecciona el almacén destino
             </h3>
+            <Label htmlFor="entry-batch-warehouse" className="sr-only">Almacén destino</Label>
             <Controller
               name="warehouseId"
               control={control}
               render={({ field }) => (
                 <ComboboxWarehouse
+                  id="entry-batch-warehouse"
                   value={field.value ?? null}
                   onChange={field.onChange}
                   options={warehouses}
+                  className="min-h-11"
+                  aria-invalid={Boolean(errors.warehouseId)}
+                  aria-describedby={errors.warehouseId ? "entry-batch-warehouse-error" : undefined}
                 />
               )}
             />
-            {errors.warehouseId && (
-              <p className="text-destructive text-sm mt-2 flex items-center gap-1">⚠️ {errors.warehouseId.message}</p>
-            )}
+            {errors.warehouseId && <p id="entry-batch-warehouse-error" className="mt-2 text-sm text-destructive" role="alert">⚠️ {errors.warehouseId.message}</p>}
           </div>
 
-          {/* SECCIÓN 2: PRODUCTOS */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-900 text-xs font-bold">2</span>
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <span className="flex size-7 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-900">2</span>
               Añade los productos
             </h3>
-            <div className="space-y-2">
-              {fields.map((f, idx) => (
-                <div key={f.id} className="grid grid-cols-12 gap-3 items-end p-4 border border-slate-200 rounded-lg bg-white hover:border-blue-200 hover:shadow-sm transition-all">
-                  <div className="col-span-5">
-                    <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5 block">Producto</Label>
+            <div className="space-y-3">
+              {fields.map((field, index) => (
+                <div key={field.id} className="grid grid-cols-1 items-start gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-12">
+                  <div className="space-y-2 sm:col-span-5">
+                    <Label htmlFor={`entry-batch-epp-${index}`}>Producto {index + 1}</Label>
                     <Controller
-                      name={`items.${idx}.eppId`}
+                      name={`items.${index}.eppId`}
                       control={control}
-                      render={({ field }) => (
-                        <ComboboxEpp value={field.value} onChange={field.onChange} />
+                      render={({ field: itemField }) => (
+                        <ComboboxEpp
+                          id={`entry-batch-epp-${index}`}
+                          value={itemField.value ?? null}
+                          onChange={itemField.onChange}
+                          className="min-h-11"
+                          aria-invalid={Boolean(errors.items?.[index]?.eppId)}
+                          aria-describedby={errors.items?.[index]?.eppId ? `entry-batch-epp-${index}-error` : undefined}
+                        />
                       )}
                     />
+                    {errors.items?.[index]?.eppId && <p id={`entry-batch-epp-${index}-error`} className="text-sm text-destructive" role="alert">⚠️ {errors.items[index]?.eppId?.message}</p>}
                   </div>
-                  <div className="col-span-2">
-                    <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5 block">Cantidad</Label>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor={`entry-batch-quantity-${index}`}>Cantidad</Label>
                     <Input
+                      id={`entry-batch-quantity-${index}`}
                       type="number"
                       min={1}
-                      {...register(`items.${idx}.quantity`, { valueAsNumber: true })}
-                      className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      step={1}
+                      {...register(`items.${index}.quantity`, { valueAsNumber: true })}
+                      aria-invalid={Boolean(errors.items?.[index]?.quantity)}
+                      aria-describedby={errors.items?.[index]?.quantity ? `entry-batch-quantity-${index}-error` : undefined}
+                      className="h-11 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
+                    {errors.items?.[index]?.quantity && <p id={`entry-batch-quantity-${index}-error`} className="text-sm text-destructive" role="alert">⚠️ {errors.items[index]?.quantity?.message}</p>}
                   </div>
-                  <div className="col-span-3">
-                    <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5 block">Precio unitario</Label>
+                  <div className="space-y-2 sm:col-span-3">
+                    <Label htmlFor={`entry-batch-unit-price-${index}`}>Precio unitario (opcional)</Label>
                     <Input
+                      id={`entry-batch-unit-price-${index}`}
                       type="number"
                       step={0.01}
                       min={0}
                       placeholder="0.00"
-                      {...register(`items.${idx}.unitPrice`, { valueAsNumber: true })}
-                      className="focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                      {...register(`items.${index}.unitPrice`, { valueAsNumber: true })}
+                      aria-invalid={Boolean(errors.items?.[index]?.unitPrice)}
+                      aria-describedby={errors.items?.[index]?.unitPrice ? `entry-batch-unit-price-${index}-error` : undefined}
+                      className="h-11 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     />
+                    {errors.items?.[index]?.unitPrice && <p id={`entry-batch-unit-price-${index}-error`} className="text-sm text-destructive" role="alert">⚠️ {errors.items[index]?.unitPrice?.message}</p>}
                   </div>
-                  <div className="col-span-2 flex justify-end">
+                  <div className="flex items-end justify-start sm:col-span-2 sm:justify-end">
                     <Button
+                      type="button"
                       variant="ghost"
-                      size="sm"
-                      onClick={() => remove(idx)}
-                      className="hover:bg-red-50 hover:text-red-600 transition-colors"
+                      size="icon"
+                      disabled={fields.length === 1 || isSubmitting}
+                      onClick={() => remove(index)}
+                      className="min-h-11 min-w-11 hover:bg-red-50 hover:text-red-600"
+                      aria-label={`Eliminar producto ${index + 1}`}
                       title="Eliminar producto"
                     >
-                      <Trash size={16} />
+                      <Trash size={18} aria-hidden="true" />
                     </Button>
                   </div>
                 </div>
@@ -174,62 +194,46 @@ export default function ModalCreateEntryBatch({ onClose }: { onClose(): void }) 
               variant="outline"
               type="button"
               onClick={() => append({ eppId: undefined!, quantity: 1, unitPrice: undefined })}
-              className="w-full border-dashed border-2 border-blue-300 hover:border-blue-500 hover:bg-blue-50 text-blue-600 hover:text-blue-700 transition-colors py-2 h-auto"
+              disabled={isSubmitting}
+              className="min-h-11 w-full border-2 border-dashed border-blue-300 py-2 text-blue-600 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700"
             >
-              <Plus size={18} className="mr-2" /> Añadir otro producto
+              <Plus size={18} className="mr-2" aria-hidden="true" /> Añadir otro producto
             </Button>
 
-            {errors.items && (
-              <p className="text-destructive text-sm p-2 bg-red-50 rounded border border-red-200">⚠️ {errors.items.message}</p>
-            )}
+            {errors.items?.message && <p className="rounded border border-red-200 bg-red-50 p-2 text-sm text-destructive" role="alert">⚠️ {errors.items.message}</p>}
           </div>
 
-          {/* SECCIÓN 3: INFORMACIÓN ADICIONAL */}
-          <div className="border-t pt-4 space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-900 text-xs font-bold">3</span>
+          <div className="space-y-4 border-t pt-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <span className="flex size-7 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-900">3</span>
               Información adicional (opcional)
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Orden de Compra</Label>
-                <Input 
-                  {...register("purchaseOrder")} 
-                  placeholder="Ej: OC-2026-001"
-                  className="focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
-                />
-                <p className="text-xs text-muted-foreground">Para trazabilidad de compras</p>
+                <Label htmlFor="entry-batch-purchase-order">Orden de compra</Label>
+                <Input id="entry-batch-purchase-order" {...register("purchaseOrder")} placeholder="Ej: OC-2026-001" className="h-11" />
+                <p className="text-xs text-muted-foreground">Para trazabilidad de compras.</p>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Nota</Label>
-                <Input 
-                  {...register("note")} 
-                  placeholder="Ej: Compra urgente, revisión especial..."
-                  className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                />
-                <p className="text-xs text-muted-foreground">Información relevante sobre la entrada</p>
+                <Label htmlFor="entry-batch-note">Nota</Label>
+                <Input id="entry-batch-note" {...register("note")} placeholder="Ej: Compra urgente, revisión especial..." className="h-11" />
+                <p className="text-xs text-muted-foreground">Información relevante sobre la entrada.</p>
               </div>
             </div>
           </div>
 
-          {/* ACCIONES */}
-          <div className="flex justify-end gap-3 pt-6 border-t">
-            <Button 
-              variant="outline" 
-              type="button" 
-              onClick={onClose} 
-              disabled={isSubmitting}
-              className="px-6"
-            >
-              Cancelar
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={!isValid || isSubmitting}
-              className="px-8 bg-blue-600 hover:bg-blue-700"
-            >
-              {isSubmitting && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-              {isSubmitting ? "Guardando..." : "Guardar entrada"}
+          {submitError && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800" role="alert">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span>{submitError}</span>
+            </div>
+          )}
+
+          <div className="flex flex-col-reverse gap-3 border-t pt-6 sm:flex-row sm:justify-end">
+            <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting} className="min-h-11 px-6">Cancelar</Button>
+            <Button type="submit" disabled={!isValid || isSubmitting} aria-busy={isSubmitting} className="min-h-11 bg-blue-600 px-8 hover:bg-blue-700">
+              {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
+              {isSubmitting ? "Guardando entrada..." : submitError ? "Reintentar" : "Guardar entrada"}
             </Button>
           </div>
         </form>

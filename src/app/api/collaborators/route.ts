@@ -4,8 +4,41 @@ import { z } from "zod";
 import { collaboratorSchema } from "@/schemas/collaborator-schema";
 import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth-utils";
+import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const search = searchParams.get("search")?.trim();
+  const hasPagination = searchParams.has("page") || searchParams.has("limit") || Boolean(search);
+  const where = search
+    ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { email: { contains: search, mode: "insensitive" as const } },
+          { documentId: { contains: search, mode: "insensitive" as const } },
+        ],
+      }
+    : undefined;
+
+  if (hasPagination) {
+    const requestedPagination = parsePagination(searchParams.get("page"), searchParams.get("limit"));
+    const totalCount = await prisma.collaborator.count({ where });
+    const pagination = createPaginationMeta(
+      requestedPagination.page,
+      requestedPagination.limit,
+      totalCount,
+    );
+    const list = await prisma.collaborator.findMany({
+      where,
+      select: { id: true, name: true, position: true, location: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      skip: getPaginationSkip(pagination),
+      take: pagination.limit,
+    });
+
+    return NextResponse.json({ collaborators: list, pagination });
+  }
+
   const list = await prisma.collaborator.findMany({
     select: {
       id: true,
@@ -13,7 +46,7 @@ export async function GET() {
       position: true,
       location: true,
     },
-    orderBy: { name: "asc" },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
   });
   
   return NextResponse.json(list, {

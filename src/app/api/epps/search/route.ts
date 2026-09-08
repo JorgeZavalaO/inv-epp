@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth-utils';
+import { createPaginationMeta, getPaginationSkip, parsePagination } from '@/lib/pagination';
 
 export async function GET(req: Request) {
   try {
@@ -12,6 +13,10 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") ?? "";
+  const requestedPagination = parsePagination(
+    searchParams.get("page"),
+    searchParams.get("limit"),
+  );
 
   // Obtener almacenes para el mapa
   const warehousesList = await prisma.warehouse.findMany({
@@ -25,6 +30,19 @@ export async function GET(req: Request) {
   const whereEpp = q
     ? { OR: [{ name: contains(q) }, { code: contains(q) }, { category: contains(q) }] }
     : {};
+
+  const [totalCount, totalStock] = await Promise.all([
+    prisma.ePP.count({ where: whereEpp }),
+    prisma.ePPStock.aggregate({
+      where: { epp: whereEpp },
+      _sum: { quantity: true },
+    }),
+  ]);
+  const pagination = createPaginationMeta(
+    requestedPagination.page,
+    requestedPagination.limit,
+    totalCount,
+  );
 
   const epps = await prisma.ePP.findMany({
     where: whereEpp,
@@ -41,8 +59,9 @@ export async function GET(req: Request) {
       },
       _count: { select: { movements: true } },
     },
-    orderBy: { name: "asc" },
-    take: 100, // Límite razonable para búsqueda en tiempo real
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    skip: getPaginationSkip(pagination),
+    take: pagination.limit,
   });
 
   // Mapear datos al formato esperado
@@ -58,5 +77,9 @@ export async function GET(req: Request) {
     _count: e._count,
   }));
 
-  return NextResponse.json(data);
+  return NextResponse.json({
+    epps: data,
+    totalStock: totalStock._sum.quantity ?? 0,
+    pagination,
+  });
 }

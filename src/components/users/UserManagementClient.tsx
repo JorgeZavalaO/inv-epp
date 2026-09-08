@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useSession } from 'next-auth/react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   getUsers,
   createUser,
@@ -78,6 +79,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import PermissionsManager from './PermissionsManager';
 import WarehouseAssignment from './WarehouseAssignment';
+import SmartPagination from '@/components/delivery/SmartPagination';
+import PageSizeSelector from '@/components/delivery/PageSizeSelector';
 
 // Tipos
 type User = {
@@ -99,6 +102,15 @@ type Permission = {
   description: string | null;
   module: string;
   createdAt: Date;
+};
+
+type PaginationInfo = {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 };
 
 type UserWithPermissions = {
@@ -126,9 +138,13 @@ const ROLE_INFO: Record<UserRole, { label: string; color: string; icon: typeof S
 
 export default function UserManagementClient() {
   const { data: session } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<User[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || '');
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const lastUrlSearch = useRef(searchParams.get('search') || '');
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
 
@@ -144,38 +160,52 @@ export default function UserManagementClient() {
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
 
-  // Cargar datos iniciales
-  useEffect(() => {
-    loadUsers();
-    loadPermissions();
-  }, []);
+  const currentPage = Math.max(Number(searchParams.get('page') || '1'), 1);
+  const currentPageSize = Math.max(Number(searchParams.get('limit') || '20'), 1);
 
-  // Filtrar usuarios
+  const updateSearchParams = useCallback((values: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    });
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   useEffect(() => {
-    if (searchTerm) {
-      const filtered = users.filter(
-        (user) =>
-          user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.email.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredUsers(filtered);
-    } else {
-      setFilteredUsers(users);
+    const urlSearch = searchParams.get('search') || '';
+    if (urlSearch !== lastUrlSearch.current) {
+      lastUrlSearch.current = urlSearch;
+      setSearchTerm(urlSearch);
     }
-  }, [searchTerm, users]);
+  }, [searchParams]);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await getUsers();
-      setUsers(data as unknown as User[]);
+      const result = await getUsers({
+        page: currentPage,
+        pageSize: currentPageSize,
+        search: searchTerm,
+      });
+      setUsers(result.users as unknown as User[]);
+      setPagination(result.pagination);
     } catch (error) {
       toast.error('Error al cargar usuarios');
       console.error(error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentPage, currentPageSize, searchTerm]);
+
+  // Load the current server-side page whenever URL filters change.
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    loadPermissions();
+  }, []);
 
   const loadPermissions = async () => {
     try {
@@ -362,7 +392,7 @@ export default function UserManagementClient() {
             <div>
               <CardTitle>Usuarios del Sistema</CardTitle>
               <CardDescription>
-                {users.length} {users.length === 1 ? 'usuario' : 'usuarios'} registrados
+                {pagination?.totalCount ?? users.length} {(pagination?.totalCount ?? users.length) === 1 ? 'usuario' : 'usuarios'} registrados
               </CardDescription>
             </div>
             <Button onClick={() => setIsCreateModalOpen(true)}>
@@ -377,7 +407,11 @@ export default function UserManagementClient() {
             <Input
               placeholder="Buscar por nombre o email..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSearchTerm(value);
+                updateSearchParams({ search: value.trim(), page: '1' });
+              }}
               className="pl-10"
             />
           </div>
@@ -399,14 +433,14 @@ export default function UserManagementClient() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.length === 0 ? (
+              {users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No se encontraron usuarios
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => {
+                users.map((user) => {
                   const roleInfo = ROLE_INFO[user.role];
                   const RoleIcon = roleInfo.icon;
                   const isCurrentUser = user.id === session?.user?.id;
@@ -492,6 +526,27 @@ export default function UserManagementClient() {
           </Table>
         </CardContent>
       </Card>
+
+      {pagination && (
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-end">
+            <PageSizeSelector
+              pageSize={pagination.limit}
+              onPageSizeChange={(size) => updateSearchParams({ limit: String(size), page: '1' })}
+              totalCount={pagination.totalCount}
+            />
+          </div>
+          {pagination.totalPages > 1 && (
+            <SmartPagination
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={(page) => updateSearchParams({ page: String(page) })}
+              hasNext={pagination.hasNext}
+              hasPrev={pagination.hasPrev}
+            />
+          )}
+        </div>
+      )}
 
       {/* Modal Crear Usuario */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>

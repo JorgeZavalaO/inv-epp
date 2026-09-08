@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Search, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import EppTable, { EppRow } from "@/components/epp/EppTable";
 import { useDebounce } from "@/lib/useDebounce";
+import SmartPagination from "@/components/delivery/SmartPagination";
+import PageSizeSelector from "@/components/delivery/PageSizeSelector";
+import { parsePagination } from "@/lib/pagination";
 
 type Warehouse = { id: number; name: string };
 
@@ -27,6 +30,21 @@ interface EPPFromAPI {
   };
 }
 
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+interface EppSearchResponse {
+  epps: EPPFromAPI[];
+  totalStock: number;
+  pagination: PaginationInfo;
+}
+
 export default function EppsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,6 +54,9 @@ export default function EppsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<EppRow[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const [totalStock, setTotalStock] = useState(0);
+  const lastUrlQuery = useRef(initialQuery);
 
   // Debounce la búsqueda para no hacer demasiadas peticiones
   const debouncedQuery = useDebounce(query, 300);
@@ -48,11 +69,45 @@ export default function EppsPage() {
       .catch(() => setWarehouses([]));
   }, []);
 
-  // Función para buscar EPPs
-  const searchEpps = useCallback(async (searchQuery: string) => {
+  const rawPage = searchParams.get("page");
+  const rawLimit = searchParams.get("limit");
+  const { page: currentPage, limit: currentLimit } = parsePagination(rawPage, rawLimit);
+
+  const updateSearchParams = useCallback((values: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    });
+    router.replace(`/epps?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    const values: Record<string, string> = {};
+    if (rawPage !== null && rawPage !== String(currentPage)) {
+      values.page = String(currentPage);
+    }
+    if (rawLimit !== null && rawLimit !== String(currentLimit)) {
+      values.limit = String(currentLimit);
+    }
+    if (Object.keys(values).length > 0) {
+      updateSearchParams(values);
+    }
+  }, [currentLimit, currentPage, rawLimit, rawPage, updateSearchParams]);
+
+  useEffect(() => {
+    const urlQuery = searchParams.get("q") || "";
+    if (urlQuery !== lastUrlQuery.current) {
+      lastUrlQuery.current = urlQuery;
+      setQuery(urlQuery);
+    }
+  }, [searchParams]);
+
+  // Search EPPs on the server and keep pagination metadata alongside the rows.
+  const searchEpps = useCallback(async (searchQuery: string, page: number, limit: number) => {
     setIsLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       if (searchQuery.trim()) {
         params.set("q", searchQuery.trim());
       }
@@ -60,10 +115,10 @@ export default function EppsPage() {
       const response = await fetch(`/api/epps/search?${params.toString()}`);
       if (!response.ok) throw new Error("Error al buscar EPPs");
 
-      const epps: EPPFromAPI[] = await response.json();
+      const result: EppSearchResponse = await response.json();
 
       // Mapear los datos al formato esperado por EppTable
-      const mappedData: EppRow[] = epps.map((e: EPPFromAPI) => ({
+      const mappedData: EppRow[] = result.epps.map((e: EPPFromAPI) => ({
         id: e.id,
         code: e.code,
         name: e.name,
@@ -81,41 +136,45 @@ export default function EppsPage() {
       }));
 
       setData(mappedData);
+      setPagination(result.pagination);
+      setTotalStock(result.totalStock);
+      if (result.pagination.page !== page) {
+        updateSearchParams({ page: String(result.pagination.page) });
+      }
     } catch (error) {
       console.error("Error searching EPPs:", error);
       setData([]);
+      setPagination(null);
+      setTotalStock(0);
     } finally {
       setIsLoading(false);
     }
-  }, [warehouses]);
+  }, [updateSearchParams, warehouses]);
 
   // Buscar cuando cambie la query debounced
   useEffect(() => {
-    searchEpps(debouncedQuery);
-  }, [debouncedQuery, searchEpps]);
-
-  // Actualizar URL cuando cambie la query
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (query.trim()) {
-      params.set("q", query.trim());
-    }
-
-    const newUrl = query.trim() ? `/epps?${params.toString()}` : "/epps";
-    router.replace(newUrl, { scroll: false });
-  }, [query, router]);
+    searchEpps(debouncedQuery, currentPage, currentLimit);
+  }, [currentLimit, currentPage, debouncedQuery, searchEpps]);
 
   // Limpiar búsqueda
   const clearSearch = () => {
     setQuery("");
+    updateSearchParams({ q: "", page: "1" });
   };
 
-  // Calcular estadísticas
-  const stats = useMemo(() => {
-    const totalItems = data.length;
-    const totalStock = data.reduce((sum, item) => sum + item.stock, 0);
-    return { totalItems, totalStock };
-  }, [data]);
+  const stats = useMemo(() => ({
+    totalItems: pagination?.totalCount ?? 0,
+    totalStock,
+  }), [pagination?.totalCount, totalStock]);
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    updateSearchParams({ q: value.trim(), page: "1" });
+  };
+
+  const refreshData = useCallback(() => {
+    searchEpps(debouncedQuery, currentPage, currentLimit);
+  }, [currentLimit, currentPage, debouncedQuery, searchEpps]);
 
   return (
     <section className="py-6 px-4 md:px-8 space-y-6">
@@ -131,7 +190,7 @@ export default function EppsPage() {
           <Input
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => handleQueryChange(e.target.value)}
             placeholder="Buscar por código, nombre o categoría..."
             className="pl-10 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             autoFocus={initialQuery ? true : false}
@@ -167,10 +226,35 @@ export default function EppsPage() {
         </div>
       </div>
 
-      <EppTable
+  <EppTable
         data={data}
         warehouses={warehouses}
+        onChanged={refreshData}
       />
+
+      {pagination && (
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-muted-foreground">
+              Showing {data.length === 0 ? 0 : ((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.totalCount)} of {pagination.totalCount} products
+            </div>
+            <PageSizeSelector
+              pageSize={pagination.limit}
+              onPageSizeChange={(size) => updateSearchParams({ limit: String(size), page: "1" })}
+              totalCount={pagination.totalCount}
+            />
+          </div>
+          {pagination.totalPages > 1 && (
+            <SmartPagination
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={(page) => updateSearchParams({ page: String(page) })}
+              hasNext={pagination.hasNext}
+              hasPrev={pagination.hasPrev}
+            />
+          )}
+        </div>
+      )}
     </section>
   );
 }

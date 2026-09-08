@@ -44,7 +44,15 @@ export type EppRow = {
 
   type Warehouse = { id: number; name: string };
 
-  export default function EppTable({ data, warehouses }: { data: EppRow[]; warehouses: Warehouse[] }) {
+  export default function EppTable({
+    data,
+    warehouses,
+    onChanged,
+  }: {
+    data: EppRow[];
+    warehouses: Warehouse[];
+    onChanged?: () => void;
+  }) {
   const [pending, startTransition] = useTransition();
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing]       = useState<EppRow | null>(null);
@@ -194,6 +202,7 @@ export type EppRow = {
                             await deleteEpp(e.id);
                             toast.success("EPP eliminado");
                             setDeleting(null);
+                            onChanged?.();
                           } catch (err: unknown) {
                             const message =
                               err instanceof Error ? err.message : "Error desconocido";
@@ -213,7 +222,7 @@ export type EppRow = {
       });
 
       return cols;
-  }, [showCategory, showTotal, splitStock, warehouseAId, warehouseBId, deleting, pending, getWarehouseName, qtyFor]);
+  }, [showCategory, showTotal, splitStock, warehouseAId, warehouseBId, deleting, pending, getWarehouseName, qtyFor, onChanged]);
 
   return (
     <>
@@ -354,7 +363,7 @@ export type EppRow = {
 
       <DataTable columns={columns} data={data} />
 
-      {showCreate && <ModalCreateEpp onClose={() => setShowCreate(false)} />}
+      {showCreate && <ModalCreateEpp onClose={() => { setShowCreate(false); onChanged?.(); }} />}
       {editing && (
         <ModalEditEpp
           epp={{
@@ -364,11 +373,11 @@ export type EppRow = {
               initialQty: item.quantity,
             })),
           }}
-          onClose={() => setEditing(null)}
+          onClose={() => { setEditing(null); onChanged?.(); }}
         />
       )}
       {viewing && <ModalViewEpp epp={viewing} onClose={() => setViewing(null)} />}
-      {importing && <ModalImportEpp onClose={() => setImporting(false)} />}
+      {importing && <ModalImportEpp onClose={() => { setImporting(false); onChanged?.(); }} />}
     </>
   );
 }

@@ -225,13 +225,13 @@ NEXT_PUBLIC_CLERK_SIGN_UP_URL="/sign-up"
 ### Paso 4: Inicializar la Base de Datos
 ```bash
 # Generar el cliente de Prisma
-npx prisma generate
+pnpm exec prisma generate
 
 # Ejecutar migraciones
-npx prisma migrate dev
+pnpm exec prisma migrate dev
 
 # (Opcional) Seed con datos de prueba
-npx prisma db seed
+pnpm exec prisma db seed
 ```
 
 ### Paso 5: Iniciar el Servidor de Desarrollo
@@ -395,7 +395,7 @@ pnpm run build:vercel
 #### Error de Migraciones
 ```bash
 # Verificar estado de migraciones
-npx prisma migrate status
+pnpm exec prisma migrate status
 
 # Ver logs en Vercel Dashboard
 ```

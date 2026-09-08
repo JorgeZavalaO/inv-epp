@@ -1,7 +1,7 @@
 /**
  * Script para establecer contraseña para usuarios existentes
  * Ejecutar con:
- *   npx tsx scripts/set-user-password.ts [--email=correo@dominio] [--min-length=8] [--salt-rounds=12]
+ *   pnpm exec tsx scripts/set-user-password.ts [--email=correo@dominio] [--min-length=8] [--salt-rounds=12]
  */
 
 import { PrismaClient } from '@prisma/client';

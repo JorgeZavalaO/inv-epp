@@ -3,10 +3,19 @@ import { z } from "zod";
 export const entryItemSchema = z.object({
   eppId:    z.coerce.number().min(1, "EPP requerido"),
   quantity: z.coerce.number().int().min(1, "Cantidad ≥1"),
-  unitPrice: z.coerce
-            .number({ invalid_type_error: "Precio inválido" })
-            .min(0, "Precio ≥ 0")
-            .optional(),
+  unitPrice: z.preprocess(
+    (value) =>
+      value === "" ||
+      value === null ||
+      value === undefined ||
+      (typeof value === "number" && Number.isNaN(value))
+        ? undefined
+        : value,
+    z.coerce
+      .number({ invalid_type_error: "Precio inválido" })
+      .min(0, "Precio ≥ 0")
+      .optional(),
+  ),
 });
 
 export const entryBatchSchema = z.object({

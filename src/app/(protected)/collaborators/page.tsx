@@ -1,11 +1,17 @@
+import { Suspense } from "react";
 import prisma from "@/lib/prisma";
 import CollaboratorsClient from "./CollaboratorsClient";
 import { hasPermission } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
+import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
 
 export const revalidate = 0;
 
-export default async function CollaboratorsPage() {
+export default async function CollaboratorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; limit?: string }>;
+}) {
   // Verificar permisos
   const canAccess = await hasPermission('collaborators_manage');
   
@@ -13,8 +19,18 @@ export default async function CollaboratorsPage() {
     redirect('/dashboard');
   }
   
+  const params = await searchParams;
+  const requestedPagination = parsePagination(params.page, params.limit);
+  const totalCount = await prisma.collaborator.count();
+  const pagination = createPaginationMeta(
+    requestedPagination.page,
+    requestedPagination.limit,
+    totalCount,
+  );
   const list = await prisma.collaborator.findMany({
-    orderBy: { name: "asc" },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    skip: getPaginationSkip(pagination),
+    take: pagination.limit,
   });
   const serializedList = list.map((collaborator) => ({
     ...collaborator,
@@ -22,5 +38,9 @@ export default async function CollaboratorsPage() {
     createdAt: collaborator.createdAt.toISOString(),
     updatedAt: collaborator.updatedAt.toISOString(),
   }));
-  return <CollaboratorsClient list={serializedList} />;
+  return (
+    <Suspense fallback={<div className="min-h-32" />}>
+      <CollaboratorsClient list={serializedList} pagination={pagination} />
+    </Suspense>
+  );
 }

@@ -12,6 +12,7 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Option {
   id: number;
@@ -21,9 +22,21 @@ interface Option {
 export default function ComboboxEpp({
   value,
   onChange,
+  id,
+  disabled = false,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
+  "aria-label": ariaLabel,
+  className,
 }: {
-  value: number | null;
+  value: number | null | undefined;
   onChange: (id: number | null) => void;
+  id?: string;
+  disabled?: boolean;
+  "aria-invalid"?: React.AriaAttributes["aria-invalid"];
+  "aria-describedby"?: string;
+  "aria-label"?: string;
+  className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -79,10 +92,15 @@ export default function ComboboxEpp({
       <PopoverTrigger asChild>
         <Button
           ref={triggerRef}
+          id={id}
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between text-left overflow-hidden"
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
+          aria-label={ariaLabel}
+          disabled={disabled}
+          className={cn("w-full justify-between overflow-hidden text-left", className)}
         >
           <span
             className={(value ? "text-foreground " : "text-muted-foreground ") + "block truncate"}

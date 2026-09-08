@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 /**
  * Seed de permisos con soporte de vista previa.
  * Uso:
- *   npx tsx scripts/seed-permissions.ts [--preview]
+ *   pnpm exec tsx scripts/seed-permissions.ts [--preview]
  *
  * --preview: no aplica cambios, solo muestra qué se crearía/actualizaría
  */

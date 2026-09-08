@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface WarehouseOption {
   id:    number;
@@ -20,12 +21,22 @@ export default function ComboboxWarehouse({
   value,
   onChange,
   options,
+  id,
   disabled = false,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
+  "aria-label": ariaLabel,
+  className,
 }: {
-  value: number | null;
+  value: number | null | undefined;
   onChange: (id: number | null) => void;
   options: WarehouseOption[];
+  id?: string;
   disabled?: boolean;
+  "aria-invalid"?: React.AriaAttributes["aria-invalid"];
+  "aria-describedby"?: string;
+  "aria-label"?: string;
+  className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -55,10 +66,14 @@ export default function ComboboxWarehouse({
       <PopoverTrigger asChild>
         <Button
           ref={triggerRef}
+          id={id}
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
+          aria-label={ariaLabel}
+          className={cn("w-full justify-between", className)}
           disabled={disabled}
         >
           <span className={value ? "text-foreground" : "text-muted-foreground"}>

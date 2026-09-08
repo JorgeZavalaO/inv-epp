@@ -6,6 +6,7 @@ import { transferBatchSchema } from "@/schemas/transfer-schema";
 import { revalidatePath } from "next/cache";
 import { ensureAuthUser, requirePermission } from "@/lib/auth-utils";
 import { UserRole, MovementStatus } from "@prisma/client";
+import { createPaginationMeta, parsePagination } from "@/lib/pagination";
 
 function buildTransferCode() {
   return `TRF-${Date.now().toString(36).toUpperCase()}`;
@@ -274,6 +275,112 @@ export async function createTransfer(fd: FormData) {
     return {
       success: false,
       message,
+    };
+  }
+}
+
+export async function updateMovement(id: number, fd: FormData) {
+  try {
+    await requirePermission("stock_movements_manage");
+    const data = stockMovementSchema.parse(Object.fromEntries(fd));
+    const dbUser = await ensureAuthUser();
+
+    await prisma.$transaction(async (tx) => {
+      const movement = await tx.stockMovement.findUnique({ where: { id } });
+
+      if (!movement) {
+        throw new Error("Movimiento no encontrado");
+      }
+
+      if (movement.status === MovementStatus.REJECTED) {
+        throw new Error("No se puede editar un movimiento rechazado");
+      }
+
+      if (
+        movement.type !== "ENTRY" &&
+        movement.type !== "EXIT"
+      ) {
+        throw new Error("Solo se pueden editar entradas y salidas");
+      }
+
+      if (
+        data.eppId !== movement.eppId ||
+        data.warehouseId !== movement.warehouseId ||
+        data.type !== movement.type
+      ) {
+        throw new Error("El EPP, almacén y tipo de movimiento no se pueden cambiar");
+      }
+
+      const movementData = {
+        quantity: data.quantity,
+        unitPrice: data.unitPrice,
+        note: data.note,
+        purchaseOrder: data.purchaseOrder,
+      };
+
+      if (movement.status === MovementStatus.PENDING) {
+        await tx.stockMovement.update({ where: { id }, data: movementData });
+        return;
+      }
+
+      const stock = await tx.ePPStock.findUnique({
+        where: {
+          eppId_warehouseId: {
+            eppId: movement.eppId,
+            warehouseId: movement.warehouseId,
+          },
+        },
+        select: { quantity: true },
+      });
+      const currentStock = stock?.quantity ?? 0;
+      const previousChange = movement.type === "ENTRY" ? movement.quantity : -movement.quantity;
+      const isAdminEdit = dbUser.role === UserRole.ADMIN;
+      const nextChange = isAdminEdit
+        ? movement.type === "ENTRY" ? data.quantity : -data.quantity
+        : 0;
+      const nextStock = currentStock - previousChange + nextChange;
+
+      if (nextStock < 0) {
+        throw new Error(`Stock insuficiente en el almacén. Disponible para este cambio: ${currentStock - previousChange}, solicitado: ${data.quantity}`);
+      }
+
+      await tx.stockMovement.update({
+        where: { id },
+        data: isAdminEdit
+          ? movementData
+          : {
+              ...movementData,
+              status: MovementStatus.PENDING,
+              approvedById: null,
+              approvedAt: null,
+              rejectionNote: null,
+            },
+      });
+      await tx.ePPStock.upsert({
+        where: {
+          eppId_warehouseId: {
+            eppId: movement.eppId,
+            warehouseId: movement.warehouseId,
+          },
+        },
+        update: { quantity: nextStock },
+        create: {
+          eppId: movement.eppId,
+          warehouseId: movement.warehouseId,
+          quantity: nextStock,
+        },
+      });
+    });
+
+    revalidatePath("/stock-movements");
+    revalidatePath("/epps");
+    revalidatePath("/dashboard");
+
+    return { success: true, message: "Movimiento actualizado correctamente" };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al actualizar el movimiento",
     };
   }
 }
@@ -633,15 +740,22 @@ export async function rejectMovement(movementId: number, rejectionNote: string) 
 /**
  * Obtener movimientos pendientes de aprobación
  */
-export async function getPendingMovements() {
+export async function getPendingMovements(options: { page?: number; pageSize?: number } = {}) {
   const dbUser = await ensureAuthUser();
+  const requestedPagination = parsePagination(
+    String(options.page ?? 1),
+    String(options.pageSize ?? 20),
+  );
   
   // Solo ADMIN puede ver movimientos pendientes
   if (dbUser.role !== UserRole.ADMIN) {
-    return [];
+    return {
+      movements: [],
+      pagination: createPaginationMeta(requestedPagination.page, requestedPagination.limit, 0),
+    };
   }
 
-  return prisma.stockMovement.findMany({
+  const movements = await prisma.stockMovement.findMany({
     where: {
       status: MovementStatus.PENDING,
     },
@@ -656,8 +770,43 @@ export async function getPendingMovements() {
         },
       },
     },
-    orderBy: {
-      createdAt: 'asc',
-    },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   });
+
+  // Transfer approvals are represented by OUT/IN pairs. Paginate groups so
+  // the two sides of a transfer are always visible on the same page.
+  const groups = new Map<string, { firstDate: number; firstId: number; movements: typeof movements }>();
+  for (const movement of movements) {
+    const isTransfer =
+      (movement.type === "TRANSFER_OUT" || movement.type === "TRANSFER_IN") &&
+      Boolean(movement.purchaseOrder);
+    const key = isTransfer
+      ? `transfer:${movement.purchaseOrder}`
+      : `movement:${movement.id}`;
+    const group = groups.get(key);
+    if (group) {
+      group.movements.push(movement);
+    } else {
+      groups.set(key, {
+        firstDate: movement.createdAt.getTime(),
+        firstId: movement.id,
+        movements: [movement],
+      });
+    }
+  }
+
+  const orderedGroups = Array.from(groups.values()).sort((a, b) =>
+    a.firstDate - b.firstDate || a.firstId - b.firstId,
+  );
+  const pagination = createPaginationMeta(
+    requestedPagination.page,
+    requestedPagination.limit,
+    orderedGroups.length,
+  );
+  const start = (pagination.page - 1) * pagination.limit;
+  const pageMovements = orderedGroups
+    .slice(start, start + pagination.limit)
+    .flatMap((group) => group.movements);
+
+  return { movements: pageMovements, pagination };
 }

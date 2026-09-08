@@ -1,11 +1,17 @@
+import { Suspense } from "react";
 import prisma from "@/lib/prisma";
 import ReturnClient, { ReturnBatchRow } from "@/components/return/ReturnClient";
 import { hasPermission } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
+import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
 
 export const revalidate = 0;
 
-export default async function ReturnsPage() {
+export default async function ReturnsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; limit?: string }>;
+}) {
   // Verificar permisos
   const canAccess = await hasPermission('returns_manage');
   
@@ -13,6 +19,14 @@ export default async function ReturnsPage() {
     redirect('/dashboard');
   }
   
+  const params = await searchParams;
+  const requestedPagination = parsePagination(params.page, params.limit);
+  const totalCount = await prisma.returnBatch.count();
+  const pagination = createPaginationMeta(
+    requestedPagination.page,
+    requestedPagination.limit,
+    totalCount,
+  );
   const list = await prisma.returnBatch.findMany({
     include: {
       warehouse: { select: { name: true } },
@@ -20,7 +34,9 @@ export default async function ReturnsPage() {
       cancelledDeliveryBatch: { select: { code: true } },
       _count:    { select: { items: true } },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: getPaginationSkip(pagination),
+    take: pagination.limit,
   });
 
   /* ⛑️  conversione segura → ninguna propiedad es usada sin comprobar */
@@ -34,5 +50,9 @@ export default async function ReturnsPage() {
     cancelledDeliveryBatchCode: b.cancelledDeliveryBatch?.code ?? null,
   }));
 
-  return <ReturnClient initialData={data} />;
+  return (
+    <Suspense fallback={<div className="min-h-32" />}>
+      <ReturnClient initialData={data} pagination={pagination} />
+    </Suspense>
+  );
 }

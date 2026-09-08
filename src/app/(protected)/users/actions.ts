@@ -15,32 +15,52 @@ import {
 } from "@/schemas/user-schema";
 import { requirePermission } from "@/lib/auth-utils";
 import { UserRole } from "@prisma/client";
+import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
 
 /**
  * Obtener todos los usuarios con sus roles y permisos
  */
-export async function getUsers() {
+export async function getUsers(options: { page?: number; pageSize?: number; search?: string } = {}) {
   await requirePermission("user_view");
 
-  return prisma.user.findMany({
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      image: true,
-      createdAt: true,
-      updatedAt: true,
-      _count: {
-        select: {
-          permissions: true,
+  const { page: requestedPage, limit } = parsePagination(
+    String(options.page ?? 1),
+    String(options.pageSize ?? 20),
+  );
+  const search = options.search?.trim();
+  const where = search
+    ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { email: { contains: search, mode: "insensitive" as const } },
+        ],
+      }
+    : undefined;
+  const totalCount = await prisma.user.count({ where });
+  const pagination = createPaginationMeta(requestedPage, limit, totalCount);
+
+  const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        image: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            permissions: true,
+          },
         },
       },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      skip: getPaginationSkip(pagination),
+      take: pagination.limit,
+    });
+
+  return { users, pagination };
 }
 
 /**

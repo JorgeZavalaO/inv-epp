@@ -1,7 +1,8 @@
 // 📁 src/app/(protected)/warehouses/WarehousesClient.tsx
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet } from "lucide-react";
 import {
@@ -20,6 +21,8 @@ import ModalCreateWarehouse from "@/components/warehouses/ModalCreateWarehouse";
 import ModalEditWarehouse   from "@/components/warehouses/ModalEditWarehouse";
 import { deleteWarehouseAction } from "@/app/(protected)/warehouses/actions";
 import { useWarehouseStocksXlsx } from "@/lib/client-excel/useWarehouseStocksXlsx";
+import SmartPagination from "@/components/delivery/SmartPagination";
+import PageSizeSelector from "@/components/delivery/PageSizeSelector";
 
 /* ─── Tipo con stock total ───────────────────────────────── */
 export interface WarehouseWithStock {
@@ -31,15 +34,35 @@ export interface WarehouseWithStock {
 
 interface WarehousesClientProps {
   list: WarehouseWithStock[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
   canExport?: boolean;
 }
 
-export default function WarehousesClient({ list, canExport = true }: WarehousesClientProps) {
+export default function WarehousesClient({ list, pagination, canExport = true }: WarehousesClientProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingWarehouse, setEditingWarehouse] =
     useState<WarehouseWithStock | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
   const exportStocks = useWarehouseStocksXlsx();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const updateSearchParams = useCallback((values: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    });
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   const handleDelete = (id: number) => {
     const fd = new FormData();
@@ -51,6 +74,7 @@ export default function WarehousesClient({ list, canExport = true }: WarehousesC
         await deleteWarehouseAction(fd);
         toast.success("Almacén eliminado correctamente");
         if (editingWarehouse?.id === id) setEditingWarehouse(null);
+        router.refresh();
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Error al eliminar";
         toast.error(message);
@@ -161,14 +185,36 @@ export default function WarehousesClient({ list, canExport = true }: WarehousesC
         </div>
       </div>
 
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-muted-foreground">
+            Showing {list.length === 0 ? 0 : ((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.totalCount)} of {pagination.totalCount} warehouses
+          </div>
+          <PageSizeSelector
+            pageSize={pagination.limit}
+            onPageSizeChange={(size) => updateSearchParams({ limit: String(size), page: "1" })}
+            totalCount={pagination.totalCount}
+          />
+        </div>
+        {pagination.totalPages > 1 && (
+          <SmartPagination
+            currentPage={pagination.page}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => updateSearchParams({ page: String(page) })}
+            hasNext={pagination.hasNext}
+            hasPrev={pagination.hasPrev}
+          />
+        )}
+      </div>
+
       {/* Modales */}
       {showCreateModal && (
-        <ModalCreateWarehouse onClose={() => setShowCreateModal(false)} />
+        <ModalCreateWarehouse onClose={() => { setShowCreateModal(false); router.refresh(); }} />
       )}
       {editingWarehouse && (
         <ModalEditWarehouse
           warehouse={editingWarehouse}
-          onClose={() => setEditingWarehouse(null)}
+          onClose={() => { setEditingWarehouse(null); router.refresh(); }}
         />
       )}
     </section>

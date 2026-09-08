@@ -9,9 +9,9 @@
     "prisma:deploy": "prisma migrate deploy && prisma db seed",
     "prisma:status": "prisma migrate status",
     "prisma:studio": "prisma studio",
-    "vercel-build": "npm run prisma:generate && npm run prisma:deploy && npm run build",
+    "vercel-build": "pnpm run prisma:generate && pnpm run prisma:deploy && pnpm run build",
     "deploy:check": "prisma migrate status && echo '✅ Migration status OK'",
-    "deploy:safe": "prisma migrate deploy && prisma generate && npm run build",
+    "deploy:safe": "prisma migrate deploy && prisma generate && pnpm run build",
     "deploy:verify": "prisma migrate status && node scripts/verify-indexes.js"
   }
 }

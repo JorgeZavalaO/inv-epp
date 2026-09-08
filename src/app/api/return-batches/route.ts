@@ -7,42 +7,41 @@ import {
   assertWarehouseAccess,
 } from "@/lib/auth-utils";
 import { z } from "zod";
+import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
-    const skip = (page - 1) * limit;
+    const requestedPagination = parsePagination(
+      searchParams.get("page"),
+      searchParams.get("limit"),
+      20,
+    );
+    const totalCount = await prisma.returnBatch.count();
+    const pagination = createPaginationMeta(
+      requestedPagination.page,
+      Math.min(requestedPagination.limit, 50),
+      totalCount,
+    );
 
-    const [batches, totalCount] = await Promise.all([
-      prisma.returnBatch.findMany({
-        select: {
-          id: true,
-          code: true,
-          createdAt: true,
-          note: true,
-          warehouse: { select: { name: true } },
-          user: { select: { name: true, email: true } },
-          _count: { select: { items: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
-      }),
-      prisma.returnBatch.count(),
-    ]);
+    const batches = await prisma.returnBatch.findMany({
+      select: {
+        id: true,
+        code: true,
+        createdAt: true,
+        note: true,
+        warehouse: { select: { name: true } },
+        user: { select: { name: true, email: true } },
+        _count: { select: { items: true } },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: getPaginationSkip(pagination),
+      take: pagination.limit,
+    });
 
     return NextResponse.json({
       batches,
-      pagination: {
-        page,
-        limit,
-        totalCount,
-        totalPages: Math.ceil(totalCount / limit),
-        hasNext: page < Math.ceil(totalCount / limit),
-        hasPrev: page > 1,
-      },
+      pagination,
     });
   } catch (error: unknown) {
     console.error("Error fetching return batches:", error);

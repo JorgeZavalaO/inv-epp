@@ -5,6 +5,19 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### ✨ Mejorado
+- Se mejoraron los modales de movimientos de stock con layout responsive, estados de carga/error, feedback inline y acciones accesibles.
+- La edición de movimientos ahora se procesa como una operación transaccional para evitar perder el registro original si ocurre un error.
+- La entrada múltiple ahora persiste el precio unitario y permite administrar sus líneas correctamente en dispositivos móviles.
+- El stock mostrado al registrar un movimiento corresponde al almacén seleccionado.
+- Se migraron las instrucciones, scripts de despliegue y configuración del proyecto a PNPM 11.3.0.
+
+### 🐛 Corregido
+- Se evitó el cierre prematuro de modales durante operaciones asíncronas.
+- Se corrigieron nombres accesibles, mensajes de validación y áreas táctiles de las acciones de movimientos.
+
 ## [1.3.0] - 2026-02-17
 
 ### ✨ Agregado

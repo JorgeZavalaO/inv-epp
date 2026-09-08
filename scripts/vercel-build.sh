@@ -17,7 +17,7 @@ VERCEL_ENVIRONMENT="${VERCEL_ENV:-}"
 echo "ℹ️  VERCEL_ENV=${VERCEL_ENVIRONMENT:-desconocido}"
 
 echo "📦 Generando cliente Prisma..."
-npx prisma generate
+pnpm exec prisma generate
 
 # Permitir saltar migraciones en build si se define SKIP_PRISMA_MIGRATE (útil en preview)
 if [ "${VERCEL_ENVIRONMENT}" = "preview" ]; then
@@ -40,7 +40,7 @@ else
   fi
 
   echo "🔍 Verificando estado de migraciones..."
-  npx prisma migrate status || {
+  pnpm exec prisma migrate status || {
     echo "⚠️  Advertencia: Problemas con migraciones detectados"
     echo "🔄 Intentando resolver..."
   }
@@ -48,14 +48,14 @@ else
   echo "🚀 Aplicando migraciones pendientes..."
   # Aumentar timeout de locking via variable y usar directUrl si existe
   export PRISMA_MIGRATE_ENGINE_ADVISORY_LOCK_TIMEOUT=30000
-  npx prisma migrate deploy || {
+  pnpm exec prisma migrate deploy || {
     echo "❌ Error aplicando migraciones (posible timeout de advisory lock con pooler)"
     echo "� Reintentando en 5s..."
     sleep 5
-    npx prisma migrate deploy || {
+    pnpm exec prisma migrate deploy || {
       echo "❌ Falló el segundo intento de migración"
       echo "🔍 Estado de migraciones actual:"
-      npx prisma migrate status || true
+      pnpm exec prisma migrate status || true
       exit 1
     }
   }

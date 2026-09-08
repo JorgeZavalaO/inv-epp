@@ -4,22 +4,22 @@
 set -e  # Exit on error
 
 echo "🔍 Verificando estado de migraciones..."
-npx prisma migrate status
+pnpm exec prisma migrate status
 
 echo "📋 Verificando conexión a base de datos..."
-npx prisma db pull --print > /dev/null
+pnpm exec prisma db pull --print > /dev/null
 
 echo "📦 Generando cliente Prisma..."
-npx prisma generate
+pnpm exec prisma generate
 
 echo "🚀 Aplicando migraciones pendientes..."
-npx prisma migrate deploy
+pnpm exec prisma migrate deploy
 
 echo "🏗️  Construyendo aplicación..."
-npm run build
+pnpm run build
 
 echo "✅ Verificando deployment..."
-npx prisma migrate status
+pnpm exec prisma migrate status
 
 echo "📊 Verificando índices..."
 node -e "
