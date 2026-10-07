@@ -81,6 +81,12 @@ export async function fetchDeliveriesForExport(filters: DeliveriesExportFilters)
               documentId: true,
             },
           },
+          user: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
         },
       },
       epp: true,
@@ -115,6 +121,7 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
     "DESCRIPCION DE PRODUCTO",
     "CANTIDADES",
     "OBSERVACIONES",
+    "OPERADOR",
   ];
 
   worksheet.addRow(header);
@@ -134,6 +141,7 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
     const collaboratorName = delivery.batch.collaborator?.name ?? "Sin asignar";
     const collaboratorLocation = delivery.batch.collaborator?.location ?? "";
     const collaboratorDocumentId = delivery.batch.collaborator?.documentId ?? "";
+    const operator = delivery.batch.user?.name?.trim() || delivery.batch.user?.email?.trim() || "No disponible";
     const deliveryDate = delivery.batch.createdAt ?? delivery.createdAt;
     const deliveryDateStr = deliveryDate ? dateFormatter.format(deliveryDate) : "";
     const productDescription = delivery.epp.description?.trim()
@@ -154,6 +162,7 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
       productDescription,
       delivery.quantity,
       note,
+      operator,
     ]);
   });
   console.groupEnd();
