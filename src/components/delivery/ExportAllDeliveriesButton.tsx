@@ -148,59 +148,64 @@ export function ExportAllDeliveriesButton({ searchParams = "" }: { searchParams?
                 <Separator />
 
                 {/* Detalle por lote */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <h3 className="font-semibold text-sm">Lotes a exportar</h3>
 
-                  {preview.batches.map((batch) => (
-                    <div key={batch.id} className="space-y-3 p-3 bg-muted/50 rounded-md">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-semibold text-sm">{batch.code}</p>
-                          <p className="text-sm text-muted-foreground">{batch.warehouse.name}</p>
-                        </div>
-                        <span className="text-xs bg-secondary px-2 py-1 rounded">
-                          {batch.deliveries.length} artículos
-                        </span>
-                      </div>
-
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Colaborador:</span>
-                          <span className="font-medium">{batch.collaborator.name}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">DNI:</span>
-                          <span className="font-mono font-semibold">
-                            {batch.collaborator.documentId || "—"}
+                  <div className="divide-y divide-border">
+                    {preview.batches.map((batch) => (
+                      <div key={batch.id} className="py-3 first:pt-0 last:pb-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-baseline gap-x-2">
+                              <p className="font-semibold text-sm">{batch.code}</p>
+                              <p className="break-words text-sm text-muted-foreground">
+                                {batch.warehouse.name}
+                              </p>
+                            </div>
+                            <p className="mt-1 break-words text-sm">
+                              <span className="text-muted-foreground">Colaborador: </span>
+                              <span className="font-medium">{batch.collaborator.name}</span>
+                            </p>
+                            <p className="flex flex-wrap gap-x-3 text-xs">
+                              <span className="break-words">
+                                <span className="text-muted-foreground">DNI: </span>
+                                <span className="font-mono font-semibold">
+                                  {batch.collaborator.documentId || "—"}
+                                </span>
+                              </span>
+                              <span className="break-words">
+                                <span className="text-muted-foreground">Localidad: </span>
+                                {batch.collaborator.location}
+                              </span>
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded bg-secondary px-2 py-1 text-xs">
+                            {batch.deliveries.length} artículos
                           </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Localidad:</span>
-                          <span>{batch.collaborator.location}</span>
-                        </div>
-                      </div>
 
-                      {batch.deliveries.length > 0 && (
-                        <div className="mt-2 space-y-1 text-xs">
-                          <p className="text-muted-foreground font-semibold">Artículos:</p>
-                          {batch.deliveries.slice(0, 3).map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex justify-between text-muted-foreground"
-                            >
-                              <span>{item.epp.name}</span>
-                              <span>x{item.quantity}</span>
-                            </div>
-                          ))}
-                          {batch.deliveries.length > 3 && (
-                            <p className="text-muted-foreground italic">
-                              +{batch.deliveries.length - 3} artículos más...
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        {batch.deliveries.length > 0 && (
+                          <div className="mt-2 space-y-1 text-xs">
+                            <p className="font-semibold text-muted-foreground">Artículos:</p>
+                            {batch.deliveries.slice(0, 3).map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex justify-between gap-3 text-muted-foreground"
+                              >
+                                <span className="min-w-0 break-words">{item.epp.name}</span>
+                                <span className="shrink-0 whitespace-nowrap">x{item.quantity}</span>
+                              </div>
+                            ))}
+                            {batch.deliveries.length > 3 && (
+                              <p className="text-muted-foreground italic">
+                                +{batch.deliveries.length - 3} artículos más...
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <Separator />
