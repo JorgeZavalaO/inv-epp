@@ -9,6 +9,7 @@ import IndicatorsPanel from "@/components/reports/IndicatorsPanel";
 import ReportsFilters from "./reports-filters";
 import { hasPermission } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
+import { getWarehouseScope, narrowScope } from "@/lib/warehouse-scope";
 
 export default async function ReportsPage({ searchParams }: { searchParams?: Promise<{ year?: string; warehouseId?: string; category?: string; collaboratorId?: string; location?: string; from?: string; to?: string }> }) {
   // Verificar permisos
@@ -19,16 +20,18 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Pro
   }
   
   const sp = (await searchParams) ?? {};
+  const scope = await getWarehouseScope();
   const year = Number(sp.year ?? new Date().getFullYear());
   const warehouseId = sp.warehouseId ? Number(sp.warehouseId) : undefined;
+  const warehouseIds = narrowScope(scope, warehouseId);
   const category = sp.category || undefined;
   const collaboratorId = sp.collaboratorId ? Number(sp.collaboratorId) : undefined;
   const location = sp.location || undefined;
   const from = sp.from || undefined;
   const to = sp.to || undefined;
   const [data, filterData] = await Promise.all([
-    fetchReportsData(year, { warehouseId, category, collaboratorId, location, from, to }),
-    fetchReportFilterData(),
+    fetchReportsData(year, { warehouseId, warehouseIds, category, collaboratorId, location, from, to }),
+    fetchReportFilterData(scope),
   ]);
 
   return (

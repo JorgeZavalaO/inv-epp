@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { sqlWarehouseIn, type WarehouseScope } from "@/lib/warehouse-scope";
 
 export interface MonthlyPoint {
   month: string; // YYYY-MM
@@ -55,6 +56,8 @@ export interface ReportsData {
 
 export interface ReportsFilters {
   warehouseId?: number;
+  /** Effective warehouse scope from the session. Overrides warehouseId. */
+  warehouseIds?: number[] | null;
   category?: string;
   collaboratorId?: number;
   location?: string;
@@ -103,7 +106,13 @@ function ensureMonthsInRange(rows: Array<{ month: string; qty: number }>, from: 
 }
 
 export async function fetchReportsData(year: number, filters: ReportsFilters = {}): Promise<ReportsData> {
-  const { warehouseId, category, collaboratorId, location, from, to } = filters;
+  const { category, collaboratorId, location, from, to } = filters;
+  const scopedWarehouseIds =
+    filters.warehouseIds !== undefined
+      ? filters.warehouseIds
+      : filters.warehouseId
+        ? [filters.warehouseId]
+        : null;
   const defaultFrom = new Date(year, 0, 1);
   const defaultTo = new Date(year, 11, 31, 23, 59, 59, 999);
   const fromDate = from ? new Date(from) : defaultFrom;
@@ -111,7 +120,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
   
   // ✅ Construir condiciones WHERE base (siempre disponibles)
   const baseConditions = [Prisma.sql`d."createdAt" BETWEEN ${fromDate} AND ${toDate}`];
-  if (warehouseId) baseConditions.push(Prisma.sql`b."warehouseId" = ${warehouseId}`);
+  baseConditions.push(sqlWarehouseIn(Prisma.raw('b."warehouseId"'), scopedWarehouseIds));
   if (category) baseConditions.push(Prisma.sql`e."category" = ${category}`);
   if (collaboratorId) baseConditions.push(Prisma.sql`b."collaboratorId" = ${collaboratorId}`);
   
@@ -220,8 +229,8 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       INNER JOIN "EPP" e ON e.id = r."eppId"
       WHERE rb."createdAt" BETWEEN ${fromDate} AND ${toDate}
         AND e."category" IS NOT NULL
+        AND ${sqlWarehouseIn(Prisma.raw('rb."warehouseId"'), scopedWarehouseIds)}
         ${category ? Prisma.sql`AND e."category" = ${category}` : Prisma.empty}
-        ${warehouseId ? Prisma.sql`AND rb."warehouseId" = ${warehouseId}` : Prisma.empty}
     `),
     // Solicitudes
     prisma.$queryRaw<Array<{ total_requests: number; completed_requests: number }>>(Prisma.sql`
@@ -230,6 +239,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       FROM "Request" req
       INNER JOIN "EPP" e ON e.id = req."eppId"
       WHERE req."createdAt" BETWEEN ${fromDate} AND ${toDate}
+        AND ${sqlWarehouseIn(Prisma.raw('req."warehouseId"'), scopedWarehouseIds)}
         ${category ? Prisma.sql`AND e."category" = ${category}` : Prisma.empty}
     `),
     prisma.$queryRaw<Array<{ total_transfers: number; total_units: number; pending: number; approved: number; rejected: number }>>(Prisma.sql`
@@ -243,7 +253,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       WHERE sm.type = 'TRANSFER_OUT'
         AND sm."createdAt" BETWEEN ${fromDate} AND ${toDate}
         AND sm."purchaseOrder" IS NOT NULL
-        ${warehouseId ? Prisma.sql`AND sm."warehouseId" = ${warehouseId}` : Prisma.empty}
+        AND ${sqlWarehouseIn(Prisma.raw('sm."warehouseId"'), scopedWarehouseIds)}
         ${category ? Prisma.sql`AND e."category" = ${category}` : Prisma.empty}
     `),
     prisma.$queryRaw<Array<{ code: string; date: string; "eppName": string; quantity: number; "fromWarehouse": string; "toWarehouse": string; status: string }>>(Prisma.sql`
@@ -260,7 +270,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       WHERE sm.type IN ('TRANSFER_OUT', 'TRANSFER_IN')
         AND sm."createdAt" BETWEEN ${fromDate} AND ${toDate}
         AND sm."purchaseOrder" IS NOT NULL
-        ${warehouseId ? Prisma.sql`AND sm."warehouseId" = ${warehouseId}` : Prisma.empty}
+        AND ${sqlWarehouseIn(Prisma.raw('sm."warehouseId"'), scopedWarehouseIds)}
         ${category ? Prisma.sql`AND e."category" = ${category}` : Prisma.empty}
       GROUP BY sm."purchaseOrder", e.name
       ORDER BY MIN(sm."createdAt") DESC
@@ -319,9 +329,13 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
   };
 }
 
-export async function fetchReportFilterData(): Promise<FilterData> {
+export async function fetchReportFilterData(scope: WarehouseScope): Promise<FilterData> {
   const [warehouses, categoriesRows, collaborators, locationsRows] = await Promise.all([
-    prisma.warehouse.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.warehouse.findMany({
+      where: scope.effectiveIds === null ? {} : { id: { in: scope.effectiveIds } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
     prisma.$queryRaw<Array<{ category: string | null }>>`
       SELECT DISTINCT "category" FROM "EPP" WHERE "category" IS NOT NULL ORDER BY "category" ASC
     `,

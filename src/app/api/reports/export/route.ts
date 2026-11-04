@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateDeliveriesExcel } from "@/lib/export/deliveries-excel";
 import { requirePermission } from "@/lib/auth-utils";
+import { getWarehouseScope, narrowScope } from "@/lib/warehouse-scope";
 
 function parseNumber(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -38,6 +39,8 @@ export async function GET(req: NextRequest) {
   const toDate = parseDate(toParam, defaultTo);
 
   const warehouseId = parseNumber(searchParams.get("warehouseId"));
+  const scope = await getWarehouseScope();
+  const warehouseIds = narrowScope(scope, warehouseId);
   const collaboratorId = parseNumber(searchParams.get("collaboratorId"));
   const category = searchParams.get("category") ?? undefined;
   const location = searchParams.get("location") ?? undefined;
@@ -47,6 +50,7 @@ export async function GET(req: NextRequest) {
     from: fromDate,
     to: toDate,
     warehouseId,
+    warehouseIds,
     collaboratorId,
     category,
     location,
