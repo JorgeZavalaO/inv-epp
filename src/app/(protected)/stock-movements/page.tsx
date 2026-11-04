@@ -2,8 +2,9 @@ import prisma from "@/lib/prisma";
 import StockMovementsClient from "./StockMovementsClient";
 import { hasPermission } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
-import { MovementStatus, UserRole } from "@prisma/client";
+import { MovementStatus, Prisma, UserRole } from "@prisma/client";
 import { auth } from "@/lib/auth";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 
 export const revalidate = 0;
 const DEFAULT_PAGE_SIZE = 20;
@@ -25,23 +26,27 @@ export default async function StockMovementsPage({
   // Obtener sesión para verificar si es admin
   const session = await auth();
   const isAdmin = session?.user?.role === UserRole.ADMIN;
+  const scope = await getWarehouseScope();
+  const scopedWarehouseIds = scope.effectiveIds;
   
   // Ahora await searchParams para obtener el objeto real
   const { page: pageParam, query, pageSize: pageSizeParam } = await searchParams;
   const page = Math.max(1, Number(pageParam ?? "1"));
   const pageSize = Math.min(Math.max(Number(pageSizeParam ?? DEFAULT_PAGE_SIZE), 5), MAX_PAGE_SIZE);
 
-  // Filtro de búsqueda
-  const whereClause = query
-    ? {
-        epp: {
-          OR: [
-            { name: { contains: query, mode: "insensitive" as const } },
-            { code: { contains: query, mode: "insensitive" as const } },
-          ],
-        },
-      }
-    : {};
+  // Filtro de búsqueda + alcance de almacenes
+  const whereClause: Prisma.StockMovementWhereInput = {};
+  if (query) {
+    whereClause.epp = {
+      OR: [
+        { name: { contains: query, mode: "insensitive" as const } },
+        { code: { contains: query, mode: "insensitive" as const } },
+      ],
+    };
+  }
+  if (scopedWarehouseIds !== null) {
+    whereClause.warehouseId = { in: scopedWarehouseIds };
+  }
 
   // 1) Movimientos + paginación
   const rawList = await prisma.stockMovement.findMany({
@@ -60,12 +65,31 @@ export default async function StockMovementsPage({
   const movements = hasNext ? rawList.slice(0, pageSize) : rawList;
   const hasPrev   = page > 1;
 
-  // 2) Obtener conteo de movimientos pendientes (solo para admins)
-  const pendingCount = isAdmin 
-    ? await prisma.stockMovement.count({
-        where: { status: MovementStatus.PENDING },
-      })
-    : 0;
+  // 2) Obtener conteo de movimientos pendientes (solo para admins).
+  //    Las transferencias cuentan una sola vez aunque tengan dos tramos.
+  let pendingCount = 0;
+  if (isAdmin) {
+    const pendingMovements = await prisma.stockMovement.findMany({
+      where: { status: MovementStatus.PENDING },
+      select: { id: true, warehouseId: true, type: true, purchaseOrder: true },
+    });
+    const seenGroups = new Set<string>();
+    for (const movement of pendingMovements) {
+      const inScope =
+        scopedWarehouseIds === null ||
+        scopedWarehouseIds.includes(movement.warehouseId);
+      if (!inScope) continue;
+      const isTransfer =
+        (movement.type === "TRANSFER_OUT" || movement.type === "TRANSFER_IN") &&
+        Boolean(movement.purchaseOrder);
+      const groupKey = isTransfer
+        ? `transfer:${movement.purchaseOrder}`
+        : `movement:${movement.id}`;
+      if (seenGroups.has(groupKey)) continue;
+      seenGroups.add(groupKey);
+      pendingCount += 1;
+    }
+  }
 
   // 3) Mapear datos para el cliente
   type AllowedType = "ENTRY" | "EXIT" | "ADJUSTMENT" | "TRANSFER_IN" | "TRANSFER_OUT";

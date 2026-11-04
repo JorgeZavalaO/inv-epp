@@ -3,6 +3,7 @@
 import prisma             from "@/lib/prisma";
 import { entryBatchSchema } from "@/schemas/entry-batch-schema";
 import { ensureAuthUser } from "@/lib/auth-utils";
+import { assertWarehouseInScope } from "@/lib/warehouse-scope";
 import { revalidatePath }  from "next/cache";
 import { UserRole, MovementStatus } from "@prisma/client";
 
@@ -29,6 +30,7 @@ export async function createEntryBatch(fd: FormData) {
 
     /* 2) validar */
     const data = entryBatchSchema.parse(objRaw);
+    await assertWarehouseInScope(data.warehouseId);
     const dbUser = await ensureAuthUser();
 
   // Determinar si requiere aprobación

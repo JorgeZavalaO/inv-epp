@@ -20,17 +20,11 @@ export default function ModalCreateEntryBatch({ onClose }: { onClose(): void }) 
   const [warehouses, setWarehouses] = useState<{ id: number; label: string }[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/warehouses")
-      .then((r) => r.json())
-      .then((arr: { id: number; name: string }[]) => setWarehouses(arr.map((w) => ({ id: w.id, label: w.name }))))
-      .catch(() => setWarehouses([]));
-  }, []);
-
   const {
     control,
     handleSubmit,
     register,
+    setValue,
     formState: { isSubmitting, isValid, errors },
   } = useForm<EntryBatchValues>({
     resolver: zodResolver(entryBatchSchema),
@@ -42,6 +36,26 @@ export default function ModalCreateEntryBatch({ onClose }: { onClose(): void }) 
       items: [{ eppId: undefined!, quantity: 1, unitPrice: undefined }],
     },
   });
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/warehouses").then((r) => r.json()),
+      fetch("/api/me/warehouse-scope")
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ])
+      .then(([arr, scope]: [
+        { id: number; name: string }[],
+        { primaryWarehouse?: { id: number } | null } | null,
+      ]) => {
+        setWarehouses(arr.map((w) => ({ id: w.id, label: w.name })));
+        const primaryId = scope?.primaryWarehouse?.id;
+        if (primaryId) {
+          setValue("warehouseId", primaryId, { shouldValidate: true });
+        }
+      })
+      .catch(() => setWarehouses([]));
+  }, [setValue]);
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
 

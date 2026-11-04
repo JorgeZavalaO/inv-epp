@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
+import { getWarehouseScope, narrowScope } from "@/lib/warehouse-scope";
 
 export const revalidate = 0;
 
@@ -132,6 +133,14 @@ export default async function KardexPage({
   if (eppId !== undefined) balanceWhere.eppId = eppId;
   if (warehouseId !== undefined) balanceWhere.warehouseId = warehouseId;
 
+  // Alcance activo del usuario: nunca se amplía con el filtro de la URL.
+  const scope = await getWarehouseScope();
+  const scopedWarehouseIds = narrowScope(scope, warehouseId);
+  if (scopedWarehouseIds !== null) {
+    displayWhere.warehouseId = { in: scopedWarehouseIds };
+    balanceWhere.warehouseId = { in: scopedWarehouseIds };
+  }
+
   const [movements, balanceMovements, epps, warehouses] = await Promise.all([
     prisma.stockMovement.findMany({
       where: displayWhere,
@@ -156,6 +165,7 @@ export default async function KardexPage({
       orderBy: { name: "asc" },
     }),
     prisma.warehouse.findMany({
+      where: scope.effectiveIds === null ? {} : { id: { in: scope.effectiveIds } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

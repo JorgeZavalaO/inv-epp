@@ -24,12 +24,15 @@ type Props = {
 export default function ModalCreateTransfer({ onClose }: Props) {
   const router = useRouter();
   const [warehouses, setWarehouses] = React.useState<{ id: number; label: string }[]>([]);
+  const [primaryWarehouse, setPrimaryWarehouse] = React.useState<{ id: number; name: string } | null>(null);
+  const [scopeLoaded, setScopeLoaded] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
 
   const {
     control,
     register,
     handleSubmit,
+    setValue,
     watch,
     formState: { isSubmitting, errors, isValid },
   } = useForm<TransferBatchValues>({
@@ -44,18 +47,36 @@ export default function ModalCreateTransfer({ onClose }: Props) {
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
 
   React.useEffect(() => {
-    fetch("/api/warehouses")
-      .then((res) => res.json())
-      .then((list: Array<{ id: number; name: string }>) => setWarehouses(list.map((w) => ({ id: w.id, label: w.name }))))
-      .catch(() => setWarehouses([]));
-  }, []);
+    Promise.all([
+      fetch("/api/me/warehouse-scope").then((res) => (res.ok ? res.json() : null)),
+      fetch("/api/warehouses?purpose=transfer-destination").then((res) =>
+        res.ok ? res.json() : [],
+      ),
+    ])
+      .then(([scope, list]: [
+        { primaryWarehouse?: { id: number; name: string } | null } | null,
+        Array<{ id: number; name: string }> | { warehouses?: Array<{ id: number; name: string }> },
+      ]) => {
+        const primary = scope?.primaryWarehouse ?? null;
+        setPrimaryWarehouse(primary);
+        if (primary) {
+          setValue("fromId", primary.id);
+        }
+        const warehouseList = Array.isArray(list) ? list : list.warehouses ?? [];
+        setWarehouses(
+          warehouseList.map((w) => ({ id: w.id, label: w.name })),
+        );
+      })
+      .catch(() => setWarehouses([]))
+      .finally(() => setScopeLoaded(true));
+  }, [setValue]);
 
   const fromId = watch("fromId");
 
   const onSubmit = async (data: TransferBatchValues) => {
     setSubmitError(null);
     const fd = new FormData();
-    fd.append("fromId", String(data.fromId));
+    if (data.fromId) fd.append("fromId", String(data.fromId));
     fd.append("toId", String(data.toId));
     fd.append("note", data.note ?? "");
     fd.append("items", JSON.stringify(data.items));
@@ -95,22 +116,25 @@ export default function ModalCreateTransfer({ onClose }: Props) {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="transfer-from">Almacén origen</Label>
-              <Controller
-                name="fromId"
-                control={control}
-                render={({ field }) => (
-                  <ComboboxWarehouse
-                    id="transfer-from"
-                    value={field.value ?? null}
-                    onChange={field.onChange}
-                    options={warehouses}
-                    className="min-h-11"
-                    aria-invalid={Boolean(errors.fromId)}
-                    aria-describedby={errors.fromId ? "transfer-from-error" : undefined}
-                  />
-                )}
-              />
-              {errors.fromId && <p id="transfer-from-error" className="text-sm text-destructive" role="alert">⚠️ {errors.fromId.message}</p>}
+              <div
+                id="transfer-from"
+                className="flex min-h-11 items-center rounded-md border border-input bg-muted px-3 py-2 text-sm"
+              >
+                {!scopeLoaded
+                  ? "Cargando..."
+                  : primaryWarehouse
+                    ? primaryWarehouse.name
+                    : "Sin almacén principal"}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                El origen es siempre tu almacén principal.
+              </p>
+              {scopeLoaded && !primaryWarehouse && (
+                <p className="text-sm text-destructive" role="alert">
+                  Configura tu almacén principal en Configuración para poder
+                  trasladar.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -221,7 +245,7 @@ export default function ModalCreateTransfer({ onClose }: Props) {
 
           <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting} className="min-h-11">Cancelar</Button>
-            <Button type="submit" disabled={!isValid || isSubmitting} aria-busy={isSubmitting} className="min-h-11">
+            <Button type="submit" disabled={!isValid || isSubmitting || !primaryWarehouse} aria-busy={isSubmitting} className="min-h-11">
               {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
               {isSubmitting ? "Guardando traslado..." : submitError ? "Reintentar" : "Guardar traslado"}
             </Button>

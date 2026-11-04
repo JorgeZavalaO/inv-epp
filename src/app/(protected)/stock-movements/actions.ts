@@ -7,6 +7,12 @@ import { revalidatePath } from "next/cache";
 import { ensureAuthUser, requirePermission } from "@/lib/auth-utils";
 import { UserRole, MovementStatus } from "@prisma/client";
 import { createPaginationMeta, parsePagination } from "@/lib/pagination";
+import {
+  assertWarehouseInScope,
+  getWarehouseScope,
+  isInScope,
+  requirePrimaryWarehouse,
+} from "@/lib/warehouse-scope";
 
 function buildTransferCode() {
   return `TRF-${Date.now().toString(36).toUpperCase()}`;
@@ -28,6 +34,7 @@ export async function createMovement(fd: FormData) {
   try {
     await requirePermission("stock_movements_manage");
     const data = stockMovementSchema.parse(Object.fromEntries(fd));
+    await assertWarehouseInScope(data.warehouseId);
     const dbUser = await ensureAuthUser();
 
     if (data.type === "EXIT") {
@@ -149,11 +156,40 @@ export async function createTransfer(fd: FormData) {
       items,
     });
 
+    // Transfers always originate from the user's primary warehouse.
+    const primaryWarehouseId = await requirePrimaryWarehouse();
+    const requestedFromId = fd.get("fromId");
+    if (
+      typeof requestedFromId === "string" &&
+      requestedFromId.trim() !== "" &&
+      Number(requestedFromId) !== primaryWarehouseId
+    ) {
+      return {
+        success: false,
+        message: "El origen del traslado debe ser tu almacén principal",
+      };
+    }
+
+    if (data.toId === primaryWarehouseId) {
+      return {
+        success: false,
+        message: "El almacén destino debe ser distinto de tu almacén principal",
+      };
+    }
+
+    const destinationWarehouse = await prisma.warehouse.findUnique({
+      where: { id: data.toId },
+      select: { id: true },
+    });
+    if (!destinationWarehouse) {
+      return { success: false, message: "El almacén destino no existe" };
+    }
+
     const dbUser = await ensureAuthUser();
     const transferCode = buildTransferCode();
 
     for (const item of data.items) {
-      await validateAvailableStock(item.eppId, data.fromId, item.quantity);
+      await validateAvailableStock(item.eppId, primaryWarehouseId, item.quantity);
     }
 
     const requiresApproval = dbUser.role !== UserRole.ADMIN;
@@ -166,7 +202,7 @@ export async function createTransfer(fd: FormData) {
           prisma.stockMovement.create({
             data: {
               eppId: item.eppId,
-              warehouseId: data.fromId,
+              warehouseId: primaryWarehouseId,
               type: "TRANSFER_OUT",
               quantity: item.quantity,
               note: `[${transferCode}] Salida por traslado. ${transferNote}`,
@@ -205,7 +241,7 @@ export async function createTransfer(fd: FormData) {
     await prisma.$transaction(async (tx) => {
       for (const item of data.items) {
         const originStock = await tx.ePPStock.findUnique({
-          where: { eppId_warehouseId: { eppId: item.eppId, warehouseId: data.fromId } },
+          where: { eppId_warehouseId: { eppId: item.eppId, warehouseId: primaryWarehouseId } },
           select: { quantity: true },
         });
 
@@ -219,7 +255,7 @@ export async function createTransfer(fd: FormData) {
         data: data.items.flatMap((item) => [
           {
             eppId: item.eppId,
-            warehouseId: data.fromId,
+            warehouseId: primaryWarehouseId,
             type: "TRANSFER_OUT" as const,
             quantity: item.quantity,
             note: `[${transferCode}] Salida por traslado. ${transferNote}`,
@@ -248,7 +284,7 @@ export async function createTransfer(fd: FormData) {
 
       for (const item of data.items) {
         await tx.ePPStock.update({
-          where: { eppId_warehouseId: { eppId: item.eppId, warehouseId: data.fromId } },
+          where: { eppId_warehouseId: { eppId: item.eppId, warehouseId: primaryWarehouseId } },
           data: { quantity: { decrement: item.quantity } },
         });
 
@@ -284,12 +320,17 @@ export async function updateMovement(id: number, fd: FormData) {
     await requirePermission("stock_movements_manage");
     const data = stockMovementSchema.parse(Object.fromEntries(fd));
     const dbUser = await ensureAuthUser();
+    const scope = await getWarehouseScope();
 
     await prisma.$transaction(async (tx) => {
       const movement = await tx.stockMovement.findUnique({ where: { id } });
 
       if (!movement) {
         throw new Error("Movimiento no encontrado");
+      }
+
+      if (!isInScope(scope, movement.warehouseId)) {
+        throw new Error("No autorizado - Almacén fuera de tu alcance actual");
       }
 
       if (movement.status === MovementStatus.REJECTED) {
@@ -388,6 +429,7 @@ export async function updateMovement(id: number, fd: FormData) {
 export async function deleteMovement(id: number) {
   await requirePermission("stock_movements_manage");
   const movement = await prisma.stockMovement.findUniqueOrThrow({ where: { id } });
+  await assertWarehouseInScope(movement.warehouseId);
   
   if (movement.type !== "ADJUSTMENT" && movement.quantity === 0) {
     throw new Error("La cantidad debe ser mayor que 0 para ENTRADA / SALIDA");
@@ -428,6 +470,7 @@ export async function deleteMovement(id: number) {
  */
 export async function approveMovement(movementId: number) {
   const dbUser = await ensureAuthUser();
+  const scope = await getWarehouseScope();
   
   // Solo ADMIN puede aprobar
   if (dbUser.role !== UserRole.ADMIN) {
@@ -447,7 +490,9 @@ export async function approveMovement(movementId: number) {
     throw new Error("Este movimiento ya fue procesado");
   }
 
-  // Aprobar transferencia completa (OUT + IN) en una sola operación
+  if (!isInScope(scope, movement.warehouseId)) {
+    throw new Error("No autorizado - Almacén fuera de tu alcance actual");
+  }
   if (movement.type === "TRANSFER_OUT" || movement.type === "TRANSFER_IN") {
     if (!movement.purchaseOrder) {
       throw new Error("No se pudo identificar el código de transferencia");
@@ -461,6 +506,10 @@ export async function approveMovement(movementId: number) {
       },
       orderBy: { id: "asc" },
     });
+
+    if (!transferMovements.some((mv) => isInScope(scope, mv.warehouseId))) {
+      throw new Error("No autorizado - Almacén fuera de tu alcance actual");
+    }
 
     const grouped = new Map<number, { out?: typeof transferMovements[number]; in?: typeof transferMovements[number] }>();
     for (const mv of transferMovements) {
@@ -629,6 +678,7 @@ export async function approveMovement(movementId: number) {
  */
 export async function rejectMovement(movementId: number, rejectionNote: string) {
   const dbUser = await ensureAuthUser();
+  const scope = await getWarehouseScope();
   
   // Solo ADMIN puede rechazar
   if (dbUser.role !== UserRole.ADMIN) {
@@ -646,6 +696,10 @@ export async function rejectMovement(movementId: number, rejectionNote: string) 
 
   if (movement.status !== MovementStatus.PENDING) {
     throw new Error("Este movimiento ya fue procesado");
+  }
+
+  if (!isInScope(scope, movement.warehouseId)) {
+    throw new Error("No autorizado - Almacén fuera de tu alcance actual");
   }
 
   // Rechazar transferencia completa (OUT + IN)
@@ -755,6 +809,7 @@ export async function getPendingMovements(options: { page?: number; pageSize?: n
     };
   }
 
+  const scope = await getWarehouseScope();
   const movements = await prisma.stockMovement.findMany({
     where: {
       status: MovementStatus.PENDING,
@@ -795,9 +850,11 @@ export async function getPendingMovements(options: { page?: number; pageSize?: n
     }
   }
 
-  const orderedGroups = Array.from(groups.values()).sort((a, b) =>
-    a.firstDate - b.firstDate || a.firstId - b.firstId,
-  );
+  const orderedGroups = Array.from(groups.values())
+    .filter((group) =>
+      group.movements.some((movement) => isInScope(scope, movement.warehouseId)),
+    )
+    .sort((a, b) => a.firstDate - b.firstDate || a.firstId - b.firstId);
   const pagination = createPaginationMeta(
     requestedPagination.page,
     requestedPagination.limit,

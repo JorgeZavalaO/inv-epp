@@ -42,6 +42,7 @@ export default function ModalCreateMovement({ onClose, defaultValues }: Props) {
     control,
     register,
     handleSubmit,
+    setValue,
     watch,
     formState: { isSubmitting, errors, isValid },
   } = useForm<MovementValues>({
@@ -58,16 +59,29 @@ export default function ModalCreateMovement({ onClose, defaultValues }: Props) {
   });
 
   React.useEffect(() => {
-    fetch("/api/warehouses")
-      .then((res) => {
+    Promise.all([
+      fetch("/api/warehouses").then((res) => {
         if (!res.ok) throw new Error("No se pudieron cargar los almacenes");
         return res.json();
-      })
-      .then((list: Array<{ id: number; name: string }>) => {
+      }),
+      fetch("/api/me/warehouse-scope")
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+    ])
+      .then(([list, scope]: [
+        Array<{ id: number; name: string }>,
+        { primaryWarehouse?: { id: number } | null } | null,
+      ]) => {
         setWarehouses(list.map((w) => ({ id: w.id, label: w.name })));
+        const primaryId = scope?.primaryWarehouse?.id;
+        if (!defaultValues?.warehouseId && primaryId) {
+          setValue("warehouseId", primaryId, { shouldValidate: true });
+        }
       })
       .catch(() => setWarehouses([]));
-  }, []);
+    // defaultValues only seeds the initial form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setValue]);
 
   const selectedEppId = watch("eppId");
   const selectedWarehouseId = watch("warehouseId");

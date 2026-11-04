@@ -1,18 +1,25 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth-utils";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 import ExcelJS from "exceljs";
 
 export async function GET() {
+  let scope;
   try {
     await requirePermission("stock_movements_manage");
+    scope = await getWarehouseScope();
   } catch (err) {
     const msg = err instanceof Error ? err.message : "No autorizado";
     return NextResponse.json({ error: msg }, { status: 403 });
   }
 
-  // Obtener todos los movimientos con relaciones
+  // Obtener todos los movimientos con relaciones dentro del alcance activo
   const movements = await prisma.stockMovement.findMany({
+    where:
+      scope.effectiveIds === null
+        ? {}
+        : { warehouseId: { in: scope.effectiveIds } },
     include: {
       epp: { select: { code: true, name: true } },
       user: { select: { email: true } },

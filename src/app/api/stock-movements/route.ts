@@ -1,9 +1,32 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import type { Prisma, StockMovementType } from "@prisma/client";
-import { requirePermission, assertWarehouseAccess } from "@/lib/auth-utils";
+import { requirePermission } from "@/lib/auth-utils";
+import {
+  assertWarehouseInScope,
+  getWarehouseScope,
+  narrowScope,
+} from "@/lib/warehouse-scope";
+import { z } from "zod";
+
+const movementSchema = z.object({
+  eppId: z.coerce.number().int().positive(),
+  warehouseId: z.coerce.number().int().positive(),
+  type: z.enum(["ENTRY", "EXIT", "TRANSFER_IN", "TRANSFER_OUT", "ADJUSTMENT"]),
+  quantity: z.coerce.number().int(),
+  unitPrice: z.coerce.number().nonnegative().optional(),
+  note: z.string().max(255).optional(),
+  purchaseOrder: z.string().max(64).optional(),
+});
 
 export async function GET(request: Request) {
+  let scope;
+  try {
+    scope = await getWarehouseScope();
+  } catch {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -25,9 +48,14 @@ export async function GET(request: Request) {
       ];
     }
     if (eppId) where.eppId = parseInt(eppId);
-    if (warehouseId) where.warehouseId = parseInt(warehouseId);
     if (type && isValidStockMovementType(type))
       where.type = type as StockMovementType;
+
+    const requestedWarehouseId = warehouseId ? Number(warehouseId) : undefined;
+    const warehouseIds = narrowScope(scope, requestedWarehouseId);
+    if (warehouseIds !== null) {
+      where.warehouseId = { in: warehouseIds };
+    }
 
     const [movements, totalCount] = await Promise.all([
       prisma.stockMovement.findMany({
@@ -80,11 +108,15 @@ function isValidStockMovementType(type: string): type is StockMovementType {
 }
 
 export async function POST(req: Request) {
-  await requirePermission("stock_movements_manage");
-  const data = await req.json();
-  if (data.warehouseId) {
-    await assertWarehouseAccess(Number(data.warehouseId));
-  }
-  const created = await prisma.stockMovement.create({ data });
+  const user = await requirePermission("stock_movements_manage");
+  const data = movementSchema.parse(await req.json());
+  await assertWarehouseInScope(data.warehouseId);
+
+  const created = await prisma.stockMovement.create({
+    data: {
+      ...data,
+      userId: user.id,
+    },
+  });
   return NextResponse.json(created, { status: 201 });
 }

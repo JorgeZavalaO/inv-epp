@@ -8,24 +8,26 @@ export const transferItemSchema = z.object({
 export const transferSchema = z
   .object({
     eppId:    z.coerce.number().int().positive("Selecciona un EPP"),
-    fromId:   z.coerce.number().int().positive("Selecciona almacén origen"),
+    /** Resolved server-side from the user's primary warehouse. */
+    fromId:   z.coerce.number().int().positive("Selecciona almacén origen").optional(),
     toId:     z.coerce.number().int().positive("Selecciona almacén destino"),
     quantity: z.coerce.number().int().positive("Cantidad > 0"),
     note:     z.string().max(255).optional(),
   })
-  .refine((data) => data.fromId !== data.toId, {
+  .refine((data) => !data.fromId || data.fromId !== data.toId, {
     message: "Almacén origen y destino deben ser distintos",
     path: ["toId"],
   });
 
 export const transferBatchSchema = z
   .object({
-    fromId: z.coerce.number().int().positive("Selecciona almacén origen"),
+    /** Resolved server-side from the user's primary warehouse. */
+    fromId: z.coerce.number().int().positive("Selecciona almacén origen").optional(),
     toId: z.coerce.number().int().positive("Selecciona almacén destino"),
     note: z.string().max(255).optional(),
     items: z.array(transferItemSchema).min(1, "Agrega al menos un producto"),
   })
-  .refine((data) => data.fromId !== data.toId, {
+  .refine((data) => !data.fromId || data.fromId !== data.toId, {
     message: "Almacén origen y destino deben ser distintos",
     path: ["toId"],
   })
