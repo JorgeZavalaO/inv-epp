@@ -33,9 +33,13 @@ model User {
   stockMovements           StockMovement[]  @relation("UserStockMovements")
   permissions              UserPermission[]
   warehouseAssignments     UserWarehouse[]
+  primaryWarehouseId       Int?
+  warehouseViewMode        WarehouseViewMode @default(ALL)
+  primaryWarehouse         Warehouse?        @relation("UserPrimaryWarehouse", fields: [primaryWarehouseId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([email])
   @@index([role])
+  @@index([primaryWarehouseId])
 }
 
 /// Auth.js Account model
@@ -140,6 +144,8 @@ model Warehouse {
   returnBatches   ReturnBatch[]
   movements       StockMovement[]
   userAssignments UserWarehouse[]
+  primaryForUsers User[]          @relation("UserPrimaryWarehouse")
+  requests        Request[]
 
   @@index([name])
 }
@@ -281,9 +287,13 @@ model Request {
   createdAt DateTime      @default(now())
   eppId     Int
   userId    String
+  warehouseId Int?
   approvals Approval[]
   epp       EPP           @relation(fields: [eppId], references: [id])
   user      User          @relation("UserRequests", fields: [userId], references: [id])
+  warehouse Warehouse?    @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@index([warehouseId, createdAt])
 }
 
 /// Aprobaciones
@@ -387,4 +397,9 @@ enum UserRole {
   WAREHOUSE_MANAGER
   OPERATOR
   VIEWER
+}
+
+enum WarehouseViewMode {
+  PRIMARY
+  ALL
 }
