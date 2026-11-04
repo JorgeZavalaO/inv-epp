@@ -4,6 +4,7 @@ import ReturnClient, { ReturnBatchRow } from "@/components/return/ReturnClient";
 import { hasPermission } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 
 export const revalidate = 0;
 
@@ -20,14 +21,20 @@ export default async function ReturnsPage({
   }
   
   const params = await searchParams;
+  const scope = await getWarehouseScope();
+  const where =
+    scope.effectiveIds === null
+      ? {}
+      : { warehouseId: { in: scope.effectiveIds } };
   const requestedPagination = parsePagination(params.page, params.limit);
-  const totalCount = await prisma.returnBatch.count();
+  const totalCount = await prisma.returnBatch.count({ where });
   const pagination = createPaginationMeta(
     requestedPagination.page,
     requestedPagination.limit,
     totalCount,
   );
   const list = await prisma.returnBatch.findMany({
+    where,
     include: {
       warehouse: { select: { name: true } },
       user:      { select: { name: true, email: true } },

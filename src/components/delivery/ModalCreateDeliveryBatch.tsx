@@ -16,6 +16,7 @@ export default function ModalCreateDeliveryBatch({ onClose, onCreated }: { onClo
 
   const [collaborators, setCollaborators] = useState<{ id: number; name: string; position?: string; location?: string }[]>([]);
   const [warehouses, setWarehouses]       = useState<{ id: number; name: string }[]>([]);
+  const [primaryWarehouseId, setPrimaryWarehouseId] = useState<number | undefined>(undefined);
   const [loadingCols, setLoadingCols]     = useState(true);
   const [loadingWhs, setLoadingWhs]       = useState(true);
 
@@ -31,6 +32,13 @@ export default function ModalCreateDeliveryBatch({ onClose, onCreated }: { onClo
       .then((rows) => setWarehouses(rows))
       .catch(() => setWarehouses([]))
       .finally(() => setLoadingWhs(false));
+
+    fetch("/api/me/warehouse-scope")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((scope: { primaryWarehouse?: { id: number } | null } | null) => {
+        setPrimaryWarehouseId(scope?.primaryWarehouse?.id);
+      })
+      .catch(() => setPrimaryWarehouseId(undefined));
   }, []);
 
   const handleCreate = (values: DeliveryBatchValues) => {
@@ -71,6 +79,7 @@ export default function ModalCreateDeliveryBatch({ onClose, onCreated }: { onClo
           <DeliveryBatchForm
             collaborators={loadingCols ? [] : collaborators.map(c => ({ id: c.id, label: c.name, position: c.position, location: c.location }))}
             warehouses={loadingWhs ? [] : warehouses.map(w => ({ id: w.id, label: w.name }))}
+            defaultWarehouseId={primaryWarehouseId}
             onSubmit={handleCreate}
             onCancel={onClose}
             isPending={isPending}

@@ -6,6 +6,8 @@ export interface DeliveriesExportFilters {
   from?: string | Date;
   to?: string | Date;
   warehouseId?: number;
+  /** Effective warehouse scope. null/undefined = no filter, [] = nothing. */
+  warehouseIds?: number[] | null;
   category?: string;
   collaboratorId?: number;
   location?: string;
@@ -37,7 +39,9 @@ export async function fetchDeliveriesForExport(filters: DeliveriesExportFilters)
     };
   }
 
-  if (filters.warehouseId) {
+  if (filters.warehouseIds !== undefined && filters.warehouseIds !== null) {
+    batchFilters.warehouseId = { in: filters.warehouseIds };
+  } else if (filters.warehouseId) {
     batchFilters.warehouseId = filters.warehouseId;
   }
 

@@ -1,18 +1,16 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
-
-type DeliveryBatchWhereInput = {
-  OR?: Array<Record<string, unknown>>;
-  collaboratorId?: number;
-  warehouseId?: number;
-  collaboratorLocation?: string;
-  createdAt?: {
-    gte?: Date;
-    lte?: Date;
-  };
-};
+import { getWarehouseScope, narrowScope } from "@/lib/warehouse-scope";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: Request) {
+  let scope;
+  try {
+    scope = await getWarehouseScope();
+  } catch {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
 
@@ -25,7 +23,7 @@ export async function GET(request: Request) {
     const location = searchParams.get("location") || "";
 
     // Construcción de filtros
-    const where: DeliveryBatchWhereInput = {};
+    const where: Prisma.DeliveryBatchWhereInput = {};
 
     if (search) {
       where.OR = [
@@ -40,14 +38,16 @@ export async function GET(request: Request) {
       where.collaboratorId = parseInt(collaboratorId);
     }
 
-    if (warehouseId) {
-      where.warehouseId = parseInt(warehouseId);
+    const scopedWarehouseIds = narrowScope(
+      scope,
+      warehouseId ? Number(warehouseId) : undefined,
+    );
+    if (scopedWarehouseIds !== null) {
+      where.warehouseId = { in: scopedWarehouseIds };
     }
 
     if (location) {
-      (where as DeliveryBatchWhereInput & { collaborator?: { location?: { equals: string } } }).collaborator = {
-        location: { equals: location },
-      };
+      where.collaborator = { location: { equals: location } };
     }
 
     if (dateFrom || dateTo) {
@@ -108,8 +108,6 @@ export async function GET(request: Request) {
     // Calcular totales
     const totalBatches = batches.length;
     const totalItems = batches.reduce((sum, batch) => sum + batch.deliveries.length, 0);
-
-    console.log(`[Deliveries Preview] Prepared preview: ${totalBatches} batches, ${totalItems} items`);
 
     return NextResponse.json({
       totalBatches,

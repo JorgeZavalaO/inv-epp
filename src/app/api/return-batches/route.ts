@@ -8,8 +8,18 @@ import {
 } from "@/lib/auth-utils";
 import { z } from "zod";
 import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 
 export async function GET(request: Request) {
+  let scope;
+  try {
+    await requirePermission("returns_manage");
+    scope = await getWarehouseScope();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "No autorizado";
+    return NextResponse.json({ error: msg }, { status: 403 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const requestedPagination = parsePagination(
@@ -17,7 +27,11 @@ export async function GET(request: Request) {
       searchParams.get("limit"),
       20,
     );
-    const totalCount = await prisma.returnBatch.count();
+    const where =
+      scope.effectiveIds === null
+        ? {}
+        : { warehouseId: { in: scope.effectiveIds } };
+    const totalCount = await prisma.returnBatch.count({ where });
     const pagination = createPaginationMeta(
       requestedPagination.page,
       Math.min(requestedPagination.limit, 50),
@@ -25,6 +39,7 @@ export async function GET(request: Request) {
     );
 
     const batches = await prisma.returnBatch.findMany({
+      where,
       select: {
         id: true,
         code: true,

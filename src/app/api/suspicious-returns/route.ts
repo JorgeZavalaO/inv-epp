@@ -1,5 +1,7 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { requirePermission } from "@/lib/auth-utils";
+import { assertWarehouseInScope } from "@/lib/warehouse-scope";
 
 /**
  * GET /api/suspicious-returns?warehouseId=14&eppIds=66,29,95,20,33
@@ -22,6 +24,9 @@ export async function GET(req: Request) {
   const eppIds = eppIdsStr.split(",").map((e) => Number(e));
 
   try {
+    await requirePermission("returns_manage");
+    await assertWarehouseInScope(warehouseId);
+
     // Obtener TODAS las ReturnBatch que contienen items de estos EPPs
     const returns = await prisma.returnBatch.findMany({
       where: {

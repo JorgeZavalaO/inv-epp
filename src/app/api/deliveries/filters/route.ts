@@ -1,7 +1,15 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 
 export async function GET() {
+  let scope;
+  try {
+    scope = await getWarehouseScope();
+  } catch {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   try {
     const [collaborators, warehouses, locations] = await Promise.all([
       prisma.collaborator.findMany({
@@ -9,6 +17,7 @@ export async function GET() {
         orderBy: { name: "asc" },
       }),
       prisma.warehouse.findMany({
+        where: scope.effectiveIds === null ? {} : { id: { in: scope.effectiveIds } },
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       }),
@@ -34,10 +43,10 @@ export async function GET() {
       },
       {
         headers: {
-          // 60s client + proxy cache; allow quick refresh but avoid hammering DB
-          "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=60",
+          // Depende de la sesión: nunca cachear públicamente.
+          "Cache-Control": "private, no-store",
         },
-      }
+      },
     );
   } catch (error: unknown) {
     console.error("Error fetching filter options:", error);

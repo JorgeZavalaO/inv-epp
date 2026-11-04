@@ -1,10 +1,25 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { requirePermission } from "@/lib/auth-utils";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 
 // Devuelve los DeliveryBatch con unidades todavía pendientes de devolución.
 export async function GET() {
+  let scope;
+  try {
+    await requirePermission("returns_manage");
+    scope = await getWarehouseScope();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "No autorizado";
+    return NextResponse.json({ error: msg }, { status: 403 });
+  }
+
   // 1) Lotes + entregas
   const batches = await prisma.deliveryBatch.findMany({
+    where:
+      scope.effectiveIds === null
+        ? {}
+        : { warehouseId: { in: scope.effectiveIds } },
     select: {
       id: true,
       code: true,

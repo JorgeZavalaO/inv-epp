@@ -3,8 +3,11 @@ import { NextResponse } from "next/server";
 import {
   requirePermission,
   ensureAuthUser,
-  assertWarehouseAccess,
 } from "@/lib/auth-utils";
+import {
+  assertWarehouseInScope,
+  canReadWarehouse,
+} from "@/lib/warehouse-scope";
 
 export async function GET(
   _: Request,
@@ -20,6 +23,7 @@ export async function GET(
           select: {
             id: true,
             code: true,
+            warehouseId: true,
             warehouse: { select: { name: true } },
           },
         },
@@ -27,9 +31,13 @@ export async function GET(
       },
     });
 
-    return record
-      ? NextResponse.json(record)
-      : NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    if (!record) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
+    if (!(await canReadWarehouse(record.batch.warehouseId))) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
+    return NextResponse.json(record);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -45,9 +53,26 @@ export async function PUT(
 
   try {
     const data = await req.json();
+    const quantity = Number(data?.quantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      return NextResponse.json(
+        { error: "Cantidad inválida" },
+        { status: 400 },
+      );
+    }
+
+    const existing = await prisma.delivery.findUnique({
+      where: { id: Number(id) },
+      select: { batch: { select: { warehouseId: true } } },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
+    await assertWarehouseInScope(existing.batch.warehouseId);
+
     const updated = await prisma.delivery.update({
       where: { id: Number(id) },
-      data,
+      data: { quantity },
     });
 
     return NextResponse.json(updated);
@@ -90,7 +115,7 @@ export async function DELETE(
       );
     }
 
-    await assertWarehouseAccess(delivery.batch.warehouseId);
+    await assertWarehouseInScope(delivery.batch.warehouseId);
 
     // Ejecutar transacción atómica: revertir stock + crear movimiento compensatorio + eliminar entrega
     await prisma.$transaction(async (tx) => {

@@ -1,11 +1,20 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { buildDeliveryBatchPdf } from "@/lib/pdf/delivery-batch";
+import { requirePermission } from "@/lib/auth-utils";
+import { canReadWarehouse } from "@/lib/warehouse-scope";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  try {
+    await requirePermission("deliveries_manage");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "No autorizado";
+    return NextResponse.json({ error: msg }, { status: 403 });
+  }
+
   const { id } = await params;
   const batch = await prisma.deliveryBatch.findUnique({
     where: { id: Number(id) },
@@ -20,7 +29,7 @@ export async function GET(
     },
   });
 
-  if (!batch)
+  if (!batch || !(await canReadWarehouse(batch.warehouseId)))
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const pdfBytes = await buildDeliveryBatchPdf(batch as NonNullable<typeof batch>);

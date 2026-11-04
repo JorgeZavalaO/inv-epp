@@ -3,8 +3,11 @@ import { NextResponse } from "next/server";
 import {
   ensureAuthUser,
   requirePermission,
-  assertWarehouseAccess,
 } from "@/lib/auth-utils";
+import {
+  assertWarehouseInScope,
+  canReadWarehouse,
+} from "@/lib/warehouse-scope";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 
@@ -45,9 +48,13 @@ export async function GET(
         },
       },
     });
-    return record
-      ? NextResponse.json(record)
-      : NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    if (!record) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
+    if (!(await canReadWarehouse(record.warehouseId))) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
+    return NextResponse.json(record);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error inesperado";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -78,6 +85,18 @@ export async function PUT(
       note: z.string().max(255).optional(),
     });
     const data = editSchema.parse(raw);
+
+    const batchForUpdate = await prisma.deliveryBatch.findUnique({
+      where: { id: batchId },
+      select: { warehouseId: true },
+    });
+    if (!batchForUpdate) {
+      return NextResponse.json(
+        { error: "Lote no encontrado" },
+        { status: 404 },
+      );
+    }
+    await assertWarehouseInScope(batchForUpdate.warehouseId);
 
     const updated = await prisma.deliveryBatch.update({
       where: { id: batchId },
@@ -127,7 +146,7 @@ export async function DELETE(
         { status: 404 },
       );
     }
-    await assertWarehouseAccess(batchForCheck.warehouseId);
+    await assertWarehouseInScope(batchForCheck.warehouseId);
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const rows = await tx.delivery.findMany({

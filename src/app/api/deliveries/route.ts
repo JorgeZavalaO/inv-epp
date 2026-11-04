@@ -1,19 +1,21 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth-utils";
-
-type DeliveryBatchWhereInput = {
-  OR?: Array<Record<string, unknown>>;
-  collaboratorId?: number;
-  warehouseId?: number;
-  collaboratorLocation?: string;
-  createdAt?: {
-    gte?: Date;
-    lte?: Date;
-  };
-};
+import {
+  assertWarehouseInScope,
+  getWarehouseScope,
+  narrowScope,
+} from "@/lib/warehouse-scope";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: Request) {
+  let scope;
+  try {
+    scope = await getWarehouseScope();
+  } catch {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     
@@ -31,7 +33,7 @@ export async function GET(request: Request) {
   const location = searchParams.get("location") || "";
     
     // Construcción de filtros
-    const where: DeliveryBatchWhereInput = {};
+    const where: Prisma.DeliveryBatchWhereInput = {};
     
     if (search) {
       where.OR = [
@@ -50,9 +52,16 @@ export async function GET(request: Request) {
       where.warehouseId = parseInt(warehouseId);
     }
 
+    const scopedWarehouseIds = narrowScope(
+      scope,
+      warehouseId ? Number(warehouseId) : undefined,
+    );
+    if (scopedWarehouseIds !== null) {
+      where.warehouseId = { in: scopedWarehouseIds };
+    }
+
     if (location) {
-      // Filtrar por la ubicación de colaborador
-      (where as DeliveryBatchWhereInput & { collaborator?: { location?: { equals: string } } }).collaborator = { location: { equals: location } };
+      where.collaborator = { location: { equals: location } };
     }
     
     if (dateFrom || dateTo) {
@@ -119,6 +128,13 @@ export async function POST(req: Request) {
   try {
     await requirePermission("deliveries_manage");
     const data = await req.json();
+    if (!data?.warehouseId) {
+      return NextResponse.json(
+        { error: "El almacén es obligatorio" },
+        { status: 400 },
+      );
+    }
+    await assertWarehouseInScope(Number(data.warehouseId));
     const created = await prisma.deliveryBatch.create({ data });
     return NextResponse.json(created, { status: 201 });
   } catch (error: unknown) {

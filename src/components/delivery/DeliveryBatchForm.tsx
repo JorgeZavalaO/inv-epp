@@ -19,6 +19,7 @@ export default function DeliveryBatchForm({
   collaborators,
   warehouses,
   defaultValues,
+  defaultWarehouseId,
   onSubmit,
   onCancel,
   isPending = false,
@@ -26,6 +27,7 @@ export default function DeliveryBatchForm({
   collaborators: { id: number; label: string; position?: string; location?: string }[];
   warehouses:    { id: number; label: string }[];
   defaultValues?: DeliveryBatchValues;
+  defaultWarehouseId?: number;
   onSubmit(values: DeliveryBatchValues): void;
   onCancel?: () => void;
   isPending?: boolean;
@@ -40,7 +42,7 @@ export default function DeliveryBatchForm({
     mode:          "onChange",
     defaultValues: defaultValues ?? {
       collaboratorId: undefined,
-      warehouseId:    undefined,
+      warehouseId:    defaultWarehouseId,
       note:           "",
       items:         [{ eppId: undefined!, quantity: 1 }],
     },

@@ -4,24 +4,39 @@ import { deliveryBatchSchema } from "@/schemas/delivery-batch-schema";
 import {
   ensureAuthUser,
   requirePermission,
-  assertWarehouseAccess,
 } from "@/lib/auth-utils";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import {
+  assertWarehouseInScope,
+  getWarehouseScope,
+} from "@/lib/warehouse-scope";
 
 export async function GET(request: Request) {
+  let scope;
+  try {
+    scope = await getWarehouseScope();
+  } catch {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
     const cursor = searchParams.get("cursor");
 
+    const scopeFilter: Prisma.DeliveryBatchWhereInput =
+      scope.effectiveIds === null
+        ? {}
+        : { warehouseId: { in: scope.effectiveIds } };
+
     // ✅ OPTIMIZACIÓN: Usar cursor pagination para mejor performance
-    const where = cursor
+    const where: Prisma.DeliveryBatchWhereInput = cursor
       ? {
-          id: { lt: parseInt(cursor) },
+          AND: [{ id: { lt: parseInt(cursor) } }, scopeFilter],
         }
-      : undefined;
+      : scopeFilter;
 
     const [batches, totalCount] = await Promise.all([
       prisma.deliveryBatch.findMany({
@@ -59,7 +74,7 @@ export async function GET(request: Request) {
         take: limit + 1, // +1 para detectar si hay más páginas
       }),
       // ✅ OPTIMIZACIÓN: Solo calcular total si es necesario
-      page === 1 ? prisma.deliveryBatch.count() : Promise.resolve(0),
+      page === 1 ? prisma.deliveryBatch.count({ where: scopeFilter }) : Promise.resolve(0),
     ]);
 
     const hasNext = batches.length > limit;
@@ -92,7 +107,7 @@ export async function POST(req: Request) {
     await requirePermission("deliveries_manage");
     const payload = await req.json();
     const data = deliveryBatchSchema.parse(payload);
-    await assertWarehouseAccess(data.warehouseId);
+    await assertWarehouseInScope(data.warehouseId);
     const operator = await ensureAuthUser();
 
     const batchId = await prisma.$transaction(

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatDateLima } from "@/lib/formatDate";
+import { canReadWarehouse } from "@/lib/warehouse-scope";
 
 import { 
   FileText, 
@@ -20,8 +21,8 @@ import {
   Hash
 } from "lucide-react";
 
-// ✅ OPTIMIZACIÓN: Cache de 5 minutos para páginas de detalles
-export const revalidate = 300;
+// La página depende del alcance de almacén del usuario: no cachear.
+export const revalidate = 0;
 
 // ✅ OPTIMIZACIÓN: Consulta optimizada con select específico
 async function getBatchDetails(id: number) {
@@ -32,6 +33,7 @@ async function getBatchDetails(id: number) {
       code: true,
       createdAt: true,
       note: true,
+      warehouseId: true,
       isCancelled: true,
       cancelledAt: true,
       cancellationReason: true,
@@ -93,6 +95,7 @@ export default async function DeliveryBatchDetail({
   const b = await getBatchDetails(batchId);
   
   if (!b) notFound();
+  if (!(await canReadWarehouse(b.warehouseId))) notFound();
 
   // const formatDate = (date: Date) => {
   //   return new Intl.DateTimeFormat('es-PE', {

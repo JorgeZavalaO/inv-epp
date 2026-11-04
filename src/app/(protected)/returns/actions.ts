@@ -4,6 +4,7 @@ import prisma                    from "@/lib/prisma";
 import { returnBatchSchema }     from "@/schemas/return-schema";
 import { revalidatePath }        from "next/cache";
 import { ensureAuthUser, requirePermission }        from "@/lib/auth-utils";
+import { assertWarehouseInScope } from "@/lib/warehouse-scope";
 //import { z }                     from "zod";
 
 /*─────────────────────────────────────────────────────
@@ -13,6 +14,13 @@ export async function createReturnBatch(fd: FormData) {
   await requirePermission("returns_manage");
   const raw  = JSON.parse(fd.get("payload") as string);
   const data = returnBatchSchema.parse(raw);
+
+  await assertWarehouseInScope(data.warehouseId);
+  for (const item of data.items) {
+    if (item.quantity > 0) {
+      await assertWarehouseInScope(item.warehouseId);
+    }
+  }
 
   const operator = await ensureAuthUser();
 
@@ -84,6 +92,8 @@ export async function deleteReturnBatch(batchId: number) {
     select: { id: true, code: true, items: true, warehouseId: true, userId: true },
   });
   if (!batch) throw new Error("Lote no encontrado");
+
+  await assertWarehouseInScope(batch.warehouseId);
 
   await prisma.$transaction(async (tx) => {
     /* Revertir stock SOLO si era reutilizable */

@@ -7,6 +7,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { auditCreate, auditUpdate, auditDelete } from "@/lib/audit";
+import {
+  assertWarehouseInScope,
+  getWarehouseScope,
+  isInScope,
+} from "@/lib/warehouse-scope";
 
 export async function createDeliveryBatch(fd: FormData) {
   await requirePermission("deliveries_manage");
@@ -21,6 +26,7 @@ export async function createDeliveryBatch(fd: FormData) {
     throw e;
   }
 
+  await assertWarehouseInScope(data.warehouseId);
   const operator = await ensureAuthUser();
 
   // SOLUCIÓN ANTI-DUPLICACIÓN: Implementar retry logic con índice único
@@ -174,6 +180,7 @@ export async function updateDeliveryBatch(fd: FormData) {
   }
 
   const operator = await ensureAuthUser();
+  const scope = await getWarehouseScope();
   const batchId = data.batchId ?? data.id;
   if (!batchId) throw new Error("Identificador de lote (batchId) faltante");
   
@@ -184,6 +191,9 @@ export async function updateDeliveryBatch(fd: FormData) {
       select: { id: true, code: true, collaboratorId: true, note: true, warehouseId: true, collaborator: { select: { name: true } } },
     });
     if (!before) throw new Error("Lote no encontrado");
+    if (!isInScope(scope, before.warehouseId)) {
+      throw new Error("No autorizado - Almacén fuera de tu alcance actual");
+    }
 
     // actualizar collaborator/note
     const updatedBatch = await tx.deliveryBatch.update({
@@ -311,6 +321,8 @@ export async function deleteBatch(batchId: number) {
     throw new Error("Lote no encontrado");
   }
 
+  await assertWarehouseInScope(batchToDelete.warehouseId);
+
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const rows = await tx.delivery.findMany({
       where: { batchId },
@@ -392,6 +404,8 @@ export async function cancelDeliveryBatch(batchId: number, reason: string) {
   if (!batch) throw new Error("Lote de entrega no encontrado");
   if (batch.isCancelled) throw new Error("Este lote ya está anulado");
   if (batch.deliveries.length === 0) throw new Error("El lote no tiene entregas");
+
+  await assertWarehouseInScope(batch.warehouseId);
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const cancelTimestamp = new Date();
