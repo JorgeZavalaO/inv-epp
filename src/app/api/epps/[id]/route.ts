@@ -1,9 +1,16 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth-utils';
+import { getWarehouseScope } from '@/lib/warehouse-scope';
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  let scope;
+  try {
+    scope = await getWarehouseScope();
+  } catch {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
   const epp = await prisma.ePP.findUnique({
     where: { id: Number(id) },
     select: {
@@ -11,6 +18,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       code: true,
       name: true,
       stocks: {
+        where:
+          scope.effectiveIds === null
+            ? {}
+            : { warehouseId: { in: scope.effectiveIds } },
         select: {
           quantity: true,
           warehouse: {

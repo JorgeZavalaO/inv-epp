@@ -2,9 +2,10 @@ import ExcelJS from "exceljs";
 
 import prisma from "@/lib/prisma";
 
-export async function generateEppsCatalogExcel() {
+export async function generateEppsCatalogExcel(warehouseIds: number[] | null) {
   const [warehouses, epps] = await Promise.all([
     prisma.warehouse.findMany({
+      where: warehouseIds === null ? {} : { id: { in: warehouseIds } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
@@ -17,6 +18,7 @@ export async function generateEppsCatalogExcel() {
         description: true,
         minStock: true,
         stocks: {
+          where: warehouseIds === null ? {} : { warehouseId: { in: warehouseIds } },
           select: {
             warehouseId: true,
             quantity: true,

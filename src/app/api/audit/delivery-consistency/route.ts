@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-utils";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 
 interface Issue {
   type: string;
@@ -38,8 +39,13 @@ interface Issue {
 export async function GET() {
   try {
     await requirePermission("stock_movements_manage");
+    const scope = await getWarehouseScope();
 
     const deliveries = await prisma.delivery.findMany({
+      where:
+        scope.effectiveIds === null
+          ? {}
+          : { batch: { warehouseId: { in: scope.effectiveIds } } },
       include: {
         batch: {
           select: { code: true, warehouseId: true, createdAt: true, id: true }
@@ -49,7 +55,12 @@ export async function GET() {
     });
 
     const movements = await prisma.stockMovement.findMany({
-      where: { type: "EXIT" },
+      where: {
+        type: "EXIT",
+        ...(scope.effectiveIds === null
+          ? {}
+          : { warehouseId: { in: scope.effectiveIds } }),
+      },
       include: {
         epp: { select: { code: true, name: true } },
         warehouse: { select: { name: true, id: true } },

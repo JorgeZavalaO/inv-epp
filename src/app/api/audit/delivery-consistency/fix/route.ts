@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-utils";
 import { calculateExpirationDate } from "@/lib/audit/config";
+import { getWarehouseScope, isInScope } from "@/lib/warehouse-scope";
 
 interface FixRequest {
   type: string;
@@ -16,11 +17,26 @@ interface FixRequest {
 export async function POST(req: Request) {
   try {
     const user = await requirePermission("stock_movements_manage");
+    const scope = await getWarehouseScope();
 
     const body: FixRequest = await req.json();
     const { action, deliveryId, movementIds, newQuantity, eppId, batchId } = body;
 
     if (action === "DELETE_MOVEMENT" && movementIds && movementIds.length > 0) {
+      const movementsToFix = await prisma.stockMovement.findMany({
+        where: { id: { in: movementIds } },
+        select: { id: true, warehouseId: true },
+      });
+      if (movementsToFix.length !== movementIds.length) {
+        return NextResponse.json({ error: "Movimiento no encontrado" }, { status: 404 });
+      }
+      if (!movementsToFix.every((movement) => isInScope(scope, movement.warehouseId))) {
+        return NextResponse.json(
+          { error: "No autorizado - Almacén fuera de tu alcance actual" },
+          { status: 403 },
+        );
+      }
+
       // Revertir stock antes de eliminar
       for (const movementId of movementIds) {
         const movement = await prisma.stockMovement.findUnique({
@@ -79,6 +95,12 @@ export async function POST(req: Request) {
 
       if (!delivery) {
         return NextResponse.json({ error: "Entrega no encontrada" }, { status: 404 });
+      }
+      if (!isInScope(scope, delivery.batch.warehouseId)) {
+        return NextResponse.json(
+          { error: "No autorizado - Almacén fuera de tu alcance actual" },
+          { status: 403 },
+        );
       }
 
       const oldQuantity = delivery.quantity;
@@ -150,6 +172,12 @@ export async function POST(req: Request) {
 
       if (!batch) {
         return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
+      }
+      if (!isInScope(scope, batch.warehouseId)) {
+        return NextResponse.json(
+          { error: "No autorizado - Almacén fuera de tu alcance actual" },
+          { status: 403 },
+        );
       }
 
       // Descontar stock

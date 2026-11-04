@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth-utils";
+import { assertWarehouseInScope } from "@/lib/warehouse-scope";
 
 /* ───────────── Schema Zod para validaciones ───────────── */
 const warehouseSchema = z.object({
@@ -57,6 +58,7 @@ export async function updateWarehouseAction(fd: FormData) {
       location: z.string().optional(),
     }).parse(raw);
 
+    await assertWarehouseInScope(parsed.id);
     await prisma.warehouse.update({
       where: { id: parsed.id },
       data: { name: parsed.name, location: parsed.location },
@@ -84,6 +86,8 @@ export async function deleteWarehouseAction(fd: FormData) {
     throw new Error("ID inválido");
   }
 
+  await assertWarehouseInScope(id);
+
   // Verificar que no haya stock > 0 en ese almacén
   const nonZero = await prisma.ePPStock.count({
     where: { warehouseId: id, quantity: { gt: 0 } },
@@ -92,6 +96,18 @@ export async function deleteWarehouseAction(fd: FormData) {
     throw new Error("El almacén tiene existencias y no puede eliminarse.");
   }
 
-  await prisma.warehouse.delete({ where: { id } });
+  try {
+    await prisma.warehouse.delete({ where: { id } });
+  } catch (err: unknown) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2003"
+    ) {
+      throw new Error(
+        "El almacén tiene solicitudes asociadas y no puede eliminarse.",
+      );
+    }
+    throw err;
+  }
   revalidatePath("/warehouses");
 }

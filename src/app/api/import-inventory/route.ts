@@ -3,10 +3,12 @@ import prisma from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-utils";
 import { NextResponse } from "next/server";
 import { parse } from "csv-parse/sync";
+import { getWarehouseScope, isInScope } from "@/lib/warehouse-scope";
 
 export async function POST(req: Request) {
   try {
     await requirePermission("epps_manage");
+    const scope = await getWarehouseScope();
     const csvText = await req.text();
     const rows: { code: string; warehouse: string; qty: string }[] =
       parse(csvText, { columns: true, skip_empty_lines: true });
@@ -52,6 +54,11 @@ export async function POST(req: Request) {
         const warehouseId = warehouseMap.get(warehouseName);
         if (!warehouseId) {
           errors.push(`Fila ${rowNum}: Almacén no encontrado: ${warehouseName}`);
+          continue;
+        }
+
+        if (!isInScope(scope, warehouseId)) {
+          errors.push(`Fila ${rowNum}: Almacén fuera de tu alcance actual: ${warehouseName}`);
           continue;
         }
 

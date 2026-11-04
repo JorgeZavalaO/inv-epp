@@ -1,9 +1,10 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { requirePermission } from "@/lib/auth-utils";
+import { requirePermission, hasPermission } from "@/lib/auth-utils";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 
 /*────────── Schema de validación con Zod ──────────*/
 const warehouseSchema = z.object({
@@ -11,19 +12,64 @@ const warehouseSchema = z.object({
   location: z.string().optional(),
 });
 
+const scopedHeaders = {
+  // The list depends on the session: never cache it publicly.
+  "Cache-Control": "private, no-store",
+};
+
 /*────────── GET /api/warehouses ──────────*/
 export async function GET(req: Request) {
+  let scope;
+  try {
+    scope = await getWarehouseScope();
+  } catch {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search")?.trim();
+  const purpose = searchParams.get("purpose");
+  const wantsAll = searchParams.get("scope") === "all";
+
+  let warehouseIds: number[] | null = scope.effectiveIds;
+
+  if (purpose === "transfer-destination") {
+    const canTransfer = await hasPermission("stock_transfers_manage");
+    if (!canTransfer) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+    // Transfers may target any warehouse other than the primary one.
+    warehouseIds = null;
+  } else if (wantsAll) {
+    const canListAll =
+      (await hasPermission("warehouses_manage")) || (await hasPermission("user_manage"));
+    if (!canListAll) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+    warehouseIds = null;
+  }
+
+  const filters: Prisma.WarehouseWhereInput[] = [];
+
+  if (warehouseIds !== null) {
+    filters.push({ id: { in: warehouseIds } });
+  }
+
+  if (purpose === "transfer-destination" && scope.primaryWarehouseId !== null) {
+    filters.push({ id: { not: scope.primaryWarehouseId } });
+  }
+
+  if (search) {
+    filters.push({
+      OR: [
+        { name: { contains: search, mode: "insensitive" as const } },
+        { location: { contains: search, mode: "insensitive" as const } },
+      ],
+    });
+  }
+
+  const where: Prisma.WarehouseWhereInput = filters.length > 0 ? { AND: filters } : {};
   const hasPagination = searchParams.has("page") || searchParams.has("limit") || Boolean(search);
-  const where = search
-    ? {
-        OR: [
-          { name: { contains: search, mode: "insensitive" as const } },
-          { location: { contains: search, mode: "insensitive" as const } },
-        ],
-      }
-    : undefined;
 
   if (hasPagination) {
     const requestedPagination = parsePagination(searchParams.get("page"), searchParams.get("limit"));
@@ -41,20 +87,19 @@ export async function GET(req: Request) {
       take: pagination.limit,
     });
 
-    return NextResponse.json({ warehouses: list, pagination });
+    return NextResponse.json(
+      { warehouses: list, pagination },
+      { headers: scopedHeaders },
+    );
   }
 
   const list = await prisma.warehouse.findMany({
+    where,
     select: { id: true, name: true, location: true },
     orderBy: [{ name: "asc" }, { id: "asc" }],
   });
-  
-  return NextResponse.json(list, {
-    headers: {
-      // Cache warehouses for 5 minutes - they don't change often
-      "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=300",
-    },
-  });
+
+  return NextResponse.json(list, { headers: scopedHeaders });
 }
 
 /*────────── POST /api/warehouses ──────────*/

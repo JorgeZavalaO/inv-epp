@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { UserRole } from "@prisma/client";
 import prisma from "./prisma";
+import { getWarehouseScope, isInScope } from "./warehouse-scope";
 
 /**
  * Obtener la sesión del usuario actual
@@ -228,15 +229,7 @@ export async function requirePermission(permissionName: string) {
 }
 
 /**
- * Roles que tienen restricción de almacenes. ADMIN y roles inferiores quedan sin restricción.
- */
-const WAREHOUSE_RESTRICTED_ROLES: UserRole[] = [
-  "SUPERVISOR",
-  "WAREHOUSE_MANAGER",
-];
-
-/**
- * Devuelve los IDs de almacenes accesibles para el usuario en sesión.
+ * Devuelve los IDs de almacenes permitidos para el usuario en sesión.
  * - null  → sin restricción (ADMIN, OPERATOR, VIEWER)
  * - number[] → lista de IDs permitidos (puede ser vacía si no tiene asignaciones)
  */
@@ -244,30 +237,21 @@ export async function getAccessibleWarehouseIds(): Promise<number[] | null> {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  if (!WAREHOUSE_RESTRICTED_ROLES.includes(user.role as UserRole)) return null;
-
-  const assignments = await prisma.userWarehouse.findMany({
-    where: { userId: user.id },
-    select: { warehouseId: true },
-  });
-
-  return assignments.map((a) => a.warehouseId);
+  const scope = await getWarehouseScope();
+  return scope.allowedIds;
 }
 
 /**
- * Lanza un error 403 si el usuario con rol SUPERVISOR o WAREHOUSE_MANAGER
- * no tiene el almacén dado entre sus asignaciones.
- * Para otros roles no hace nada (sin restricción).
+ * Lanza un error 403 si el almacén solicitado queda fuera del alcance activo
+ * del usuario (asignaciones + vista personal).
  */
 export async function assertWarehouseAccess(
   warehouseId: number,
 ): Promise<void> {
-  const allowed = await getAccessibleWarehouseIds();
-  if (allowed === null) return; // sin restricción
+  const scope = await getWarehouseScope();
+  if (isInScope(scope, warehouseId)) return;
 
-  if (!allowed.includes(warehouseId)) {
-    const error = new Error("No autorizado - Sin acceso al almacén solicitado");
-    (error as Error & { statusCode: number }).statusCode = 403;
-    throw error;
-  }
+  const error = new Error("No autorizado - Sin acceso al almacén solicitado");
+  (error as Error & { statusCode: number }).statusCode = 403;
+  throw error;
 }

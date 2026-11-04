@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth-utils';
 import { createPaginationMeta, getPaginationSkip, parsePagination } from '@/lib/pagination';
+import { getWarehouseScope } from '@/lib/warehouse-scope';
 
 export async function GET(req: Request) {
   try {
@@ -13,13 +14,19 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") ?? "";
+  const scope = await getWarehouseScope();
+  const stockScope =
+    scope.effectiveIds === null
+      ? {}
+      : { warehouseId: { in: scope.effectiveIds } };
   const requestedPagination = parsePagination(
     searchParams.get("page"),
     searchParams.get("limit"),
   );
 
-  // Obtener almacenes para el mapa
+  // Obtener almacenes para el mapa (solo los del alcance)
   const warehousesList = await prisma.warehouse.findMany({
+    where: scope.effectiveIds === null ? {} : { id: { in: scope.effectiveIds } },
     select: { id: true, name: true },
   });
   const warehouseMap: Record<number, string> = {};
@@ -34,7 +41,7 @@ export async function GET(req: Request) {
   const [totalCount, totalStock] = await Promise.all([
     prisma.ePP.count({ where: whereEpp }),
     prisma.ePPStock.aggregate({
-      where: { epp: whereEpp },
+      where: { epp: whereEpp, ...stockScope },
       _sum: { quantity: true },
     }),
   ]);
@@ -55,9 +62,17 @@ export async function GET(req: Request) {
       description: true,
       minStock: true,
       stocks: {
+        where: stockScope,
         select: { warehouseId: true, quantity: true },
       },
-      _count: { select: { movements: true } },
+      _count: {
+        select: {
+          movements:
+            scope.effectiveIds === null
+              ? true
+              : { where: { warehouseId: { in: scope.effectiveIds } } },
+        },
+      },
     },
     orderBy: [{ name: "asc" }, { id: "asc" }],
     skip: getPaginationSkip(pagination),

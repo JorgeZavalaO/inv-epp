@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { canReadWarehouse } from "@/lib/warehouse-scope";
 
 // GET /api/epp-stocks?eppId=123&warehouseId=456
 export async function GET(req: Request) {
@@ -15,6 +16,11 @@ export async function GET(req: Request) {
       );
     }
 
+    const allowed = await canReadWarehouse(warehouseId);
+    if (!allowed) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
+
     // buscamos el stock; si no existe devolvemos quantity:0
     const record = await prisma.ePPStock.findUnique({
       where: { eppId_warehouseId: { eppId, warehouseId } },
@@ -23,6 +29,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ quantity: record?.quantity ?? 0 });
   } catch (err: unknown) {
+    if (err instanceof Error && "statusCode" in err) {
+      return NextResponse.json({ error: err.message }, { status: 401 });
+    }
     const message = err instanceof Error ? err.message : "Error inesperado";
     return NextResponse.json({ error: message }, { status: 500 });
   }

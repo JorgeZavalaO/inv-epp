@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getNextEppCode } from "@/lib/next-epp-code";
 import { ensureAuthUser } from "@/lib/auth-utils";
 import { UserRole } from "@prisma/client";
+import { getWarehouseScope, isInScope } from "@/lib/warehouse-scope";
 
 function parseFormDataToEpp(fd: FormData) {
   const entries = Array.from(fd.entries()) as [string, string][];
@@ -89,10 +90,14 @@ export async function updateEpp(fd: FormData) {
   // 1) actualizar EPP (datos generales siempre se pueden editar)
   await prisma.ePP.update({ where: { id }, data: rest });
 
-  // 2) ajustar stocks solo si es administrador
+  // 2) ajustar stocks solo si es administrador y solo en almacenes del alcance
   if (canEditStocks) {
+    const scope = await getWarehouseScope();
+    const scopedItems = items.filter((it) => isInScope(scope, it.warehouseId));
+    const keep = scopedItems.map((it) => it.warehouseId);
+
     await prisma.$transaction(async (tx) => {
-      for (const it of items) {
+      for (const it of scopedItems) {
         await tx.ePPStock.upsert({
           where: {
             eppId_warehouseId: { eppId: id, warehouseId: it.warehouseId },
@@ -107,14 +112,19 @@ export async function updateEpp(fd: FormData) {
           },
         });
       }
-      const keep = items.map((it) => it.warehouseId);
-      await tx.ePPStock.updateMany({
-        where: {
-          eppId:         id,
-          warehouseId: { notIn: keep },
-        },
-        data: { quantity: 0 },
-      });
+
+      if (scopedItems.length > 0) {
+        await tx.ePPStock.updateMany({
+          where: {
+            eppId: id,
+            NOT: { warehouseId: { in: keep } },
+            ...(scope.effectiveIds === null
+              ? {}
+              : { warehouseId: { in: scope.effectiveIds } }),
+          },
+          data: { quantity: 0 },
+        });
+      }
     });
   }
 

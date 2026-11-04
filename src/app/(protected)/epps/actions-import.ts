@@ -4,6 +4,8 @@ import prisma             from "@/lib/prisma";
 import Papa               from "papaparse";
 import { z }              from "zod";
 import { revalidatePath } from "next/cache";
+import { requirePermission } from "@/lib/auth-utils";
+import { getWarehouseScope, isInScope } from "@/lib/warehouse-scope";
 
 /* ───── Helpers ───── */
 const toInt = (raw: string | undefined) => {
@@ -25,6 +27,8 @@ type CsvRow = z.infer<typeof eppCsvRowSchema>;
 
 /* ───── Server Action ───── */
 export async function importEppsCsv(fd: FormData) {
+  await requirePermission("epps_manage");
+  const scope = await getWarehouseScope();
   const file = fd.get("file") as File | null;
   if (!file) throw new Error("Archivo no encontrado");
 
@@ -40,6 +44,14 @@ export async function importEppsCsv(fd: FormData) {
   const fixedCols   = ["code (opcional)", "name*", "category*", "description", "minStock*"];
   const stockCols   = header.slice(fixedCols.length);
   const warehouseIds = stockCols.map((c) => Number(c.split("_")[1]));
+
+  for (const warehouseId of warehouseIds) {
+    if (!Number.isInteger(warehouseId) || !isInScope(scope, warehouseId)) {
+      throw new Error(
+        "El archivo incluye almacenes fuera de tu alcance actual. Descarga la plantilla actualizada.",
+      );
+    }
+  }
 
   /* ---------- 2 · Map → objetos ---------- */
   const rawRows: CsvRow[] = rows.map((cells) => {

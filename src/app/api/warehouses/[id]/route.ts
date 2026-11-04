@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth-utils";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import {
+  assertWarehouseInScope,
+  canReadWarehouse,
+} from "@/lib/warehouse-scope";
 
 /* El esquema de validación para PUT (mismo que en POST) */
 const warehouseSchema = z.object({
@@ -16,10 +20,19 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params; // ⚠️ ahora params es Promise<{ id }>
-  const wh = await prisma.warehouse.findUnique({ where: { id: Number(id) } });
-  return wh
-    ? NextResponse.json(wh)
-    : NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  try {
+    const wh = await prisma.warehouse.findUnique({ where: { id: Number(id) } });
+    if (!wh) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
+    if (!(await canReadWarehouse(wh.id))) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
+    return NextResponse.json(wh);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "No autorizado";
+    return NextResponse.json({ error: msg }, { status: 401 });
+  }
 }
 
 /*────────── PUT /api/warehouses/[id] ──────────*/
@@ -30,6 +43,7 @@ export async function PUT(
   try {
     await requirePermission("warehouses_manage");
     const { id } = await params;
+    await assertWarehouseInScope(Number(id));
     const body = await req.json();
     const data = warehouseSchema.parse(body);
 
@@ -71,6 +85,13 @@ export async function DELETE(
   const { id } = await params;
   const warehouseId = Number(id);
 
+  try {
+    await assertWarehouseInScope(warehouseId);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "No autorizado";
+    return NextResponse.json({ error: msg }, { status: 403 });
+  }
+
   // 1) Validar que no haya stock en ese almacén
   const nonZero = await prisma.ePPStock.count({
     where: { warehouseId, quantity: { gt: 0 } },
@@ -83,6 +104,19 @@ export async function DELETE(
   }
 
   // 2) Eliminar
-  await prisma.warehouse.delete({ where: { id: warehouseId } });
+  try {
+    await prisma.warehouse.delete({ where: { id: warehouseId } });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2003"
+    ) {
+      return NextResponse.json(
+        { error: "El almacén tiene solicitudes asociadas y no puede eliminarse." },
+        { status: 400 },
+      );
+    }
+    throw err;
+  }
   return NextResponse.json({ ok: true });
 }

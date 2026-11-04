@@ -2,18 +2,21 @@ import { NextResponse } from "next/server";
 
 import { requirePermission } from "@/lib/auth-utils";
 import { generateEppsCatalogExcel } from "@/lib/export/epps-catalog-excel";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 
 export const revalidate = 0;
 
 export async function GET() {
+  let scope;
   try {
     await requirePermission("epps_manage");
+    scope = await getWarehouseScope();
   } catch (err) {
     const msg = err instanceof Error ? err.message : "No autorizado";
     return new NextResponse(JSON.stringify({ error: msg }), { status: 403 });
   }
 
-  const buffer = await generateEppsCatalogExcel();
+  const buffer = await generateEppsCatalogExcel(scope.effectiveIds);
   const now = new Date();
   const filename = `catalogo-epps-${now.getFullYear()}-${String(
     now.getMonth() + 1

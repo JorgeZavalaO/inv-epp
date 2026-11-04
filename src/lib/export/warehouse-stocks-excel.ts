@@ -1,9 +1,10 @@
 import ExcelJS from "exceljs";
 import prisma from "@/lib/prisma";
 
-export async function generateWarehouseStocksExcel() {
-  // Traer todos los stocks con su EPP y Almacén
+export async function generateWarehouseStocksExcel(warehouseIds: number[] | null) {
+  // Traer todos los stocks con su EPP y Almacén dentro del alcance activo
   const stocks = await prisma.ePPStock.findMany({
+    where: warehouseIds === null ? {} : { warehouseId: { in: warehouseIds } },
     include: {
       epp: { select: { code: true, name: true, description: true } },
       warehouse: { select: { name: true } },

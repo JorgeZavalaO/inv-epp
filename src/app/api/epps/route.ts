@@ -1,8 +1,15 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth-utils';
+import { getWarehouseScope } from '@/lib/warehouse-scope';
 
 export async function GET(req: Request) {
+  try {
+    await getWarehouseScope();
+  } catch {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") ?? "";
 
