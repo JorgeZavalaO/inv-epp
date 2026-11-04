@@ -33,6 +33,7 @@ model User {
   stockMovements           StockMovement[]  @relation("UserStockMovements")
   permissions              UserPermission[]
   warehouseAssignments     UserWarehouse[]
+  handledAccessRequests    AccessRequest[]  @relation("HandledAccessRequests")
   primaryWarehouseId       Int?
   warehouseViewMode        WarehouseViewMode @default(ALL)
   primaryWarehouse         Warehouse?        @relation("UserPrimaryWarehouse", fields: [primaryWarehouseId], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -333,6 +334,23 @@ model SystemConfig {
   updatedAt   DateTime @updatedAt
 }
 
+/// Solicitudes públicas de acceso al sistema (reemplazan el autorregistro)
+model AccessRequest {
+  id          Int                 @id @default(autoincrement())
+  name        String              @db.VarChar(128)
+  email       String              @db.VarChar(160)
+  phone       String?             @db.VarChar(32)
+  company     String?             @db.VarChar(128)
+  message     String?
+  status      AccessRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  handledAt   DateTime?
+  handledById String?
+  handledBy   User?               @relation("HandledAccessRequests", fields: [handledById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+}
+
 /// Sistema de Auditoría - Trazabilidad completa de cambios
 model AuditLog {
   id         BigInt      @id @default(autoincrement())
@@ -402,4 +420,10 @@ enum UserRole {
 enum WarehouseViewMode {
   PRIMARY
   ALL
+}
+
+enum AccessRequestStatus {
+  PENDING
+  CONTACTED
+  CLOSED
 }

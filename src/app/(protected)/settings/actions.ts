@@ -135,3 +135,26 @@ export async function updateMyWarehousePreferences(
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+export async function markAccessRequestHandled(fd: FormData) {
+  const session = await auth();
+  if (!session?.user?.id || session.user.role !== "ADMIN") {
+    throw new Error("No autorizado");
+  }
+
+  const id = Number(fd.get("id"));
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error("Solicitud inválida");
+  }
+
+  await prisma.accessRequest.update({
+    where: { id },
+    data: {
+      status: "CONTACTED",
+      handledAt: new Date(),
+      handledById: session.user.id,
+    },
+  });
+
+  revalidatePath("/settings");
+}
