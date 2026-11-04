@@ -5,12 +5,14 @@ import NotificationBell from "@/components/dashboard/NotificationBell";
 import MovementsChart from "@/components/dashboard/MovementsChart";
 import TopDeliveredList from "@/components/dashboard/TopDeliveredList";
 import DeliveriesByLocation from "@/components/dashboard/DeliveriesByLocation";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 
-// OPTIMIZACIÓN: Cache de página de 2 minutos
-export const revalidate = 120;
+// El dashboard depende del alcance de almacén del usuario: no cachear la página.
+export const revalidate = 0;
 
 export default async function DashboardPage() {
-  const data = await fetchDashboardData();
+  const scope = await getWarehouseScope();
+  const data = await fetchDashboardData(scope);
 
   // Los KPIs dinámicos vienen del backend
   const kpiItems = data.kpisList || [];

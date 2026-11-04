@@ -5,6 +5,8 @@ import SidebarNav from "@/components/SidebarNav";
 import { getLowStockCount } from "@/lib/alerts";
 import { AlertTriangle } from "lucide-react";
 import { getUserPermissions } from "@/lib/auth-utils";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
+import Link from "next/link";
 
 export default async function ProtectedLayout({
   children,
@@ -19,8 +21,11 @@ export default async function ProtectedLayout({
   // Obtener permisos del usuario
   const userPermissions = await getUserPermissions();
 
-  // Obtiene la alerta de stock bajo
-  const low = await getLowStockCount();
+  // Alcance activo de almacenes del usuario
+  const scope = await getWarehouseScope();
+
+  // Obtiene la alerta de stock bajo dentro del alcance
+  const low = await getLowStockCount(scope);
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -64,7 +69,26 @@ export default async function ProtectedLayout({
               </div>
               
               {/* Información de estado del sistema */}
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
+                {scope.needsPrimary ? (
+                  <Link
+                    href="/settings"
+                    className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-200"
+                  >
+                    Configura tu almacén principal
+                  </Link>
+                ) : (
+                  <Link
+                    href="/settings"
+                    className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                  >
+                    {scope.effectiveIds === null
+                      ? "Todos los almacenes"
+                      : scope.viewMode === "PRIMARY"
+                        ? "Mi almacén principal"
+                        : `Mis almacenes (${scope.effectiveIds.length})`}
+                  </Link>
+                )}
                 <div className="flex items-center space-x-1">
                   <div className="h-2 w-2 rounded-full bg-green-500"></div>
                   <span className="text-xs text-slate-500">Sistema activo</span>

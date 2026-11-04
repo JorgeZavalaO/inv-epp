@@ -1,10 +1,13 @@
 import { getCached, CACHE_KEYS, CACHE_TTL } from './cache/memory-cache';
 import { fetchDashboardData, type DashboardData } from './dashboard';
+import type { WarehouseScope } from './warehouse-scope';
 
-export async function fetchDashboardDataCached(): Promise<DashboardData> {
+export async function fetchDashboardDataCached(
+  scope: WarehouseScope,
+): Promise<DashboardData> {
   return getCached(
-    CACHE_KEYS.DASHBOARD_KPIS,
-    fetchDashboardData,
+    `${CACHE_KEYS.DASHBOARD_KPIS}:${scope.cacheKey}`,
+    () => fetchDashboardData(scope),
     CACHE_TTL.MEDIUM // 5 minutos de caché
   );
 }

@@ -1,5 +1,15 @@
 import prisma from "@/lib/prisma";
 import { subDays, startOfDay, format } from "date-fns";
+import { Prisma } from "@prisma/client";
+import {
+  sqlWarehouseIn,
+  warehouseIdFilter,
+  type WarehouseScope,
+} from "@/lib/warehouse-scope";
+
+const WAREHOUSE_COLUMN = Prisma.raw('es."warehouseId"');
+const BATCH_WAREHOUSE_COLUMN = Prisma.raw('db."warehouseId"');
+const DELIVERY_BATCH_WAREHOUSE_COLUMN = Prisma.raw('"warehouseId"');
 
 export interface KpiData {
   totalEpps: number;
@@ -96,9 +106,9 @@ export interface DashboardData {
 }
 
 // Función auxiliar para obtener EPPs con stock bajo
-async function getLowStockList(): Promise<LowStockRow[]> {
+async function getLowStockList(scope: WarehouseScope): Promise<LowStockRow[]> {
   try {
-    const lowStockEpps = await prisma.$queryRaw<LowStockRow[]>`
+    const lowStockEpps = await prisma.$queryRaw<LowStockRow[]>(Prisma.sql`
       SELECT 
         e.id,
         e.code,
@@ -106,12 +116,12 @@ async function getLowStockList(): Promise<LowStockRow[]> {
         COALESCE(SUM(es.quantity), 0)::int as "totalStock",
         e."minStock"
       FROM "EPP" e
-      LEFT JOIN "EPPStock" es ON e.id = es."eppId"
+      LEFT JOIN "EPPStock" es ON e.id = es."eppId" AND ${sqlWarehouseIn(WAREHOUSE_COLUMN, scope.effectiveIds)}
       GROUP BY e.id, e.code, e.name, e."minStock"
       HAVING COALESCE(SUM(es.quantity), 0) <= e."minStock"
       ORDER BY COALESCE(SUM(es.quantity), 0) ASC, e."minStock" DESC
       LIMIT 15
-    `;
+    `);
 
     return lowStockEpps;
   } catch (error) {
@@ -121,19 +131,24 @@ async function getLowStockList(): Promise<LowStockRow[]> {
 }
 
 // Función auxiliar para obtener los EPPs más entregados
-async function getTopDelivered(since: Date): Promise<TopDeliveredData[]> {
+async function getTopDelivered(
+  since: Date,
+  scope: WarehouseScope,
+): Promise<TopDeliveredData[]> {
   try {
-    const topDelivered = await prisma.$queryRaw<TopDeliveredData[]>`
+    const topDelivered = await prisma.$queryRaw<TopDeliveredData[]>(Prisma.sql`
       SELECT 
         e.name,
         SUM(d.quantity)::int as qty
       FROM "Delivery" d
       INNER JOIN "EPP" e ON d."eppId" = e.id
+      INNER JOIN "DeliveryBatch" db ON d."batchId" = db.id
       WHERE d."createdAt" >= ${since}
+        AND ${sqlWarehouseIn(BATCH_WAREHOUSE_COLUMN, scope.effectiveIds)}
       GROUP BY e.id, e.name
       ORDER BY SUM(d.quantity) DESC
       LIMIT 5
-    `;
+    `);
 
     return topDelivered;
   } catch (error) {
@@ -143,9 +158,12 @@ async function getTopDelivered(since: Date): Promise<TopDeliveredData[]> {
 }
 
 // Función para obtener entregas por ubicación
-async function getDeliveriesByLocation(since: Date): Promise<LocationDelivery[]> {
+async function getDeliveriesByLocation(
+  since: Date,
+  scope: WarehouseScope,
+): Promise<LocationDelivery[]> {
   try {
-    const deliveriesByLocation = await prisma.$queryRaw<LocationDelivery[]>`
+    const deliveriesByLocation = await prisma.$queryRaw<LocationDelivery[]>(Prisma.sql`
       SELECT 
         c.location,
         COUNT(DISTINCT db.id)::int as count
@@ -154,10 +172,11 @@ async function getDeliveriesByLocation(since: Date): Promise<LocationDelivery[]>
       WHERE db."createdAt" >= ${since}
         AND c.location IS NOT NULL
         AND c.location != ''
+        AND ${sqlWarehouseIn(BATCH_WAREHOUSE_COLUMN, scope.effectiveIds)}
       GROUP BY c.location
       ORDER BY COUNT(DISTINCT db.id) DESC
       LIMIT 10
-    `;
+    `);
 
     return deliveriesByLocation;
   } catch (error) {
@@ -167,12 +186,17 @@ async function getDeliveriesByLocation(since: Date): Promise<LocationDelivery[]>
 }
 
 // Función para obtener actividad reciente
-async function getRecentActivity(): Promise<ActivityItem[]> {
+async function getRecentActivity(scope: WarehouseScope): Promise<ActivityItem[]> {
   try {
     const activities: ActivityItem[] = [];
+    const warehouseWhere =
+      scope.effectiveIds === null
+        ? {}
+        : { warehouseId: { in: scope.effectiveIds } };
 
     // Entregas recientes
     const recentDeliveries = await prisma.deliveryBatch.findMany({
+      where: warehouseWhere,
       take: 5,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -200,6 +224,7 @@ async function getRecentActivity(): Promise<ActivityItem[]> {
 
     // Devoluciones recientes
     const recentReturns = await prisma.returnBatch.findMany({
+      where: warehouseWhere,
       take: 3,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -230,7 +255,7 @@ async function getRecentActivity(): Promise<ActivityItem[]> {
 }
 
 // Función para obtener datos de gráficos
-async function getChartData(monthStart: Date): Promise<{
+async function getChartData(monthStart: Date, scope: WarehouseScope): Promise<{
   deliveryTrend: ChartData[];
   stockByCategory: ChartData[];
   monthlyActivity: ChartData[];
@@ -238,15 +263,16 @@ async function getChartData(monthStart: Date): Promise<{
 }> {
   try {
     // Tendencia de entregas (últimos 30 días)
-    const deliveryTrendRaw = await prisma.$queryRaw<{ day: string; count: number }[]>`
+    const deliveryTrendRaw = await prisma.$queryRaw<{ day: string; count: number }[]>(Prisma.sql`
       SELECT 
         DATE(db."createdAt") as day,
         COUNT(*)::int as count
       FROM "DeliveryBatch" db
       WHERE db."createdAt" >= ${monthStart}
+        AND ${sqlWarehouseIn(BATCH_WAREHOUSE_COLUMN, scope.effectiveIds)}
       GROUP BY DATE(db."createdAt")
       ORDER BY day ASC
-    `;
+    `);
 
     const deliveryTrend: ChartData[] = deliveryTrendRaw.map(item => ({
       name: format(new Date(item.day), 'MMM dd'),
@@ -254,16 +280,16 @@ async function getChartData(monthStart: Date): Promise<{
     }));
 
     // Stock por categoría
-    const stockByCategoryRaw = await prisma.$queryRaw<{ category: string; total: number }[]>`
+    const stockByCategoryRaw = await prisma.$queryRaw<{ category: string; total: number }[]>(Prisma.sql`
       SELECT 
         e.category,
         COALESCE(SUM(es.quantity), 0)::int as total
       FROM "EPP" e
-      LEFT JOIN "EPPStock" es ON e.id = es."eppId"
+      LEFT JOIN "EPPStock" es ON e.id = es."eppId" AND ${sqlWarehouseIn(WAREHOUSE_COLUMN, scope.effectiveIds)}
       GROUP BY e.category
       HAVING COALESCE(SUM(es.quantity), 0) > 0
       ORDER BY total DESC
-    `;
+    `);
 
     const stockByCategory: ChartData[] = stockByCategoryRaw.map(item => ({
       name: item.category,
@@ -271,7 +297,7 @@ async function getChartData(monthStart: Date): Promise<{
     }));
 
     // Actividad mensual (últimos 12 meses) - Simplificado
-    const monthlyActivityRaw = await prisma.$queryRaw<{ month: string; deliveries: number; returns: number }[]>`
+    const monthlyActivityRaw = await prisma.$queryRaw<{ month: string; deliveries: number; returns: number }[]>(Prisma.sql`
       SELECT 
         TO_CHAR(DATE_TRUNC('month', series.month_start), 'YYYY-MM') as month,
         COALESCE(deliveries.count, 0)::int as deliveries,
@@ -285,16 +311,18 @@ async function getChartData(monthStart: Date): Promise<{
         SELECT DATE_TRUNC('month', "createdAt") as month, COUNT(*)::int as count
         FROM "DeliveryBatch" 
         WHERE "createdAt" >= DATE_TRUNC('month', NOW() - INTERVAL '11 months')
+          AND ${sqlWarehouseIn(DELIVERY_BATCH_WAREHOUSE_COLUMN, scope.effectiveIds)}
         GROUP BY DATE_TRUNC('month', "createdAt")
       ) deliveries ON series.month_start = deliveries.month
       LEFT JOIN (
         SELECT DATE_TRUNC('month', "createdAt") as month, COUNT(*)::int as count
         FROM "ReturnBatch"
         WHERE "createdAt" >= DATE_TRUNC('month', NOW() - INTERVAL '11 months')
+          AND ${sqlWarehouseIn(DELIVERY_BATCH_WAREHOUSE_COLUMN, scope.effectiveIds)}
         GROUP BY DATE_TRUNC('month', "createdAt")
       ) returns ON series.month_start = returns.month
       ORDER BY series.month_start ASC
-    `;
+    `);
 
     const monthlyActivity: ChartData[] = monthlyActivityRaw.map(item => ({
       name: format(new Date(item.month + '-01'), 'MMM'),
@@ -302,7 +330,7 @@ async function getChartData(monthStart: Date): Promise<{
     }));
 
     // Top EPPs convertir TopDeliveredData a ChartData
-    const topEppsRaw = await getTopDelivered(monthStart);
+    const topEppsRaw = await getTopDelivered(monthStart, scope);
     const topEpps: ChartData[] = topEppsRaw.map(item => ({
       name: item.name,
       value: item.qty
@@ -326,23 +354,23 @@ async function getChartData(monthStart: Date): Promise<{
 }
 
 // Función para obtener alertas críticas
-async function getCriticalAlerts(): Promise<CriticalAlert[]> {
+async function getCriticalAlerts(scope: WarehouseScope): Promise<CriticalAlert[]> {
   try {
     const alerts: CriticalAlert[] = [];
 
     // Alertas de stock crítico
-    const criticalStock = await prisma.$queryRaw<{ id: number; name: string; totalStock: number; minStock: number }[]>`
+    const criticalStock = await prisma.$queryRaw<{ id: number; name: string; totalStock: number; minStock: number }[]>(Prisma.sql`
       SELECT 
         e.id,
         e.name,
         COALESCE(SUM(es.quantity), 0)::int as "totalStock",
         e."minStock"
       FROM "EPP" e
-      LEFT JOIN "EPPStock" es ON e.id = es."eppId"
+      LEFT JOIN "EPPStock" es ON e.id = es."eppId" AND ${sqlWarehouseIn(WAREHOUSE_COLUMN, scope.effectiveIds)}
       GROUP BY e.id, e.name, e."minStock"
       HAVING COALESCE(SUM(es.quantity), 0) = 0 AND e."minStock" > 0
       LIMIT 5
-    `;
+    `);
 
     criticalStock.forEach(stock => {
       alerts.push({
@@ -357,18 +385,18 @@ async function getCriticalAlerts(): Promise<CriticalAlert[]> {
     });
 
     // Alertas de stock bajo
-    const lowStock = await prisma.$queryRaw<{ id: number; name: string; totalStock: number; minStock: number }[]>`
+    const lowStock = await prisma.$queryRaw<{ id: number; name: string; totalStock: number; minStock: number }[]>(Prisma.sql`
       SELECT 
         e.id,
         e.name,
         COALESCE(SUM(es.quantity), 0)::int as "totalStock",
         e."minStock"
       FROM "EPP" e
-      LEFT JOIN "EPPStock" es ON e.id = es."eppId"
+      LEFT JOIN "EPPStock" es ON e.id = es."eppId" AND ${sqlWarehouseIn(WAREHOUSE_COLUMN, scope.effectiveIds)}
       GROUP BY e.id, e.name, e."minStock"
       HAVING COALESCE(SUM(es.quantity), 0) > 0 AND COALESCE(SUM(es.quantity), 0) <= e."minStock"
       LIMIT 10
-    `;
+    `);
 
     lowStock.forEach(stock => {
       alerts.push({
@@ -444,11 +472,21 @@ function processMovementsByDay(movements: MovementRaw[]): MovementPoint[] {
   }));
 }
 
-export async function fetchDashboardData(): Promise<DashboardData> {
+export async function fetchDashboardData(scope: WarehouseScope): Promise<DashboardData> {
   try {
     const today = startOfDay(new Date());
     const weekStart = subDays(today, 7);
     const monthStart = subDays(today, 29);
+
+    const warehouseFilter = warehouseIdFilter(scope.effectiveIds);
+    const movementWarehouseFilter =
+      scope.effectiveIds === null
+        ? {}
+        : { warehouseId: { in: scope.effectiveIds } };
+    const batchWarehouseFilter =
+      scope.effectiveIds === null
+        ? {}
+        : { batch: { warehouseId: { in: scope.effectiveIds } } };
 
     // ✅ OPTIMIZACIÓN: Ejecutar queries en paralelo con mejor performance
     const [
@@ -461,35 +499,37 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       returnsPieRaw,
       topDeliveredRaw,
     ] = await Promise.all([
-      // Total de EPPs (con cache natural de COUNT)
+      // Total de EPPs (catálogo compartido)
       prisma.ePP.count(),
       
       // ✅ OPTIMIZACIÓN: Entregas usando índice optimizado
       prisma.delivery.count({ 
         where: { 
-          createdAt: { gte: weekStart } 
+          createdAt: { gte: weekStart },
+          ...batchWarehouseFilter,
         } 
       }),
       
       // ✅ OPTIMIZACIÓN: Devoluciones usando índice optimizado
       prisma.returnItem.count({ 
         where: { 
-          createdAt: { gte: weekStart } 
+          createdAt: { gte: weekStart },
+          ...batchWarehouseFilter,
         } 
       }),
       
       // ✅ OPTIMIZACIÓN: Stock total con aggregate optimizado
       prisma.ePPStock.aggregate({ 
         _sum: { quantity: true },
-        where: { quantity: { gt: 0 } } // Solo contar stock positivo
+        where: { quantity: { gt: 0 }, ...(warehouseFilter ? { warehouseId: warehouseFilter } : {}) }, // Solo contar stock positivo
       }),
       
       // Lista de EPPs con stock bajo
-      getLowStockList(),
+      getLowStockList(scope),
       
       // Movimientos del último mes
       prisma.stockMovement.findMany({
-        where: { createdAt: { gte: monthStart } },
+        where: { createdAt: { gte: monthStart }, ...movementWarehouseFilter },
         select: { 
           createdAt: true, 
           type: true, 
@@ -501,12 +541,12 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       // Devoluciones por condición
       prisma.returnItem.groupBy({
         by: ["condition"],
-        where: { createdAt: { gte: monthStart } },
+        where: { createdAt: { gte: monthStart }, ...batchWarehouseFilter },
         _sum: { quantity: true },
       }),
       
       // Top EPPs entregados
-      getTopDelivered(monthStart),
+      getTopDelivered(monthStart, scope),
     ]);
 
     // Preparar KPIs
@@ -536,10 +576,10 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 
     // Obtener datos adicionales para el dashboard mejorado
     const [recentActivity, chartData, criticalAlerts, deliveriesByLocation] = await Promise.all([
-      getRecentActivity(),
-      getChartData(monthStart),
-      getCriticalAlerts(),
-      getDeliveriesByLocation(monthStart)
+      getRecentActivity(scope),
+      getChartData(monthStart, scope),
+      getCriticalAlerts(scope),
+      getDeliveriesByLocation(monthStart, scope)
     ]);
 
     // KPIs dinámicos para EnhancedKpiCard
