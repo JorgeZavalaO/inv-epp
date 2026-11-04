@@ -18,6 +18,7 @@ const PUBLIC_SET = new Set([
   '/auth/signup',
   '/auth/error',
   '/api/health',
+  '/api/access-requests',
 ]);
 
 // Prefijos públicos (comienzos de path) – evita incluir la config completa de NextAuth
