@@ -17,7 +17,8 @@
     "build:vercel": "bash ./scripts/vercel-build.sh",
     "deploy:check": "prisma migrate status",
     "deploy:safe": "prisma migrate deploy && prisma generate && pnpm run build",
-    "seed:permissions": "tsx scripts/seed-permissions.ts"
+    "seed:permissions": "tsx scripts/seed-permissions.ts",
+    "backfill:requests": "tsx scripts/backfill-request-warehouse.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.1",
