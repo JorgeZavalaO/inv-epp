@@ -24,8 +24,15 @@ export async function GET(
       select: { warehouseId: true },
     });
 
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { primaryWarehouseId: true, role: true },
+    });
+
     return NextResponse.json({
       warehouseIds: assignments.map((a) => a.warehouseId),
+      primaryWarehouseId: targetUser?.primaryWarehouseId ?? null,
+      role: targetUser?.role ?? null,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error inesperado";
@@ -99,7 +106,8 @@ export async function PUT(
       }
     }
 
-    // Reemplazar asignaciones en una transacción
+    // Reemplazar asignaciones en una transacción. Si el almacén principal
+    // deja de estar asignado, se limpia para no dar acceso inconsistente.
     await prisma.$transaction([
       prisma.userWarehouse.deleteMany({ where: { userId } }),
       ...(body.warehouseIds.length > 0
@@ -113,6 +121,13 @@ export async function PUT(
             }),
           ]
         : []),
+      prisma.user.updateMany({
+        where: {
+          id: userId,
+          primaryWarehouseId: { not: null, notIn: body.warehouseIds },
+        },
+        data: { primaryWarehouseId: null },
+      }),
     ]);
 
     return NextResponse.json({

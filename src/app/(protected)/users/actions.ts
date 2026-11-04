@@ -15,6 +15,7 @@ import {
 } from "@/schemas/user-schema";
 import { requirePermission } from "@/lib/auth-utils";
 import { UserRole } from "@prisma/client";
+import { WAREHOUSE_RESTRICTED_ROLES } from "@/lib/warehouse-scope";
 import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
 
 /**
@@ -203,6 +204,31 @@ export async function updateUser(input: UpdateUserInput) {
         },
       },
     });
+  }
+
+  // Si el usuario pasa a un rol restringido, el almacén principal debe
+  // seguir estando entre sus asignaciones.
+  if (
+    roleChanged &&
+    WAREHOUSE_RESTRICTED_ROLES.includes(data.role as UserRole) &&
+    existingUser.primaryWarehouseId !== null
+  ) {
+    const assigned = await prisma.userWarehouse.findUnique({
+      where: {
+        userId_warehouseId: {
+          userId: data.id,
+          warehouseId: existingUser.primaryWarehouseId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!assigned) {
+      await prisma.user.update({
+        where: { id: data.id },
+        data: { primaryWarehouseId: null },
+      });
+    }
   }
 
   revalidatePath("/users");

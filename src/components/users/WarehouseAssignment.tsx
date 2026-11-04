@@ -26,26 +26,36 @@ type WarehouseOption = {
 type WarehouseAssignmentProps = {
   userId: string;
   userName: string;
+  userRole?: string;
 };
 
 export default function WarehouseAssignment({
   userId,
   userName,
+  userRole,
 }: WarehouseAssignmentProps) {
   const [allWarehouses, setAllWarehouses] = useState<WarehouseOption[]>([]);
   const [assignedIds, setAssignedIds] = useState<number[]>([]);
+  const [primaryId, setPrimaryId] = useState<string>("");
+  const [role, setRole] = useState<string>(userRole ?? "");
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
 
+  const isRestricted = role === "SUPERVISOR" || role === "WAREHOUSE_MANAGER";
+  const primaryOptions = isRestricted
+    ? allWarehouses.filter((w) => assignedIds.includes(w.id))
+    : allWarehouses;
+
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
       const [warehousesRes, assignedRes] = await Promise.all([
-        fetch("/api/warehouses"),
+        fetch("/api/warehouses?scope=all"),
         fetch(`/api/users/${userId}/warehouses`),
       ]);
 
@@ -63,6 +73,12 @@ export default function WarehouseAssignment({
 
       setAllWarehouses(warehouses);
       setAssignedIds(assignedData.warehouseIds ?? []);
+      setPrimaryId(
+        assignedData.primaryWarehouseId
+          ? String(assignedData.primaryWarehouseId)
+          : "",
+      );
+      if (assignedData.role) setRole(assignedData.role);
     } catch (err) {
       toast.error("Error al cargar almacenes");
       console.error(err);
@@ -77,6 +93,9 @@ export default function WarehouseAssignment({
         ? prev.filter((id) => id !== warehouseId)
         : [...prev, warehouseId]
     );
+    if (String(warehouseId) === primaryId) {
+      setPrimaryId("");
+    }
   };
 
   const handleSelectAll = () => {
@@ -85,6 +104,7 @@ export default function WarehouseAssignment({
 
   const handleClearAll = () => {
     setAssignedIds([]);
+    setPrimaryId("");
   };
 
   const handleSave = () => {
@@ -99,6 +119,24 @@ export default function WarehouseAssignment({
           const errorData = await res.json();
           throw new Error(errorData.error ?? "Error al guardar");
         }
+
+        const primaryRes = await fetch(
+          `/api/users/${userId}/primary-warehouse`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              primaryWarehouseId: primaryId ? Number(primaryId) : null,
+            }),
+          },
+        );
+        if (!primaryRes.ok) {
+          const errorData = await primaryRes.json();
+          throw new Error(
+            errorData.error ?? "Error al guardar el almacén principal",
+          );
+        }
+
         toast.success(
           `Almacenes actualizados para ${userName} (${assignedIds.length} asignado${assignedIds.length !== 1 ? "s" : ""})`
         );
@@ -197,6 +235,31 @@ export default function WarehouseAssignment({
             </div>
           )}
         </ScrollArea>
+
+        <div className="space-y-2">
+          <Label htmlFor={`primary-warehouse-${userId}`}>
+            Almacén principal (predeterminado)
+          </Label>
+          <select
+            id={`primary-warehouse-${userId}`}
+            value={primaryId}
+            onChange={(event) => setPrimaryId(event.target.value)}
+            disabled={isPending}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="">Sin almacén principal</option>
+            {primaryOptions.map((warehouse) => (
+              <option key={warehouse.id} value={warehouse.id}>
+                {warehouse.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Se usa como origen fijo en los traslados y para la vista &quot;solo mi
+            almacén principal&quot;. En roles restringidos debe estar entre los
+            almacenes asignados.
+          </p>
+        </div>
 
         <div className="flex justify-end">
           <Button onClick={handleSave} disabled={isPending} size="sm">

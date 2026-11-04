@@ -796,6 +796,7 @@ export default function UserManagementClient() {
             <WarehouseAssignment
               userId={selectedUser.id}
               userName={selectedUser.name}
+              userRole={selectedUser.role}
             />
           )}
           <DialogFooter>
