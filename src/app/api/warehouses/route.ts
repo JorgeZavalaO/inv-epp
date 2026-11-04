@@ -1,6 +1,6 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { requirePermission, hasPermission } from "@/lib/auth-utils";
+import { requirePermission, hasPermission, hasAnyPermission } from "@/lib/auth-utils";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/pagination";
@@ -41,8 +41,10 @@ export async function GET(req: Request) {
     // Transfers may target any warehouse other than the primary one.
     warehouseIds = null;
   } else if (wantsAll) {
-    const canListAll =
-      (await hasPermission("warehouses_manage")) || (await hasPermission("user_manage"));
+    const canListAll = await hasAnyPermission([
+      "warehouses_manage",
+      "user_view",
+    ]);
     if (!canListAll) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
