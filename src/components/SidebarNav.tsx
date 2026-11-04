@@ -32,7 +32,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/reports': ['reports_export'],
   '/audit-logs': ['audit_view'],
   '/audit/delivery-consistency': ['stock_movements_manage'],
-  '/settings': ['settings_update'],
+  '/settings': [], // Accesible para todos los autenticados (preferencias personales)
   '/users': ['user_view'],
   '/performance': [], // Accesible para admins (se verifica en el componente)
 };

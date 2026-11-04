@@ -7,6 +7,11 @@ import { systemConfigSchema } from "@/schemas/system-config-schema";
 import { saveSystemConfig} from "@/lib/settings";
 import { requirePermission } from "@/lib/auth-utils";
 import { put } from "@vercel/blob";
+import { auth } from "@/lib/auth";
+import prisma from "@/lib/prisma";
+import { WarehouseViewMode } from "@prisma/client";
+import { z } from "zod";
+import { getWarehouseScope } from "@/lib/warehouse-scope";
 
 export async function updateSystemConfig(
   _: unknown,
@@ -49,5 +54,84 @@ export async function updateSystemConfig(
 
   await saveSystemConfig({ companyName, ...(logoUrl ? { logoUrl } : {}) });
   revalidatePath("/settings");
+  return { ok: true };
+}
+
+const warehousePreferencesSchema = z.object({
+  viewMode: z.nativeEnum(WarehouseViewMode),
+  primaryWarehouseId: z
+    .union([z.coerce.number().int().positive(), z.literal(""), z.null()])
+    .optional()
+    .transform((value) => (value === "" || value === undefined ? null : value)),
+});
+
+export type WarehousePreferencesState = {
+  ok: boolean;
+  error?: string;
+};
+
+export async function updateMyWarehousePreferences(
+  _: unknown,
+  formData: FormData,
+): Promise<WarehousePreferencesState> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { ok: false, error: "No autenticado" };
+  }
+
+  const parsed = warehousePreferencesSchema.safeParse({
+    viewMode: formData.get("viewMode"),
+    primaryWarehouseId: formData.get("primaryWarehouseId"),
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: "Datos inválidos" };
+  }
+
+  const { viewMode } = parsed.data;
+  const requestedPrimaryId = parsed.data.primaryWarehouseId;
+  const isAdmin = session.user.role === "ADMIN";
+
+  const current = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { primaryWarehouseId: true },
+  });
+
+  if (!current) {
+    return { ok: false, error: "Usuario no encontrado" };
+  }
+
+  // Only ADMIN may change the primary warehouse from their own settings.
+  let primaryWarehouseId = current.primaryWarehouseId;
+  if (isAdmin && requestedPrimaryId !== null) {
+    const warehouse = await prisma.warehouse.findUnique({
+      where: { id: requestedPrimaryId },
+      select: { id: true },
+    });
+    if (!warehouse) {
+      return { ok: false, error: "El almacén seleccionado no existe" };
+    }
+    primaryWarehouseId = requestedPrimaryId;
+  }
+
+  if (viewMode === WarehouseViewMode.PRIMARY) {
+    const scope = await getWarehouseScope();
+    const primaryIsAllowed =
+      primaryWarehouseId !== null &&
+      (scope.allowedIds === null || scope.allowedIds.includes(primaryWarehouseId));
+    if (!primaryIsAllowed) {
+      return {
+        ok: false,
+        error: "Necesitas un almacén principal asignado para usar esta vista",
+      };
+    }
+  }
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { warehouseViewMode: viewMode, primaryWarehouseId },
+  });
+
+  revalidatePath("/", "layout");
   return { ok: true };
 }
