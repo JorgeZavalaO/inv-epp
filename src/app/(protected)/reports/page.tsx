@@ -10,6 +10,7 @@ import ReportsFilters from "./reports-filters";
 import { hasPermission } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { getWarehouseScope, narrowScope } from "@/lib/warehouse-scope";
+import { formatCurrency } from "@/lib/format";
 
 export default async function ReportsPage({ searchParams }: { searchParams?: Promise<{ year?: string; warehouseId?: string; category?: string; collaboratorId?: string; location?: string; from?: string; to?: string }> }) {
   // Verificar permisos
@@ -35,6 +36,11 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Pro
     fetchReportFilterData(scope),
   ]);
 
+  const activeMonths = data.monthly.filter((m) => m.qty > 0).length || 1;
+  const totalCost = data.indicators?.totalCost ?? 0;
+  const avgCostPerUnit = data.indicators?.avgCostPerUnit ?? 0;
+  const avgMonthlyCost = totalCost / activeMonths;
+
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="space-y-2">
@@ -50,6 +56,21 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Pro
         locations={filterData.locations}
         selected={{ year, warehouseId, category, collaboratorId, location }}
       />
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border bg-white p-4">
+          <p className="text-xs text-muted-foreground">Costo total entregado</p>
+          <p className="text-2xl font-bold text-emerald-700">{formatCurrency(totalCost)}</p>
+        </div>
+        <div className="rounded-xl border bg-white p-4">
+          <p className="text-xs text-muted-foreground">Costo promedio por unidad</p>
+          <p className="text-2xl font-bold">{formatCurrency(avgCostPerUnit)}</p>
+        </div>
+        <div className="rounded-xl border bg-white p-4">
+          <p className="text-xs text-muted-foreground">Costo promedio por mes con consumo</p>
+          <p className="text-2xl font-bold">{formatCurrency(avgMonthlyCost)}</p>
+        </div>
+      </section>
 
       <Suspense fallback={<div className="grid gap-6 lg:grid-cols-3"><div className="h-80 bg-muted/50 rounded-lg animate-pulse lg:col-span-3"/></div>}>
         <section className="grid gap-6 lg:grid-cols-3">

@@ -2,6 +2,7 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import type { ReportsIndicators } from "@/lib/reports";
+import { formatCurrency } from "@/lib/format";
 
 interface Props { indicators: ReportsIndicators | undefined }
 
@@ -18,6 +19,8 @@ export default function IndicatorsPanel({ indicators }: Props) {
       <CardContent>
         <ul className="space-y-1 text-sm">
           <li className="flex justify-between"><span>Total entregado</span><span>{i.totalDeliveredQty}</span></li>
+          <li className="flex justify-between"><span>Costo total</span><span className="font-medium">{formatCurrency(i.totalCost)}</span></li>
+          <li className="flex justify-between"><span>Costo prom. por unidad</span><span>{formatCurrency(i.avgCostPerUnit)}</span></li>
           <li className="flex justify-between"><span># líneas de entrega</span><span>{i.deliveriesCount}</span></li>
           <li className="flex justify-between"><span>Prom. ítems por línea</span><span>{i.avgItemsPerDelivery.toFixed(2)}</span></li>
           <li className="flex justify-between"><span>Solicitudes</span><span>{i.requestsCount}</span></li>

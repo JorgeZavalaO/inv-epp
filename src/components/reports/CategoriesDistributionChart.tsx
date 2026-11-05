@@ -2,15 +2,21 @@
 
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/format";
 
 interface Props {
-  data: Array<{ category: string; qty: number; pct: number }>;
+  data: Array<{ category: string; qty: number; pct: number; cost: number }>;
 }
 
 const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ec4899", "#06b6d4", "#a855f7", "#f87171", "#84cc16"];
 
 export default function CategoriesDistributionChart({ data }: Props) {
-  const chart = data.map((d, i) => ({ name: d.category, value: d.qty, fill: COLORS[i % COLORS.length] }));
+  const chart = data.map((d, i) => ({
+    name: d.category,
+    value: d.qty,
+    cost: d.cost,
+    fill: COLORS[i % COLORS.length],
+  }));
 
   return (
   <Card data-report-chart="categorias">
@@ -26,10 +32,19 @@ export default function CategoriesDistributionChart({ data }: Props) {
                   <Cell key={i} fill={entry.fill} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value: number, _name: string, payload: unknown) => {
-                const p = payload as { payload?: { name?: string } } | undefined;
-                return [value, p?.payload?.name];
-              }} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const item = payload[0].payload as { name: string; value: number; cost: number };
+                  return (
+                    <div className="rounded-md border bg-white px-3 py-2 text-xs shadow-sm">
+                      <p className="font-medium">{item.name}</p>
+                      <p>{item.value} unidades</p>
+                      <p className="text-muted-foreground">{formatCurrency(item.cost)}</p>
+                    </div>
+                  );
+                }}
+              />
               <Legend verticalAlign="bottom" height={36} />
             </PieChart>
           </ResponsiveContainer>

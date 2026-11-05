@@ -6,16 +6,19 @@ import { limaMonthKey, parseLimaDateBoundary } from "@/lib/date-range";
 export interface MonthlyPoint {
   month: string; // YYYY-MM
   qty: number;
+  cost: number;
 }
 
 export interface TopItem {
   name: string;
   qty: number;
+  cost: number;
 }
 
 export interface LocationItem {
   location: string;
   qty: number;
+  cost: number;
 }
 
 export interface LatestDeliveryRow {
@@ -26,6 +29,8 @@ export interface LatestDeliveryRow {
   batchCode: string;
   collaborator: string | null;
   warehouse: string;
+  unitPrice: number | null;
+  cost: number;
 }
 
 export interface ReportsData {
@@ -34,7 +39,7 @@ export interface ReportsData {
   topEpps: TopItem[];
   topLocations: LocationItem[];
   latest: LatestDeliveryRow[];
-  categories?: Array<{ category: string; qty: number; pct: number }>;
+  categories?: Array<{ category: string; qty: number; pct: number; cost: number }>;
   locationsFull?: LocationItem[]; // sin límite
   indicators?: ReportsIndicators;
   transferSummary?: {
@@ -85,10 +90,37 @@ export interface ReportsIndicators {
   uniqueCollaborators: number;
   uniqueEpps: number;
   averageDailyDeliveredQty: number;
+  totalCost: number;
+  avgCostPerUnit: number;
 }
 
-function ensureMonthsInRange(rows: Array<{ month: string; qty: number }>, from: Date, to: Date): MonthlyPoint[] {
-  const byMonth = new Map(rows.map(r => [r.month, r.qty] as const));
+/**
+ * Latest approved purchase unit price per EPP within the warehouse scope.
+ * Joins as `price` on the current EPP alias `e`.
+ */
+function priceLookup(scopedWarehouseIds: number[] | null) {
+  return Prisma.sql`
+    LEFT JOIN LATERAL (
+      SELECT sm."unitPrice"
+      FROM "StockMovement" sm
+      WHERE sm."eppId" = e.id
+        AND sm."type" = 'ENTRY'
+        AND sm."status" = 'APPROVED'
+        AND sm."unitPrice" IS NOT NULL
+        AND ${sqlWarehouseIn(Prisma.raw('sm."warehouseId"'), scopedWarehouseIds)}
+      ORDER BY sm."createdAt" DESC, sm.id DESC
+      LIMIT 1
+    ) price ON TRUE
+  `;
+}
+
+function toNumber(value: Prisma.Decimal | number | string | null | undefined): number {
+  if (value == null) return 0;
+  return Number(value);
+}
+
+function ensureMonthsInRange(rows: Array<{ month: string; qty: number; cost: number }>, from: Date, to: Date): MonthlyPoint[] {
+  const byMonth = new Map(rows.map(r => [r.month, r] as const));
   const result: MonthlyPoint[] = [];
   const [startYear, startMonth] = limaMonthKey(from).split("-").map(Number);
   const [endYear, endMonth] = limaMonthKey(to).split("-").map(Number);
@@ -96,7 +128,8 @@ function ensureMonthsInRange(rows: Array<{ month: string; qty: number }>, from: 
   let month = startMonth;
   while (year < endYear || (year === endYear && month <= endMonth)) {
     const key = `${year}-${String(month).padStart(2, "0")}`;
-    result.push({ month: key, qty: byMonth.get(key) ?? 0 });
+    const row = byMonth.get(key);
+    result.push({ month: key, qty: row?.qty ?? 0, cost: row?.cost ?? 0 });
     month += 1;
     if (month > 12) {
       month = 1;
@@ -144,90 +177,117 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
   })();
   
   // ✅ OPTIMIZACIÓN: Queries paralelas optimizadas con límites
-  const [monthlyRaw, topEpps, topLocations, latest, categoriesRaw, locationsFull, indicatorsDeliveryBase, returnAgg, requestsAgg, transferSummaryRaw, latestTransfersRaw] = await Promise.all([
-    prisma.$queryRaw<Array<{ month: string; qty: number }>>(Prisma.sql`
+  const [monthlyRaw, topEppsRaw, topLocationsRaw, latestRaw, categoriesRaw, locationsFullRaw, indicatorsDeliveryBase, returnAgg, requestsAgg, transferSummaryRaw, latestTransfersRaw] = await Promise.all([
+    prisma.$queryRaw<Array<{ month: string; qty: number; cost: Prisma.Decimal | number }>>(Prisma.sql`
       SELECT TO_CHAR(date_trunc('month', d."createdAt" - INTERVAL '5 hours'), 'YYYY-MM') AS month,
-             SUM(d.quantity)::int AS qty
+             SUM(d.quantity)::int AS qty,
+             COALESCE(SUM(d.quantity * COALESCE(price."unitPrice", 0)), 0)::numeric AS cost
       FROM "Delivery" d
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       INNER JOIN "EPP" e ON e.id = d."eppId"
+      ${priceLookup(scopedWarehouseIds)}
       ${location ? Prisma.sql`LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"` : Prisma.empty}
       ${location ? whereWithLocation : baseWhere}
       GROUP BY month
       ORDER BY month
     `),
-    prisma.$queryRaw<TopItem[]>(Prisma.sql`
-      SELECT e.name, SUM(d.quantity)::int AS qty
+    prisma.$queryRaw<Array<{ name: string; qty: number; cost: Prisma.Decimal | number }>>(Prisma.sql`
+      SELECT e.name,
+             SUM(d.quantity)::int AS qty,
+             COALESCE(SUM(d.quantity * COALESCE(price."unitPrice", 0)), 0)::numeric AS cost
       FROM "Delivery" d
       INNER JOIN "EPP" e ON e.id = d."eppId"
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
+      ${priceLookup(scopedWarehouseIds)}
       ${location ? Prisma.sql`LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"` : Prisma.empty}
       ${location ? whereWithLocation : baseWhere}
       GROUP BY e.id, e.name
       ORDER BY SUM(d.quantity) DESC
       LIMIT 5
     `),
-    prisma.$queryRaw<LocationItem[]>(Prisma.sql`
+    prisma.$queryRaw<Array<{ location: string; qty: number; cost: Prisma.Decimal | number }>>(Prisma.sql`
       SELECT COALESCE(c.location, 'Sin ubicación') AS location,
-             SUM(d.quantity)::int AS qty
+             SUM(d.quantity)::int AS qty,
+             COALESCE(SUM(d.quantity * COALESCE(price."unitPrice", 0)), 0)::numeric AS cost
       FROM "Delivery" d
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"
       INNER JOIN "EPP" e ON e.id = d."eppId"
+      ${priceLookup(scopedWarehouseIds)}
       ${whereWithLocation}
       GROUP BY location
       ORDER BY qty DESC
       LIMIT 5
     `),
-    prisma.$queryRaw<LatestDeliveryRow[]>(Prisma.sql`
+    prisma.$queryRaw<Array<{
+      id: number;
+      date: string;
+      eppName: string;
+      qty: number;
+      batchCode: string;
+      collaborator: string | null;
+      warehouse: string;
+      unitPrice: Prisma.Decimal | number | null;
+      cost: Prisma.Decimal | number;
+    }>>(Prisma.sql`
       SELECT d.id,
              d."createdAt"::text AS date,
              e.name AS "eppName",
              d.quantity::int AS qty,
              b.code AS "batchCode",
              c.name AS collaborator,
-             w.name AS warehouse
+             w.name AS warehouse,
+             price."unitPrice",
+             (d.quantity * COALESCE(price."unitPrice", 0))::numeric AS cost
       FROM "Delivery" d
       INNER JOIN "EPP" e ON e.id = d."eppId"
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"
       INNER JOIN "Warehouse" w ON w.id = b."warehouseId"
+      ${priceLookup(scopedWarehouseIds)}
       ${whereWithLocation}
       ORDER BY d."createdAt" DESC
       LIMIT 12
     `),
     // Distribución por categoría completa
-    prisma.$queryRaw<Array<{ category: string; qty: number }>>(Prisma.sql`
-      SELECT e.category, SUM(d.quantity)::int AS qty
+    prisma.$queryRaw<Array<{ category: string; qty: number; cost: Prisma.Decimal | number }>>(Prisma.sql`
+      SELECT e.category,
+             SUM(d.quantity)::int AS qty,
+             COALESCE(SUM(d.quantity * COALESCE(price."unitPrice", 0)), 0)::numeric AS cost
       FROM "Delivery" d
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       INNER JOIN "EPP" e ON e.id = d."eppId"
+      ${priceLookup(scopedWarehouseIds)}
       ${location ? Prisma.sql`LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"` : Prisma.empty}
       ${location ? whereWithLocation : baseWhere}
       GROUP BY e.category
       ORDER BY qty DESC
     `),
     // Todas las ubicaciones (sin límite)
-    prisma.$queryRaw<LocationItem[]>(Prisma.sql`
+    prisma.$queryRaw<Array<{ location: string; qty: number; cost: Prisma.Decimal | number }>>(Prisma.sql`
       SELECT COALESCE(c.location, 'Sin ubicación') AS location,
-             SUM(d.quantity)::int AS qty
+             SUM(d.quantity)::int AS qty,
+             COALESCE(SUM(d.quantity * COALESCE(price."unitPrice", 0)), 0)::numeric AS cost
       FROM "Delivery" d
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"
       INNER JOIN "EPP" e ON e.id = d."eppId"
+      ${priceLookup(scopedWarehouseIds)}
       ${whereWithLocation}
       GROUP BY location
       ORDER BY qty DESC
     `),
     // Indicadores base de entregas
-    prisma.$queryRaw<Array<{ delivered_qty: number; deliveries_count: number; unique_epps: number; unique_collaborators: number }>>(Prisma.sql`
+    prisma.$queryRaw<Array<{ delivered_qty: number; deliveries_count: number; unique_epps: number; unique_collaborators: number; total_cost: Prisma.Decimal | number }>>(Prisma.sql`
       SELECT COALESCE(SUM(d.quantity),0)::int AS delivered_qty,
              COUNT(d.*)::int AS deliveries_count,
              COUNT(DISTINCT d."eppId")::int AS unique_epps,
-             COUNT(DISTINCT b."collaboratorId")::int AS unique_collaborators
+             COUNT(DISTINCT b."collaboratorId")::int AS unique_collaborators,
+             COALESCE(SUM(d.quantity * COALESCE(price."unitPrice", 0)), 0)::numeric AS total_cost
       FROM "Delivery" d
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
       INNER JOIN "EPP" e ON e.id = d."eppId"
+      ${priceLookup(scopedWarehouseIds)}
       ${location ? Prisma.sql`LEFT JOIN "Collaborator" c ON c.id = b."collaboratorId"` : Prisma.empty}
       ${location ? whereWithLocation : baseWhere}
     `),
@@ -292,6 +352,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
   const deliveriesCount = indicatorsDeliveryBase[0]?.deliveries_count ?? 0;
   const uniqueEpps = indicatorsDeliveryBase[0]?.unique_epps ?? 0;
   const uniqueCollaborators = indicatorsDeliveryBase[0]?.unique_collaborators ?? 0;
+  const totalCost = toNumber(indicatorsDeliveryBase[0]?.total_cost);
   const returnQty = returnAgg[0]?.return_qty ?? 0;
   const requestsCount = requestsAgg[0]?.total_requests ?? 0;
   const completedRequests = requestsAgg[0]?.completed_requests ?? 0;
@@ -308,6 +369,8 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
     uniqueCollaborators,
     uniqueEpps,
     averageDailyDeliveredQty: deliveredQty / days,
+    totalCost,
+    avgCostPerUnit: deliveredQty ? totalCost / deliveredQty : 0,
   };
 
   const categoriesTotal = categoriesRaw.reduce((a, c) => a + c.qty, 0) || 1;
@@ -319,13 +382,43 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
     rejected: 0,
   };
 
+  const topEpps: TopItem[] = topEppsRaw.map(row => ({
+    name: row.name,
+    qty: row.qty,
+    cost: toNumber(row.cost),
+  }));
+  const topLocations: LocationItem[] = topLocationsRaw.map(row => ({
+    location: row.location,
+    qty: row.qty,
+    cost: toNumber(row.cost),
+  }));
+  const latest: LatestDeliveryRow[] = latestRaw.map(row => ({
+    ...row,
+    unitPrice: row.unitPrice == null ? null : Number(row.unitPrice),
+    cost: toNumber(row.cost),
+  }));
+  const locationsFull: LocationItem[] = locationsFullRaw.map(row => ({
+    location: row.location,
+    qty: row.qty,
+    cost: toNumber(row.cost),
+  }));
+
   return {
     year,
-    monthly: ensureMonthsInRange(monthlyRaw, fromDate, toDate),
+    monthly: ensureMonthsInRange(
+      monthlyRaw.map(row => ({ month: row.month, qty: row.qty, cost: toNumber(row.cost) })),
+      fromDate,
+      toDate,
+    ),
     topEpps,
     topLocations,
     latest,
-    categories: categoriesRaw.map(row => ({ category: row.category, qty: row.qty, pct: row.qty / categoriesTotal })),
+    categories: categoriesRaw.map(row => ({
+      category: row.category,
+      qty: row.qty,
+      pct: row.qty / categoriesTotal,
+      cost: toNumber(row.cost),
+    })),
     locationsFull,
     indicators,
     transferSummary: {

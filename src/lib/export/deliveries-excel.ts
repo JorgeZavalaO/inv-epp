@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { getLastPurchasePrices } from "@/lib/epps-last-purchase-price";
 import { parseLimaDateBoundary } from "@/lib/date-range";
 
 export interface DeliveriesExportFilters {
@@ -104,6 +105,15 @@ export async function fetchDeliveriesForExport(filters: DeliveriesExportFilters)
 export async function generateDeliveriesExcel(filters: DeliveriesExportFilters = {}) {
   const deliveries = await fetchDeliveriesForExport(filters);
 
+  const priceWarehouseIds =
+    filters.warehouseIds !== undefined && filters.warehouseIds !== null
+      ? filters.warehouseIds
+      : filters.warehouseId
+        ? [filters.warehouseId]
+        : null;
+  const eppIds = Array.from(new Set(deliveries.map((delivery) => delivery.eppId)));
+  const lastPrices = await getLastPurchasePrices(eppIds, priceWarehouseIds);
+
   console.group("[Export Excel] Generación de Excel de entregas");
   console.log("Total de entregas a exportar:", deliveries.length);
 
@@ -121,6 +131,8 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
     "LOTE DE ENTREGA",
     "DESCRIPCION DE PRODUCTO",
     "CANTIDADES",
+    "PRECIO UNITARIO",
+    "COSTO TOTAL",
     "OBSERVACIONES",
     "OPERADOR",
   ];
@@ -149,6 +161,8 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
       ? `${delivery.epp.name} - ${delivery.epp.description}`
       : delivery.epp.name;
     const note = delivery.batch.note ? String(delivery.batch.note).trim() : "";
+    const unitPrice = lastPrices.get(delivery.eppId) ?? null;
+    const totalCost = unitPrice != null ? unitPrice * delivery.quantity : null;
 
     if (index < 3 || index === deliveries.length - 1) {
       console.log(`Fila ${index + 2}: DNI="${collaboratorDocumentId}", Empleado="${collaboratorName}", Lote="${delivery.batch.code}"`);
@@ -162,6 +176,8 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
       delivery.batch.code,
       productDescription,
       delivery.quantity,
+      unitPrice ?? "",
+      totalCost ?? "",
       note,
       operator,
     ]);
@@ -180,6 +196,8 @@ export async function generateDeliveriesExcel(filters: DeliveriesExportFilters =
   });
 
   worksheet.getColumn(7).alignment = { horizontal: "center" };
+  worksheet.getColumn(8).numFmt = '"S/ "#,##0.00';
+  worksheet.getColumn(9).numFmt = '"S/ "#,##0.00';
 
   console.log("Excel generado exitosamente");
   console.groupEnd();
