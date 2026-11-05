@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 
 import prisma from "@/lib/prisma";
+import { getLastPurchasePrices } from "@/lib/epps-last-purchase-price";
 
 export async function generateEppsCatalogExcel(warehouseIds: number[] | null) {
   const [warehouses, epps] = await Promise.all([
@@ -11,6 +12,7 @@ export async function generateEppsCatalogExcel(warehouseIds: number[] | null) {
     }),
     prisma.ePP.findMany({
       select: {
+        id: true,
         code: true,
         name: true,
         category: true,
@@ -29,6 +31,11 @@ export async function generateEppsCatalogExcel(warehouseIds: number[] | null) {
     }),
   ]);
 
+  const lastPurchasePrices = await getLastPurchasePrices(
+    epps.map((e) => e.id),
+    warehouseIds,
+  );
+
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "INV-EPP";
   workbook.created = new Date();
@@ -42,6 +49,7 @@ export async function generateEppsCatalogExcel(warehouseIds: number[] | null) {
     "SUBCATEGORÍA",
     "STOCK MÍNIMO",
     "TOTAL",
+    "ÚLTIMO PRECIO COMPRA",
   ];
   const warehouseHeader = warehouses.map((w) => `STOCK - ${w.name}`);
   const header = [...staticHeader, ...warehouseHeader, "DESCRIPCIÓN"];
@@ -69,6 +77,7 @@ export async function generateEppsCatalogExcel(warehouseIds: number[] | null) {
       e.subcategory ?? "",
       e.minStock,
       total,
+      lastPurchasePrices.get(e.id) ?? "",
       ...warehouses.map((w) => stockByWarehouse.get(w.id) ?? 0),
       e.description ?? "",
     ];
@@ -87,13 +96,16 @@ export async function generateEppsCatalogExcel(warehouseIds: number[] | null) {
     excelColumn.width = Math.min(Math.max(max + 2, 12), 60);
   });
 
-  // Alinear numéricos (min stock, total y stocks por almacén)
+  // Alinear numéricos (min stock, total, precio y stocks por almacén)
   const minStockCol = 5;
   const totalCol = 6;
+  const priceCol = 7;
   worksheet.getColumn(minStockCol).alignment = { horizontal: "center" };
   worksheet.getColumn(totalCol).alignment = { horizontal: "center" };
+  worksheet.getColumn(priceCol).alignment = { horizontal: "right" };
+  worksheet.getColumn(priceCol).numFmt = '"S/ "#,##0.00';
   for (let i = 0; i < warehouses.length; i++) {
-    worksheet.getColumn(totalCol + 1 + i).alignment = { horizontal: "center" };
+    worksheet.getColumn(priceCol + 1 + i).alignment = { horizontal: "center" };
   }
 
   worksheet.views = [{ state: "frozen", ySplit: 1 }];

@@ -34,6 +34,7 @@ export type EppRow = {
   stock:       number;
   description: string | null;
   minStock:    number;
+  lastUnitPrice: number | null;
   hasMovement: boolean;
   items: {
     warehouseId:   number;
@@ -64,6 +65,8 @@ export type EppRow = {
 
   // Configuración de columnas básicas
   const [showCategory, setShowCategory] = useState(true);
+  // Mostrar último precio unitario de compra
+  const [showLastPrice, setShowLastPrice] = useState(true);
   // Por defecto sólo mostrar total
   const [showTotal, setShowTotal]       = useState(true);
   // Dividir stock por almacenes (desactivado por defecto)
@@ -73,9 +76,11 @@ export type EppRow = {
     useEffect(() => {
       try {
         const sc = localStorage.getItem("epps.columns.showCategory");
+        const slp = localStorage.getItem("epps.columns.showLastPrice");
         const st = localStorage.getItem("epps.columns.showTotal");
         const ss = localStorage.getItem("epps.splitStock.enabled");
       if (sc != null) setShowCategory(sc === "1");
+      if (slp != null) setShowLastPrice(slp === "1");
       if (st != null) setShowTotal(st === "1");
       if (ss != null) setSplitStock(ss === "1");
       } catch {}
@@ -84,10 +89,11 @@ export type EppRow = {
     useEffect(() => {
       try {
         localStorage.setItem("epps.columns.showCategory", showCategory ? "1" : "0");
+        localStorage.setItem("epps.columns.showLastPrice", showLastPrice ? "1" : "0");
         localStorage.setItem("epps.columns.showTotal", showTotal ? "1" : "0");
         localStorage.setItem("epps.splitStock.enabled", splitStock ? "1" : "0");
       } catch {}
-  }, [showCategory, showTotal, splitStock]);
+  }, [showCategory, showLastPrice, showTotal, splitStock]);
 
     // Selección de dos almacenes
     const [warehouseAId, setWarehouseAId] = useState<number | null>(null);
@@ -139,6 +145,21 @@ export type EppRow = {
       ];
 
       if (showCategory) cols.push({ accessorKey: "category", header: "Categoría" });
+
+      if (showLastPrice) {
+        cols.push({
+          accessorKey: "lastUnitPrice",
+          header: "Últ. precio compra",
+          cell: ({ getValue }) => {
+            const price = getValue<number | null>();
+            return price !== null && price !== undefined ? (
+              <span className="font-medium">S/ {price.toFixed(2)}</span>
+            ) : (
+              <span className="text-muted-foreground">-</span>
+            );
+          },
+        });
+      }
 
       if (splitStock) {
         cols.push(
@@ -222,7 +243,7 @@ export type EppRow = {
       });
 
       return cols;
-  }, [showCategory, showTotal, splitStock, warehouseAId, warehouseBId, deleting, pending, getWarehouseName, qtyFor, onChanged]);
+  }, [showCategory, showLastPrice, showTotal, splitStock, warehouseAId, warehouseBId, deleting, pending, getWarehouseName, qtyFor, onChanged]);
 
   return (
     <>
@@ -238,6 +259,10 @@ export type EppRow = {
                   <div className="flex items-center gap-2">
                     <Checkbox id="col-category" checked={showCategory} onCheckedChange={() => setShowCategory(s => !s)} />
                     <label htmlFor="col-category" className="text-sm">Categoría</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="col-last-price" checked={showLastPrice} onCheckedChange={() => setShowLastPrice(s => !s)} />
+                    <label htmlFor="col-last-price" className="text-sm">Último precio de compra</label>
                   </div>
                   <div className="flex items-center gap-2">
                     <Checkbox id="col-total" checked={showTotal} onCheckedChange={() => setShowTotal(s => !s)} />
@@ -290,12 +315,14 @@ export type EppRow = {
                     <Button size="sm" variant="ghost" onClick={() => {
                       // reset defaults
                       setShowCategory(true);
+                      setShowLastPrice(true);
                       setShowTotal(true);
                       setSplitStock(false);
                       setWarehouseAId(warehouses?.[0]?.id ?? null);
                       setWarehouseBId(warehouses?.[1]?.id ?? warehouses?.[0]?.id ?? null);
                       try {
                         localStorage.removeItem('epps.columns.showCategory');
+                        localStorage.removeItem('epps.columns.showLastPrice');
                         localStorage.removeItem('epps.columns.showTotal');
                         localStorage.removeItem('epps.splitStock.enabled');
                         localStorage.removeItem('epps.stockWarehouseAId');

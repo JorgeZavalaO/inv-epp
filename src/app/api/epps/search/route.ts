@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth-utils';
 import { createPaginationMeta, getPaginationSkip, parsePagination } from '@/lib/pagination';
+import { getLastPurchasePrices } from '@/lib/epps-last-purchase-price';
 import { getWarehouseScope } from '@/lib/warehouse-scope';
 
 export async function GET(req: Request) {
@@ -79,6 +80,12 @@ export async function GET(req: Request) {
     take: pagination.limit,
   });
 
+  // Último precio unitario de compra registrado por EPP (última ENTRY aprobada con precio)
+  const lastUnitPriceByEpp = await getLastPurchasePrices(
+    epps.map((e) => e.id),
+    scope.effectiveIds,
+  );
+
   // Mapear datos al formato esperado
   const data = epps.map((e) => ({
     id: e.id,
@@ -88,6 +95,7 @@ export async function GET(req: Request) {
     subcategory: e.subcategory,
     description: e.description,
     minStock: e.minStock,
+    lastUnitPrice: lastUnitPriceByEpp.get(e.id) ?? null,
     stocks: e.stocks,
     _count: e._count,
   }));

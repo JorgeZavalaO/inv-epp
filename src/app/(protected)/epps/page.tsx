@@ -21,6 +21,7 @@ interface EPPFromAPI {
   subcategory: string | null;
   description: string | null;
   minStock: number;
+  lastUnitPrice: number | null;
   stocks: Array<{
     warehouseId: number;
     quantity: number;
@@ -127,6 +128,7 @@ export default function EppsPage() {
         stock: e.stocks?.reduce((sum: number, s) => sum + s.quantity, 0) || 0,
         description: e.description,
         minStock: e.minStock,
+        lastUnitPrice: e.lastUnitPrice,
         hasMovement: e._count?.movements > 0,
         items: e.stocks?.map((s) => ({
           warehouseId: s.warehouseId,
