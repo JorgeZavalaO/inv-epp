@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,21 +22,105 @@ interface Props {
   selected: { year?: number; warehouseId?: number; category?: string; collaboratorId?: number; location?: string };
 }
 
+/** Parses a `yyyy-mm-dd` URL value as a local date (react-day-picker works with local days). */
+function parseDateParam(value: string | null): Date | undefined {
+  if (!value) return undefined;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return undefined;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+/** Formats a local date as `yyyy-mm-dd` without going through UTC. */
+function toDateParam(date: Date | undefined): string | undefined {
+  if (!date) return undefined;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateDisplay(value: string | null): string {
+  const date = parseDateParam(value);
+  return date ? date.toLocaleDateString("es-PE") : "";
+}
+
 export default function ReportsFilters({ year, warehouses, categories, collaborators, locations, selected }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [range, setRange] = useState<DateRange | undefined>();
+  const [pickingStart, setPickingStart] = useState(false);
+
+  const fromParam = params.get("from");
+  const toParam = params.get("to");
+
+  // Keep the calendar in sync with the URL (back/forward, "Limpiar", year change, etc.).
+  useEffect(() => {
+    const from = parseDateParam(fromParam);
+    const to = parseDateParam(toParam);
+    setRange(from || to ? { from, to } : undefined);
+  }, [fromParam, toParam]);
 
   const years = useMemo(() => {
     const current = new Date().getFullYear();
     return [current - 2, current - 1, current, current + 1];
   }, []);
 
-  const updateParam = (key: string, value?: string) => {
-    const url = new URL(window.location.href);
-    if (value && value.length) url.searchParams.set(key, value);
-    else url.searchParams.delete(key);
-    startTransition(() => router.push(url.pathname + "?" + url.searchParams.toString()));
+  /** Applies every change in a single navigation so no param overwrites another. */
+  const applyParams = (updates: Record<string, string | undefined>) => {
+    const next = new URLSearchParams(params.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    const query = next.toString();
+    startTransition(() => router.push(query ? `${pathname}?${query}` : pathname));
+  };
+
+  const updateParam = (key: string, value?: string) => applyParams({ [key]: value });
+
+  const onYearChange = (value: string) => {
+    // The year defines the default range, so an explicit range must not override it.
+    setRange(undefined);
+    setPickingStart(false);
+    applyParams({ year: value, from: undefined, to: undefined });
+  };
+
+  const onSelectRange = (next: DateRange | undefined) => {
+    if (!next?.from) {
+      setRange(undefined);
+      setPickingStart(false);
+      applyParams({ from: undefined, to: undefined });
+      return;
+    }
+
+    // react-day-picker defaults `to` to the clicked day, so the first click only
+    // starts the range; the second one completes it before hitting the server.
+    if (!pickingStart) {
+      setRange({ from: next.from, to: undefined });
+      setPickingStart(true);
+      return;
+    }
+
+    const from = toDateParam(next.from);
+    const to = toDateParam(next.to ?? next.from);
+    setRange(next);
+    setPickingStart(false);
+    applyParams({ from, to });
+    setCalendarOpen(false);
+  };
+
+  const onCalendarOpenChange = (open: boolean) => {
+    setCalendarOpen(open);
+    setPickingStart(false);
+    if (open) {
+      const from = parseDateParam(fromParam);
+      const to = parseDateParam(toParam);
+      setRange(from || to ? { from, to } : undefined);
+    }
   };
 
   const triggerDownload = async (res: Response, name: string) => {
@@ -58,9 +142,18 @@ export default function ReportsFilters({ year, warehouses, categories, collabora
   };
 
   const onClear = () => {
-    const url = new URL(window.location.href);
-    ["year", "warehouseId", "category", "collaboratorId", "location", "from", "to"].forEach(k => url.searchParams.delete(k));
-    startTransition(() => router.push(url.pathname));
+    setRange(undefined);
+    setPickingStart(false);
+    setCalendarOpen(false);
+    applyParams({
+      year: undefined,
+      warehouseId: undefined,
+      category: undefined,
+      collaboratorId: undefined,
+      location: undefined,
+      from: undefined,
+      to: undefined,
+    });
   };
 
   return (
@@ -68,7 +161,7 @@ export default function ReportsFilters({ year, warehouses, categories, collabora
       <CardContent className="flex flex-wrap gap-3 items-center py-4">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-600">Año</span>
-          <Select value={String(selected.year ?? year)} onValueChange={(v) => updateParam("year", v)}>
+          <Select value={String(selected.year ?? year)} onValueChange={onYearChange}>
             <SelectTrigger size="sm" className="min-w-28">
               <SelectValue placeholder="Año" />
             </SelectTrigger>
@@ -144,7 +237,7 @@ export default function ReportsFilters({ year, warehouses, categories, collabora
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Rango</Label>
             <div className="flex items-center gap-2">
-              <Popover>
+              <Popover open={calendarOpen} onOpenChange={onCalendarOpenChange}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm">
                     <CalendarIcon className="size-4" />
@@ -155,24 +248,16 @@ export default function ReportsFilters({ year, warehouses, categories, collabora
                   <div className="p-3">
                     <Calendar
                       mode="range"
-                      selected={((): DateRange | undefined => {
-                        const f = params.get('from');
-                        const t = params.get('to');
-                        if (!f && !t) return undefined;
-                        return { from: f ? new Date(f) : undefined, to: t ? new Date(t) : undefined };
-                      })()}
-                      onSelect={(range: DateRange | undefined) => {
-                        if (!range) return;
-                        updateParam('from', range.from ? range.from.toISOString().slice(0,10) : undefined);
-                        updateParam('to', range.to ? range.to.toISOString().slice(0,10) : undefined);
-                      }}
+                      defaultMonth={range?.from}
+                      selected={range}
+                      onSelect={onSelectRange}
                     />
                   </div>
                 </PopoverContent>
               </Popover>
 
-              <Input readOnly value={params.get('from') ?? ''} placeholder="Desde" className="w-28" />
-              <Input readOnly value={params.get('to') ?? ''} placeholder="Hasta" className="w-28" />
+              <Input readOnly value={formatDateDisplay(fromParam)} placeholder="Desde" className="w-28" title={fromParam ?? undefined} />
+              <Input readOnly value={formatDateDisplay(toParam)} placeholder="Hasta" className="w-28" title={toParam ?? undefined} />
             </div>
           </div>
 

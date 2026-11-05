@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateDeliveriesExcel } from "@/lib/export/deliveries-excel";
 import { requirePermission } from "@/lib/auth-utils";
 import { getWarehouseScope, narrowScope } from "@/lib/warehouse-scope";
+import { limaDateKey, parseLimaDateBoundary } from "@/lib/date-range";
 
 function parseNumber(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -9,17 +10,8 @@ function parseNumber(value: string | null): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-function parseDate(value: string | null): Date | undefined {
-  if (!value) return undefined;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-}
-
-function formatForFilename(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function parseDate(value: string | null, boundary: "start" | "end"): Date | undefined {
+  return parseLimaDateBoundary(value, boundary) ?? undefined;
 }
 
 export async function GET(req: NextRequest) {
@@ -38,8 +30,8 @@ export async function GET(req: NextRequest) {
       ? narrowScope(scope, requestedWarehouseId)
       : scope.effectiveIds;
 
-  const from = parseDate(searchParams.get("dateFrom") ?? searchParams.get("from"));
-  const to = parseDate(searchParams.get("dateTo") ?? searchParams.get("to"));
+  const from = parseDate(searchParams.get("dateFrom") ?? searchParams.get("from"), "start");
+  const to = parseDate(searchParams.get("dateTo") ?? searchParams.get("to"), "end");
 
   const buffer = await generateDeliveriesExcel({
     from,
@@ -53,14 +45,13 @@ export async function GET(req: NextRequest) {
 
   let filenameSuffix = "general";
   if (from && to) {
-    filenameSuffix = `${formatForFilename(from)}_al_${formatForFilename(to)}`;
+    filenameSuffix = `${limaDateKey(from)}_al_${limaDateKey(to)}`;
   } else if (from) {
-    filenameSuffix = `desde_${formatForFilename(from)}`;
+    filenameSuffix = `desde_${limaDateKey(from)}`;
   } else if (to) {
-    filenameSuffix = `hasta_${formatForFilename(to)}`;
+    filenameSuffix = `hasta_${limaDateKey(to)}`;
   } else {
-    const now = new Date();
-    filenameSuffix = formatForFilename(now);
+    filenameSuffix = limaDateKey(new Date());
   }
 
   const filename = `entregas-${filenameSuffix}.xlsx`;

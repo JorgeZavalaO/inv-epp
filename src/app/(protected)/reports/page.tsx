@@ -21,7 +21,8 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Pro
   
   const sp = (await searchParams) ?? {};
   const scope = await getWarehouseScope();
-  const year = Number(sp.year ?? new Date().getFullYear());
+  const yearParam = Number(sp.year);
+  const year = Number.isInteger(yearParam) && yearParam > 1900 ? yearParam : new Date().getFullYear();
   const warehouseId = sp.warehouseId ? Number(sp.warehouseId) : undefined;
   const warehouseIds = narrowScope(scope, warehouseId);
   const category = sp.category || undefined;

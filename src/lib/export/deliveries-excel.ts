@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { parseLimaDateBoundary } from "@/lib/date-range";
 
 export interface DeliveriesExportFilters {
   from?: string | Date;
@@ -16,14 +17,10 @@ export interface DeliveriesExportFilters {
 
 function normalizeDate(input: string | Date | undefined, type: "from" | "to"): Date | undefined {
   if (!input) return undefined;
-  const date = typeof input === "string" ? new Date(input) : new Date(input);
-  if (Number.isNaN(date.getTime())) return undefined;
-  if (type === "from") {
-    date.setHours(0, 0, 0, 0);
-  } else {
-    date.setHours(23, 59, 59, 999);
+  if (input instanceof Date) {
+    return Number.isNaN(input.getTime()) ? undefined : input;
   }
-  return date;
+  return parseLimaDateBoundary(input, type === "from" ? "start" : "end") ?? undefined;
 }
 
 export async function fetchDeliveriesForExport(filters: DeliveriesExportFilters) {

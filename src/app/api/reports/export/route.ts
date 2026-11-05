@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateDeliveriesExcel } from "@/lib/export/deliveries-excel";
 import { requirePermission } from "@/lib/auth-utils";
 import { getWarehouseScope, narrowScope } from "@/lib/warehouse-scope";
+import { limaDateKey, parseLimaDateBoundary } from "@/lib/date-range";
 
 function parseNumber(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -9,17 +10,8 @@ function parseNumber(value: string | null): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-function parseDate(value: string | null, fallback: Date): Date {
-  if (!value) return fallback;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? fallback : parsed;
-}
-
-function formatForFilename(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function parseDate(value: string | null, boundary: "start" | "end", fallback: Date): Date {
+  return parseLimaDateBoundary(value, boundary) ?? fallback;
 }
 
 export async function GET(req: NextRequest) {
@@ -27,16 +19,18 @@ export async function GET(req: NextRequest) {
   
   const { searchParams } = new URL(req.url);
 
-  const year = Number(searchParams.get("year") ?? new Date().getFullYear());
+  const yearParam = Number(searchParams.get("year") ?? new Date().getFullYear());
+  const year = Number.isFinite(yearParam) ? Math.trunc(yearParam) : new Date().getFullYear();
 
-  const defaultFrom = new Date(year, 0, 1);
-  const defaultTo = new Date(year, 11, 31);
+  const defaultFrom = parseLimaDateBoundary(`${year}-01-01`, "start") ?? new Date(year, 0, 1);
+  const defaultTo =
+    parseLimaDateBoundary(`${year}-12-31`, "end") ?? new Date(year, 11, 31, 23, 59, 59, 999);
 
   const fromParam = searchParams.get("from");
   const toParam = searchParams.get("to");
 
-  const fromDate = parseDate(fromParam, defaultFrom);
-  const toDate = parseDate(toParam, defaultTo);
+  const fromDate = parseDate(fromParam, "start", defaultFrom);
+  const toDate = parseDate(toParam, "end", defaultTo);
 
   const warehouseId = parseNumber(searchParams.get("warehouseId"));
   const scope = await getWarehouseScope();
@@ -59,7 +53,7 @@ export async function GET(req: NextRequest) {
 
   const rangeLabel =
     fromParam || toParam
-      ? `${formatForFilename(fromDate)}_al_${formatForFilename(toDate)}`
+      ? `${limaDateKey(fromDate)}_al_${limaDateKey(toDate)}`
       : `${year}`;
   const filename = `reportes-entregas-${rangeLabel}.xlsx`;
 

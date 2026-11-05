@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { sqlWarehouseIn, type WarehouseScope } from "@/lib/warehouse-scope";
+import { limaMonthKey, parseLimaDateBoundary } from "@/lib/date-range";
 
 export interface MonthlyPoint {
   month: string; // YYYY-MM
@@ -86,21 +87,21 @@ export interface ReportsIndicators {
   averageDailyDeliveredQty: number;
 }
 
-function monthKey(date: Date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  return `${y}-${m}`;
-}
-
 function ensureMonthsInRange(rows: Array<{ month: string; qty: number }>, from: Date, to: Date): MonthlyPoint[] {
   const byMonth = new Map(rows.map(r => [r.month, r.qty] as const));
   const result: MonthlyPoint[] = [];
-  const cursor = new Date(from.getFullYear(), from.getMonth(), 1);
-  const end = new Date(to.getFullYear(), to.getMonth(), 1);
-  while (cursor <= end) {
-    const key = monthKey(cursor);
+  const [startYear, startMonth] = limaMonthKey(from).split("-").map(Number);
+  const [endYear, endMonth] = limaMonthKey(to).split("-").map(Number);
+  let year = startYear;
+  let month = startMonth;
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    const key = `${year}-${String(month).padStart(2, "0")}`;
     result.push({ month: key, qty: byMonth.get(key) ?? 0 });
-    cursor.setMonth(cursor.getMonth() + 1);
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
   }
   return result;
 }
@@ -113,10 +114,19 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
       : filters.warehouseId
         ? [filters.warehouseId]
         : null;
-  const defaultFrom = new Date(year, 0, 1);
-  const defaultTo = new Date(year, 11, 31, 23, 59, 59, 999);
-  const fromDate = from ? new Date(from) : defaultFrom;
-  const toDate = to ? new Date(to) : defaultTo;
+  const safeYear = Number.isFinite(year) ? Math.trunc(year) : new Date().getFullYear();
+  const defaultFrom =
+    parseLimaDateBoundary(`${safeYear}-01-01`, "start") ?? new Date(safeYear, 0, 1);
+  const defaultTo =
+    parseLimaDateBoundary(`${safeYear}-12-31`, "end") ?? new Date(safeYear, 11, 31, 23, 59, 59, 999);
+  // Date params are `yyyy-mm-dd` and must be read as full days in America/Lima.
+  let fromParam = from;
+  let toParam = to;
+  if (fromParam && toParam && fromParam > toParam) {
+    [fromParam, toParam] = [toParam, fromParam];
+  }
+  const fromDate = parseLimaDateBoundary(fromParam, "start") ?? defaultFrom;
+  const toDate = parseLimaDateBoundary(toParam, "end") ?? defaultTo;
   
   // ✅ Construir condiciones WHERE base (siempre disponibles)
   const baseConditions = [Prisma.sql`d."createdAt" BETWEEN ${fromDate} AND ${toDate}`];
@@ -136,7 +146,7 @@ export async function fetchReportsData(year: number, filters: ReportsFilters = {
   // ✅ OPTIMIZACIÓN: Queries paralelas optimizadas con límites
   const [monthlyRaw, topEpps, topLocations, latest, categoriesRaw, locationsFull, indicatorsDeliveryBase, returnAgg, requestsAgg, transferSummaryRaw, latestTransfersRaw] = await Promise.all([
     prisma.$queryRaw<Array<{ month: string; qty: number }>>(Prisma.sql`
-      SELECT TO_CHAR(date_trunc('month', d."createdAt"), 'YYYY-MM') AS month,
+      SELECT TO_CHAR(date_trunc('month', d."createdAt" - INTERVAL '5 hours'), 'YYYY-MM') AS month,
              SUM(d.quantity)::int AS qty
       FROM "Delivery" d
       INNER JOIN "DeliveryBatch" b ON b.id = d."batchId"
