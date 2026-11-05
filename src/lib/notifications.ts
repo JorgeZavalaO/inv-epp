@@ -81,12 +81,28 @@ async function sendEmail(data: AccessRequestNotification): Promise<void> {
   });
 }
 
+async function sendWhatsApp(data: AccessRequestNotification): Promise<void> {
+  // CallMeBot: the recipient must opt in once and obtain an API key.
+  const apiKey = process.env.CALLMEBOT_API_KEY;
+  const phone = process.env.CALLMEBOT_PHONE;
+  if (!apiKey || !phone) return;
+
+  const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(
+    phone,
+  )}&text=${encodeURIComponent(buildText(data))}&apikey=${encodeURIComponent(
+    apiKey,
+  )}`;
+
+  await fetch(url, { signal: AbortSignal.timeout(5000) });
+}
+
 export async function notifyAccessRequest(
   data: AccessRequestNotification,
 ): Promise<void> {
   const results = await Promise.allSettled([
     sendWebhook(data),
     sendEmail(data),
+    sendWhatsApp(data),
   ]);
 
   for (const result of results) {

@@ -19,6 +19,7 @@ pero no se envía ningún aviso. Para activar avisos, configurar en Vercel:
 | Variable | Uso |
 |---|---|
 | `CONTACT_WEBHOOK_URL` | Recibe un `POST` JSON con los datos del contacto. Sirve para Zapier, Make o la API de WhatsApp Cloud. |
+| `CALLMEBOT_API_KEY` + `CALLMEBOT_PHONE` | Envían un WhatsApp mediante CallMeBot. El destinatario debe activar el bot una vez para obtener su API key. |
 | `RESEND_API_KEY` | Envía un correo mediante Resend. |
 | `CONTACT_NOTIFICATION_EMAIL` | Destinatario del correo. Por ejemplo, el correo del administrador. |
 | `CONTACT_NOTIFICATION_FROM` | Remitente verificado en Resend. Por defecto `onboarding@resend.dev`. |

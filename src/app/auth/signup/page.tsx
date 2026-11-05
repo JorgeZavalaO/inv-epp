@@ -83,6 +83,9 @@ export default function RequestAccessPage() {
   const followUpMessage =
     "Hola, envié una solicitud de acceso al sistema EPP Manager y quisiera conocer más.";
   const waHref = whatsappHref(followUpMessage);
+  const waContactHref = whatsappHref(
+    "Hola, quiero conocer más sobre EPP Manager.",
+  );
   const mailHref = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(
     "Solicitud de acceso a EPP Manager",
   )}&body=${encodeURIComponent(followUpMessage)}`;
@@ -244,6 +247,18 @@ export default function RequestAccessPage() {
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isLoading ? "Enviando..." : "Enviar solicitud"}
               </Button>
+
+              {waContactHref && (
+                <a
+                  href={waContactHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 text-sm font-medium text-green-700 hover:underline"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  ¿Preferís WhatsApp? Escribinos
+                </a>
+              )}
 
               <div className="text-center text-sm text-muted-foreground">
                 ¿Ya tienes cuenta?{" "}
