@@ -311,19 +311,21 @@ model Approval {
 
 /// Colaboradores de entregas
 model Collaborator {
-  id              Int             @id @default(autoincrement())
-  name            String          @db.VarChar(128)
-  email           String?         @db.VarChar(128)
-  position        String?         @db.VarChar(64)
-  documentId      String?         @db.VarChar(20)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  location        String?         @db.VarChar(128)
+  id              Int                @id @default(autoincrement())
+  name            String             @db.VarChar(128)
+  email           String?            @db.VarChar(128)
+  position        String?            @db.VarChar(64)
+  documentId      String?            @db.VarChar(20)
+  status          CollaboratorStatus @default(ACTIVE)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  location        String?            @db.VarChar(128)
   deliveryBatches DeliveryBatch[]
 
   @@index([name])
   @@index([location])
   @@index([documentId])
+  @@index([status])
 }
 
 /// Configuración general del sistema (solo un registro – id = 1)
@@ -426,4 +428,9 @@ enum AccessRequestStatus {
   PENDING
   CONTACTED
   CLOSED
+}
+
+enum CollaboratorStatus {
+  ACTIVE
+  INACTIVE
 }

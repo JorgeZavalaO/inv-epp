@@ -12,6 +12,7 @@ import {
   getWarehouseScope,
   isInScope,
 } from "@/lib/warehouse-scope";
+import { assertCollaboratorActive } from "@/lib/collaborators";
 
 export async function createDeliveryBatch(fd: FormData) {
   await requirePermission("deliveries_manage");
@@ -39,6 +40,9 @@ export async function createDeliveryBatch(fd: FormData) {
   while (attempt < MAX_RETRIES) {
     try {
       const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // Un colaborador dado de baja no puede recibir nuevas entregas
+        await assertCollaboratorActive(data.collaboratorId, tx);
+
         // ✅ CORRECCIÓN 3: Usar timestamp consistente para toda la transacción
         const creationTimestamp = new Date();
         
@@ -188,11 +192,17 @@ export async function updateDeliveryBatch(fd: FormData) {
   const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const before = await tx.deliveryBatch.findUnique({
       where: { id: batchId },
-      select: { id: true, code: true, collaboratorId: true, note: true, warehouseId: true, collaborator: { select: { name: true } } },
+      select: { id: true, code: true, collaboratorId: true, note: true, warehouseId: true, collaborator: { select: { name: true, status: true } } },
     });
     if (!before) throw new Error("Lote no encontrado");
     if (!isInScope(scope, before.warehouseId)) {
       throw new Error("No autorizado - Almacén fuera de tu alcance actual");
+    }
+
+    // Solo se valida el estado si la entrega se reasigna a otro colaborador.
+    // Un lote histórico puede corregirse sin cambiar a quién se entregó.
+    if (data.collaboratorId !== before.collaboratorId) {
+      await assertCollaboratorActive(data.collaboratorId, tx);
     }
 
     // actualizar collaborator/note
@@ -213,6 +223,22 @@ export async function updateDeliveryBatch(fd: FormData) {
     const existing = await tx.delivery.findMany({ where: { batchId }, select: { id: true, eppId: true, quantity: true } });
     const existingMap = new Map<number, { id: number; quantity: number }>();
     for (const ex of existing) existingMap.set(ex.eppId, { id: ex.id, quantity: ex.quantity });
+
+    // Un colaborador dado de baja no puede recibir nuevas unidades: se permite
+    // corregir el lote histórico, pero no agregar ítems ni aumentar cantidades.
+    if (
+      data.collaboratorId === before.collaboratorId &&
+      before.collaborator.status === "INACTIVE"
+    ) {
+      for (const it of data.items) {
+        const previousQuantity = existingMap.get(it.eppId)?.quantity ?? 0;
+        if (it.quantity > previousQuantity) {
+          throw new Error(
+            `El colaborador «${before.collaborator.name}» está dado de baja: no se pueden agregar ni aumentar entregas`,
+          );
+        }
+      }
+    }
 
     const summary: string[] = [];
     

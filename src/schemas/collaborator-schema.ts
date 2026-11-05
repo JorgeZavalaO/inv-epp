@@ -13,3 +13,12 @@ export const collaboratorSchema = z.object({
 });
 
 export type CollaboratorValues = z.infer<typeof collaboratorSchema>;
+
+export const collaboratorStatusSchema = z.enum(["ACTIVE", "INACTIVE"]);
+
+export type CollaboratorStatusValue = z.infer<typeof collaboratorStatusSchema>;
+
+export const collaboratorStatusLabels: Record<CollaboratorStatusValue, string> = {
+  ACTIVE: "Activo",
+  INACTIVE: "Dado de baja",
+};

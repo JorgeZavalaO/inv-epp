@@ -11,6 +11,7 @@ import {
   assertWarehouseInScope,
   getWarehouseScope,
 } from "@/lib/warehouse-scope";
+import { assertCollaboratorActive } from "@/lib/collaborators";
 
 export async function GET(request: Request) {
   let scope;
@@ -108,6 +109,7 @@ export async function POST(req: Request) {
     const payload = await req.json();
     const data = deliveryBatchSchema.parse(payload);
     await assertWarehouseInScope(data.warehouseId);
+    await assertCollaboratorActive(data.collaboratorId);
     const operator = await ensureAuthUser();
 
     const batchId = await prisma.$transaction(

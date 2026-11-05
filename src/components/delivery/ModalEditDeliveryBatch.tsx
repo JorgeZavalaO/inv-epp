@@ -23,7 +23,7 @@ export default function ModalEditDeliveryBatch({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const [collaborators, setCollaborators] = useState<{ id: number; label: string; position?: string; location?: string }[]>([]);
+  const [collaborators, setCollaborators] = useState<{ id: number; label: string; position?: string; location?: string; documentId?: string | null; status?: "ACTIVE" | "INACTIVE" }[]>([]);
   const [warehouses, setWarehouses]       = useState<{ id: number; label: string }[]>([]);
   const [loadingCols, setLoadingCols]     = useState(true);
   const [loadingWhs, setLoadingWhs]       = useState(true);
@@ -31,12 +31,14 @@ export default function ModalEditDeliveryBatch({
   useEffect(() => {
     fetch("/api/collaborators")
       .then((r) => r.json())
-      .then((rows: { id: number; name: string; position?: string; location?: string }[]) =>
+      .then((rows: { id: number; name: string; position?: string; location?: string; documentId?: string | null; status?: "ACTIVE" | "INACTIVE" }[]) =>
         setCollaborators(rows.map((c) => ({
           id:       c.id,
           label:    c.name,
           position: c.position,
           location: c.location,
+          documentId: c.documentId,
+          status:   c.status,
         })))
       )
       .catch(() => setCollaborators([]))

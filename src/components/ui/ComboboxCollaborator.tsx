@@ -16,6 +16,8 @@ interface CollaboratorOption {
   label:    string;
   position?: string;
   location?: string;
+  documentId?: string | null;
+  status?:   "ACTIVE" | "INACTIVE";
 }
 
 export default function ComboboxCollaborator({
@@ -46,11 +48,15 @@ export default function ComboboxCollaborator({
     return options.filter((c) =>
       c.label.toLowerCase().includes(q) ||
       (c.position?.toLowerCase().includes(q) ?? false) ||
-      (c.location?.toLowerCase().includes(q) ?? false)
+      (c.location?.toLowerCase().includes(q) ?? false) ||
+      (c.documentId?.toLowerCase().includes(q) ?? false)
     );
   }, [options, query]);
 
-  const selectedLabel = options.find((c) => c.id === value)?.label || "Selecciona colaborador";
+  const selected = options.find((c) => c.id === value);
+  const selectedLabel = selected
+    ? `${selected.label}${selected.status === "INACTIVE" ? " (Dado de baja)" : ""}`
+    : "Selecciona colaborador";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -91,16 +97,26 @@ export default function ComboboxCollaborator({
                 key={c.id}
                 // ahora filtramos por etiqueta, no por id
                 value={c.label}
+                disabled={c.status === "INACTIVE"}
+                className={c.status === "INACTIVE" ? "opacity-60" : undefined}
                 onSelect={() => {
+                  if (c.status === "INACTIVE") return;
                   onChange(c.id);
                   setOpen(false);
                 }}
               >
                 <div className="flex flex-col">
-                  <span>{c.label}</span>
-                  {(c.position || c.location) && (
+                  <span className="flex items-center gap-2">
+                    {c.label}
+                    {c.status === "INACTIVE" && (
+                      <span className="rounded border border-muted-foreground/30 px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+                        Dado de baja
+                      </span>
+                    )}
+                  </span>
+                  {(c.position || c.location || c.documentId) && (
                     <span className="text-xs text-muted-foreground">
-                      {c.position ?? ""}{c.position && c.location ? " • " : ""}{c.location ?? ""}
+                      {[c.documentId, c.position, c.location].filter(Boolean).join(" • ")}
                     </span>
                   )}
                 </div>

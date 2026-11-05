@@ -7,6 +7,7 @@ import {
   narrowScope,
 } from "@/lib/warehouse-scope";
 import type { Prisma } from "@prisma/client";
+import { assertCollaboratorActive } from "@/lib/collaborators";
 
 export async function GET(request: Request) {
   let scope;
@@ -134,7 +135,14 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+    if (!data?.collaboratorId) {
+      return NextResponse.json(
+        { error: "El colaborador es obligatorio" },
+        { status: 400 },
+      );
+    }
     await assertWarehouseInScope(Number(data.warehouseId));
+    await assertCollaboratorActive(Number(data.collaboratorId));
     const created = await prisma.deliveryBatch.create({ data });
     return NextResponse.json(created, { status: 201 });
   } catch (error: unknown) {

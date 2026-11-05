@@ -14,14 +14,14 @@ export default function ModalCreateDeliveryBatch({ onClose, onCreated }: { onClo
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const [collaborators, setCollaborators] = useState<{ id: number; name: string; position?: string; location?: string }[]>([]);
+  const [collaborators, setCollaborators] = useState<{ id: number; name: string; position?: string; location?: string; documentId?: string | null; status?: "ACTIVE" | "INACTIVE" }[]>([]);
   const [warehouses, setWarehouses]       = useState<{ id: number; name: string }[]>([]);
   const [primaryWarehouseId, setPrimaryWarehouseId] = useState<number | undefined>(undefined);
   const [loadingCols, setLoadingCols]     = useState(true);
   const [loadingWhs, setLoadingWhs]       = useState(true);
 
   useEffect(() => {
-    fetch("/api/collaborators")
+    fetch("/api/collaborators?status=ACTIVE")
       .then((r) => r.json())
       .then((rows) => setCollaborators(rows))
       .catch(() => setCollaborators([]))
@@ -77,7 +77,7 @@ export default function ModalCreateDeliveryBatch({ onClose, onCreated }: { onClo
         </DialogHeader>
   <div className="flex-1 overflow-auto hide-scrollbar">
           <DeliveryBatchForm
-            collaborators={loadingCols ? [] : collaborators.map(c => ({ id: c.id, label: c.name, position: c.position, location: c.location }))}
+            collaborators={loadingCols ? [] : collaborators.map(c => ({ id: c.id, label: c.name, position: c.position, location: c.location, documentId: c.documentId, status: c.status }))}
             warehouses={loadingWhs ? [] : warehouses.map(w => ({ id: w.id, label: w.name }))}
             defaultWarehouseId={primaryWarehouseId}
             onSubmit={handleCreate}

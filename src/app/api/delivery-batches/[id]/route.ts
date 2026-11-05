@@ -8,6 +8,7 @@ import {
   assertWarehouseInScope,
   canReadWarehouse,
 } from "@/lib/warehouse-scope";
+import { assertCollaboratorActive } from "@/lib/collaborators";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 
@@ -88,7 +89,7 @@ export async function PUT(
 
     const batchForUpdate = await prisma.deliveryBatch.findUnique({
       where: { id: batchId },
-      select: { warehouseId: true },
+      select: { warehouseId: true, collaboratorId: true },
     });
     if (!batchForUpdate) {
       return NextResponse.json(
@@ -97,6 +98,9 @@ export async function PUT(
       );
     }
     await assertWarehouseInScope(batchForUpdate.warehouseId);
+    if (data.collaboratorId !== batchForUpdate.collaboratorId) {
+      await assertCollaboratorActive(data.collaboratorId);
+    }
 
     const updated = await prisma.deliveryBatch.update({
       where: { id: batchId },

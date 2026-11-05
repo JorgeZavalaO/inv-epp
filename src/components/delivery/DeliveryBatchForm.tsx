@@ -24,7 +24,7 @@ export default function DeliveryBatchForm({
   onCancel,
   isPending = false,
 }: {
-  collaborators: { id: number; label: string; position?: string; location?: string }[];
+  collaborators: { id: number; label: string; position?: string; location?: string; documentId?: string | null; status?: "ACTIVE" | "INACTIVE" }[];
   warehouses:    { id: number; label: string }[];
   defaultValues?: DeliveryBatchValues;
   defaultWarehouseId?: number;
@@ -50,6 +50,13 @@ export default function DeliveryBatchForm({
 
   const items       = watch("items") as { eppId?: number; quantity?: number }[];
   const warehouseId = watch("warehouseId") as number | undefined;
+  const collaboratorId = watch("collaboratorId") as number | undefined;
+  const selectedCollaborator = collaborators.find((c) => c.id === collaboratorId);
+  const isInactiveSelection = selectedCollaborator?.status === "INACTIVE";
+  const isOriginalCollaborator =
+    defaultValues?.collaboratorId !== undefined &&
+    defaultValues.collaboratorId === collaboratorId;
+  const isBlockedByInactive = isInactiveSelection && !isOriginalCollaborator;
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
 
   const [stockMap, setStockMap]     = React.useState<Record<string, number>>({});
@@ -121,6 +128,18 @@ export default function DeliveryBatchForm({
                 {errors.collaboratorId && (
                   <p className="text-destructive text-sm">
                     {errors.collaboratorId.message}
+                  </p>
+                )}
+                {isBlockedByInactive && (
+                  <p className="text-destructive text-sm">
+                    Este colaborador está dado de baja. Selecciona un colaborador activo para
+                    guardar la entrega.
+                  </p>
+                )}
+                {isInactiveSelection && isOriginalCollaborator && (
+                  <p className="text-amber-600 text-sm">
+                    Este colaborador está dado de baja. Puedes corregir el lote, pero no agregar
+                    ítems ni aumentar cantidades.
                   </p>
                 )}
               </div>
@@ -324,7 +343,7 @@ export default function DeliveryBatchForm({
             )}
             <Button 
               type="submit" 
-              disabled={!isValid || isSubmitting || isPending} 
+              disabled={!isValid || isSubmitting || isPending || isBlockedByInactive} 
               aria-busy={isSubmitting || isPending}
             >
               {isSubmitting || isPending ? (

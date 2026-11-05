@@ -9,16 +9,23 @@ import { createPaginationMeta, getPaginationSkip, parsePagination } from "@/lib/
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search")?.trim();
+  const statusParam = searchParams.get("status");
+  const status =
+    statusParam === "ACTIVE" || statusParam === "INACTIVE" ? statusParam : undefined;
   const hasPagination = searchParams.has("page") || searchParams.has("limit") || Boolean(search);
-  const where = search
-    ? {
-        OR: [
-          { name: { contains: search, mode: "insensitive" as const } },
-          { email: { contains: search, mode: "insensitive" as const } },
-          { documentId: { contains: search, mode: "insensitive" as const } },
-        ],
-      }
-    : undefined;
+  const where: Prisma.CollaboratorWhereInput = {
+    ...(status ? { status } : {}),
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" as const } },
+            { email: { contains: search, mode: "insensitive" as const } },
+            { location: { contains: search, mode: "insensitive" as const } },
+            { documentId: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
 
   if (hasPagination) {
     const requestedPagination = parsePagination(searchParams.get("page"), searchParams.get("limit"));
@@ -30,7 +37,7 @@ export async function GET(req: Request) {
     );
     const list = await prisma.collaborator.findMany({
       where,
-      select: { id: true, name: true, position: true, location: true },
+      select: { id: true, name: true, position: true, location: true, documentId: true, status: true },
       orderBy: [{ name: "asc" }, { id: "asc" }],
       skip: getPaginationSkip(pagination),
       take: pagination.limit,
@@ -40,19 +47,22 @@ export async function GET(req: Request) {
   }
 
   const list = await prisma.collaborator.findMany({
+    where,
     select: {
       id: true,
       name: true,
       position: true,
       location: true,
+      documentId: true,
+      status: true,
     },
     orderBy: [{ name: "asc" }, { id: "asc" }],
   });
-  
+
   return NextResponse.json(list, {
     headers: {
-      // ✅ OPTIMIZACIÓN: Cache de 10 minutos para colaboradores
-      "Cache-Control": "public, max-age=600, s-maxage=600, stale-while-revalidate=300",
+      // Depende de datos que cambian (estado del colaborador): nunca cachear.
+      "Cache-Control": "private, no-store",
     },
   });
 }
